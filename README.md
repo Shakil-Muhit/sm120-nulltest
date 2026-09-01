@@ -41,6 +41,13 @@ pinned model code on CPU; the full construction path
 MelBandRoformer with the module structure the P8 hooks assume.
 
 Before the session: commit the repo (the runbook's `git clone` needs it).
+After any clone, enable the integrity gate (blocks commits containing
+unparseable .sh/.py or terminal-paste artifacts — see the etiology header
+in `scripts/precommit.sh`):
+
+```bash
+git config core.hooksPath .githooks
+```
 
 ## 1. Session command sequence (2am version)
 
@@ -253,6 +260,8 @@ else; `frontend.py` internals are never modified — arm variants swap the
 ```
 README.md                 this runbook
 build_spec.md             standing rules: borrow discipline, capture-is-final
+scripts/precommit.sh      pre-commit integrity gate (parse checks + paste-artifact
+                          scan; wired via .githooks/, see section 0)
 docs/profiling_crib.md    every nsys/NVTX/profiler-API call: flags, expected output,
                           failure detection (reviewer reproduction reference)
 docs/prompt.md            the original build brief (owner-archived)
