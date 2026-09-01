@@ -2,6 +2,9 @@
 # terminate — never committed from the pod (session-owner instruction).
 evidence/*
 !evidence/.gitkeep
+# owner's audit sign-off — deliberate exception (2026-09-01); run outputs
+# produced on the pod remain unversioned as before
+!evidence/audit_log.md
 
 # shakedown outputs (scripts/smoke.sh) — engineering data, never session evidence
 evidence_smoke/
