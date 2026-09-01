@@ -10,11 +10,8 @@ verification records beneath each are Code's.
 > by Code from embedded complete copy; verified by diff against the audited
 > paste of Sep 1 — sole deltas are the item-2 floor guard. Stamp re-anchored.
 
-> And say the quiet part in the log too, because it's tonight's thesis made
-> flesh: a zero-commit repo has no way to even notice this. One push and
-> git status screams on the next stray paste-into-terminal; git checkout
-> restores it in two seconds. The corruption is not a reason for alarm — it's
-> the last argument the push needed.
+> A zero-commit repo cannot detect this corruption class; version control
+> converts it to a visible git status diff and a two-second restore.
 
 Verification record (Code): audited reference reconstructed as shebang + the
 embedded complete copy (pre-fix snapshot lines 131-291 — the byte-identical

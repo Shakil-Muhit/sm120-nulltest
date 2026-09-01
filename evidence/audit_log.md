@@ -28,7 +28,8 @@ signed prereg ("what would violate this, where would it live").
    Aug 31, pre-session; bash -n failed — could never have produced numbers).
    Reconstructed by Code from embedded complete copy; verified by diff
    against the audited Sep 1 paste — sole deltas are the item-2 floor
-   guard: __. Stamp re-anchored to reconstructed file.
+   guard (verified again post-reconstruction in external review, 2026-09-01).
+   Stamp re-anchored to reconstructed file.
 4b. Validation tolerance — RULED TWO-TIER (was uninspected agent default
    1e-4/1e-5 for all arms). Tight (A/B/D/F/G + E per as-built): 1e-4/1e-5 —
    no compiler-regenerated kernels; B measured bitwise, G's Triton front-end
@@ -38,7 +39,8 @@ signed prereg ("what would violate this, where would it live").
    Classification rule in code: tier = compiler-regenerated kernels present;
    explicit dict, no default entry (unlisted arm must KeyError).
    E reclassified tight per as-built (fused-Triton + replay, no Inductor);
-   Code confirmation: __. C1/C2/E NEVER YET VALIDATED — pod opening items.
+   Code confirmation: applied, VAL_TOL shows E at (1e-4, 1e-5), loose
+   tier = C1/C2 only. C1/C2/E NEVER YET VALIDATED — pod opening items.
 5. Provenance — PASS. Model built only via pinned msst clone's own path
    (get_model_from_config → load_start_checkpoint, mirrors upstream
    inference.py:211-216); no model-defining files in repo; arms never import
