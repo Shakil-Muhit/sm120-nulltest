@@ -37,3 +37,26 @@ Verification record (Code): `VAL_TOL` now tight = A/B/D/E/F/G, loose = C1/C2
 README Deviations item 4 updated. The rule outranked the ledger — the loose-E
 assignment came from the owner's Vol. 1 arm-ledger reconstruction; the file as
 built decided.
+
+## 2026-09-01 — setup.sh corruption found in pushed 10452d1; restored
+
+Owner review of the pushed tree found setup.sh corrupted at :57 — same class
+as traces.sh: a terminal-session paste (prompt + `diff setup.sh
+sm120-nulltest/setup.sh` + its full output) replaced everything after line 56;
+`bash -n` failed, so on a fresh pod setup would die before installing
+anything. The corruption predated the fix-pass snapshot (the snapshot copy is
+identical to the broken file), so the fix pass's "untouched, verified by diff"
+was true against a broken baseline — consistency, not integrity. The reviewer's
+trust-boundary lesson stands verbatim.
+
+Verification record (Code): restored from the pre-corruption mirror
+(ms2/sm120-nulltest/setup.sh — 107 lines, parses, sha256 0c501d8e6b9ab653…).
+Triangulation: mirror lines 1-56 byte-identical to the corrupted file (the
+corrupted remainder is entirely the paste); mirror head-42 byte-identical to
+the provided original; all era markers present (wandb/loralib deps,
+deps-before-pin-gate ordering, 40-char pin gate, whitespace-tolerant pin
+grep). Full-tree sweep after restore: every .sh parses, every .py compiles,
+zero terminal-paste artifacts in any text file, and diff vs the mirror shows
+exactly the enumerated fix-pass changes and nothing else. Bonus finding: the
+mirror independently confirms the traces.sh reconstruction byte-for-byte
+(identical through line 161).
