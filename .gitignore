@@ -1,0 +1,20 @@
+# Outputs land in evidence/ on the pod and are extracted off-pod BEFORE
+# terminate — never committed from the pod (session-owner instruction).
+evidence/*
+!evidence/.gitkeep
+
+# shakedown outputs (scripts/smoke.sh) — engineering data, never session evidence
+evidence_smoke/
+
+__pycache__/
+*.pyc
+
+# nsys artifacts if a trace is ever written outside evidence/ by accident
+*.nsys-rep
+*.sqlite
+
+# torch.compile debug dumps (output_code is captured via TORCH_LOGS to evidence/)
+torch_compile_debug/
+
+# version-matrix venv (scripts/version_matrix_check.sh) if created repo-locally
+.venv_latest/

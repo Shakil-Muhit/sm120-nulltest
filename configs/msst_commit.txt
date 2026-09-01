@@ -1,0 +1,13 @@
+# Pinned commit of https://github.com/ZFTurbo/Music-Source-Separation-Training
+# (the ONLY source of full-model code — prereg P8 provenance constraint).
+#
+# Session owner fills in the full 40-char commit hash below.
+# setup.sh section [5/6] FAILS LOUDLY if no hash is present.
+#
+# For reference: upstream HEAD observed 2026-08-16 while building this repo was
+#   2ba884c2083070c4061fb2d5e3afc41e32420b8a
+# Format: first non-comment, non-empty line is taken as the hash.
+
+# ZFTurbo/Music-Source-Separation-Training — pinned to release v1.0.21
+# ("MVSep Mega 53 Stems", Apr 20), latest release as of 2026-08-16
+ea7eb9c20ea0e3f94368a30fc1654b51cdd55789

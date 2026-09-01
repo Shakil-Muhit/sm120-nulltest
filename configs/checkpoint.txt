@@ -1,0 +1,5 @@
+# MelBandRoformer.ckpt — Kim Jensen vocal model (community standard)
+# lines below: URL / sha256 / config path relative to pinned ZFTurbo clone
+https://huggingface.co/KimberleyJSN/melbandroformer/resolve/main/MelBandRoformer.ckpt
+87201f4d31afb5bc79993230fc49446918425574db48c01c405e44f365c7559e
+configs/KimberleyJensen/config_vocals_mel_band_roformer_kj.yaml
