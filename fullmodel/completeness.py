@@ -37,6 +37,7 @@ ATTN_CASES = [f'c{c}_{ax}_{lay}' for c in (352800, 4410) for ax in ('time', 'fre
 BOUNDARY_CHAINS = [f'trivial/{m}/N{n}' for m in ('stream', 'graph', 'pdl_stream', 'pdl_graph') for n in (10, 100, 1000, 2000)] + \
                   [f'{ch}/{m}/N{n}' for ch in ('elem37', 'gemm') for m in ('stream', 'graph') for n in (10, 100)]
 OPS = {'session1': (352800, 4410), 'session2': (352800, 4410, 22050, 88200)}
+ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py')
 MANIFEST_FIELDS = ('manifest_id', 'session', 'created_utc', 'repo_commit', 'registration_sha256',
                    'clips_manifest_sha256', 'code', 'provenance', 'runtime', 'env')
 STATIC_AUX = {
@@ -95,8 +96,14 @@ def audit_manifest(ev, items):
             probs.append('registration hash differs from prereg_amendments.md')
         if manifest.get('clips_manifest_sha256') != provenance.sha256_file(os.path.join(root, 'configs', 'sdr_clips.json')):
             probs.append('clip manifest hash differs from configs/sdr_clips.json')
-        if manifest.get('code') != provenance.code_hashes():
-            probs.append('measuring-code hashes differ from this tree')
+        # the MEASURING code is immutable for the session; the post-hoc analysis
+        # tools (collector, validators, audit, report generators) may be corrected
+        # after the session — their identity is recorded separately below
+        live = provenance.code_hashes()
+        mcode = manifest.get('code') or {}
+        diff = sorted(k for k in set(live) | set(mcode) if live.get(k) != mcode.get(k) and os.path.basename(k) not in ANALYSIS_TOOLS)
+        if diff:
+            probs.append(f'measuring-code hashes differ from this tree: {diff[:6]}')
     except Exception as e:
         probs.append(f'tree identity could not be derived: {type(e).__name__}')
     rt = manifest.get('runtime') or {}
@@ -284,8 +291,9 @@ def csv_rows(path, required_cols):
     try:
         with open(path, newline='') as f:
             rd = csv.reader(f)
-            head = [h.strip().strip('"') for h in next(rd)]
-            if not all(any(c in h for h in head) for c in required_cols):
+            head = [h.strip().strip('"').lower() for h in next(rd)]
+            # nsys spells the correlation column 'CorrId' (GPU trace) and 'CorrID' (API trace)
+            if not all(any(c.lower() in h for h in head) for c in required_cols):
                 return None
             return sum(1 for _ in rd)
     except Exception:
@@ -507,10 +515,17 @@ def main():
     audit_clock(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
     audit_aux(ev, items, args.session, dynamic_aux)
     n_ok = sum(1 for i in items if i['complete'])
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        analysis_commit = provenance._git(root, 'rev-parse', 'HEAD')
+    except Exception:
+        analysis_commit = None
     status = {'session': args.session, 'manifest_id': manifest_id, 'items': items,
               'complete_items': n_ok, 'total_items': len(items),
               'verdict': 'COMPLETE' if n_ok == len(items) else 'INCOMPLETE',
-              'qualify_version': qualify.QUALIFY_VERSION}
+              'qualify_version': qualify.QUALIFY_VERSION,
+              'analysis_tools_commit': analysis_commit,
+              'analysis_tools_sha256': {k: v for k, v in provenance.code_hashes().items() if os.path.basename(k) in ANALYSIS_TOOLS}}
     with open(os.path.join(ev, 'session_status.json'), 'w') as f:
         json.dump(status, f, indent=1)
     print(f"[completeness] {args.session}: {status['verdict']} ({n_ok}/{len(items)} mandatory items)")

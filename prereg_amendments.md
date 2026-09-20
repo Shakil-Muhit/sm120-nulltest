@@ -400,7 +400,14 @@ unavailable mode is recorded `UNTESTED(reason)`.
   lineage (directory marker and every sidecar), clock log, and every
   auxiliary terminal record OK — and writes the mechanical session verdict
   (COMPLETE / INCOMPLETE with per-item reasons) to `session_status.json`.
-  Collection and the audit are themselves supervised; a previous verdict is
+  The MEASURING code is immutable for a session (bound by the manifest);
+  the post-hoc analysis tools (collector, validators, audit, report
+  generators: collect_full.py, qualify.py, completeness.py, ledger.py,
+  session_result.py) may be corrected after the session and re-run off-pod
+  on the extracted evidence — every re-run records the analysis tools'
+  commit and hashes in its output, and the on-pod verdict is kept alongside
+  (owner decision 2026-09-20, after an audit-side column-name bug marked 19
+  complete traces as unparsable). Collection and the audit are themselves supervised; a previous verdict is
   invalidated before every finalisation and any collection or audit failure
   or timeout writes an explicit INCOMPLETE; every measurement or trace
   attempt invalidates its own previous artifacts (run JSON, report, exports,
