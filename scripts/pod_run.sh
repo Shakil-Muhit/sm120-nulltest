@@ -1,0 +1,58 @@
+#!/bin/bash
+# Drive the session pod from muhit-pc (after scripts/pod_up.sh wrote pod.env).
+#   pod_run.sh ship        re-ship the COMMITTED tree (git bundle) to the pod, keep evidence/
+#   pod_run.sh session1    launch scripts/session1.sh in a detached tmux session on the pod
+#   pod_run.sh session2    launch scripts/session2.sh likewise
+#   pod_run.sh tail        follow the pod's session console log
+#   pod_run.sh status      tmux + GPU + last console lines
+#   pod_run.sh extract     tar the pod's evidence/ into ~/ms/evidence_pod/<ts>/ (OFF-POD copy)
+#   pod_run.sh terminate   terminate THIS pod by exact id (refuses if evidence was never extracted)
+set -u
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+KEY="$HOME/.runpod/ssh/RunPod-Key-Go"
+export PATH="$HOME/.local/bin:$PATH"
+[ -f "$REPO_DIR/pod.env" ] || { echo "FATAL: pod.env missing (run scripts/pod_up.sh)"; exit 1; }
+. "$REPO_DIR/pod.env"
+SSH="ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -i $KEY -p $POD_PORT root@$POD_HOST"
+SCP="scp -o StrictHostKeyChecking=no -i $KEY -P $POD_PORT"
+CMD="${1:-status}"
+case "$CMD" in
+  ship)
+    cd "$REPO_DIR"
+    [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "FATAL: commit first"; exit 1; }
+    COMMIT=$(git rev-parse HEAD)
+    git bundle create /tmp/sm120.bundle HEAD main 2>/dev/null || git bundle create /tmp/sm120.bundle HEAD
+    $SCP /tmp/sm120.bundle "root@$POD_HOST:/root/sm120.bundle"
+    # keep evidence/ (git-ignored) across re-ships; refuse while a session runs
+    $SSH "tmux has-session -t run 2>/dev/null && { echo 'FATAL: a session is running'; exit 1; }
+          set -e; cd /root/sm120-nulltest && git fetch -q /root/sm120.bundle HEAD && git checkout -q $COMMIT && git status --porcelain --untracked-files=no | wc -l && git rev-parse HEAD"
+    ;;
+  session1|session2)
+    $SSH "cd /root/sm120-nulltest && mkdir -p evidence && tmux has-session -t run 2>/dev/null && { echo 'FATAL: a tmux session named run already exists'; exit 1; }
+          export MSST_DIR=/root/work/msst CLIPS_DIR=/root/work/sdr_clips PYTHONDONTWRITEBYTECODE=1
+          tmux new -d -s run \"bash scripts/$CMD.sh > evidence/${CMD}.log 2>&1; echo EXIT=\\\$? >> evidence/${CMD}.log\"
+          sleep 3; tail -n 5 evidence/${CMD}.log"
+    ;;
+  tail)
+    LOGN="${2:-session1}"
+    $SSH "tail -n 40 -F /root/sm120-nulltest/evidence/${LOGN}.log"
+    ;;
+  status)
+    $SSH "tmux ls 2>/dev/null || echo 'no tmux session'; nvidia-smi --query-gpu=name,utilization.gpu,memory.used,clocks.sm --format=csv,noheader; ls /root/sm120-nulltest/evidence 2>/dev/null | wc -l; for f in /root/sm120-nulltest/evidence/session*.log; do [ -f \$f ] && { echo \"--- \$f\"; tail -n 6 \$f; }; done"
+    ;;
+  extract)
+    TS=$(date +%Y%m%d_%H%M)
+    DEST="$HOME/ms/evidence_pod/$TS"
+    mkdir -p "$DEST"
+    $SSH "cd /root/sm120-nulltest && tar czf - evidence" | tar xzf - -C "$DEST"
+    echo "$DEST" >> "$REPO_DIR/pod.env.extracted"
+    du -sh "$DEST"; ls "$DEST/evidence" | head -20
+    echo "EXTRACTED -> $DEST (recorded in pod.env.extracted)"
+    ;;
+  terminate)
+    [ -s "$REPO_DIR/pod.env.extracted" ] || { echo "FATAL: no extraction recorded for this pod — extract first"; exit 1; }
+    echo "terminating pod $POD_ID (melband_profiling) — production pods untouched"
+    runpodctl pod terminate "$POD_ID"
+    ;;
+  *) echo "usage: $0 ship|session1|session2|tail [name]|status|extract|terminate"; exit 2 ;;
+esac
