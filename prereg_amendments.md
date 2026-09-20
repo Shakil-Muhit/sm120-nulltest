@@ -305,9 +305,24 @@ unavailable mode is recorded `UNTESTED(reason)`.
   collector, completeness audit) re-derives eligibility from the record
   itself through one versioned validator (`fullmodel/qualify.py`); stored
   eligibility flags are never trusted, and a record whose stored flag
-  contradicts the validator is ineligible. Each run persists the sha256 of
-  every reference artifact its lineage check saw; the three restarts of a
-  cell must have been validated against the same hashed reference set.
+  contradicts the validator — in either direction — is ineligible. The
+  validator checks payloads, not labels: both registered validation seeds
+  with finite per-pass differences under the arm's registered tier
+  tolerances, the SDR gate recomputed from exactly eight distinct finite
+  clip rows against the registered threshold, recording stability
+  recomputed from the stored phase snapshots (and, for matched pairs, from
+  every phase transition: joint settle, validation, every block), the
+  zero-break gate's counter for C3/H. Every published statistic (block
+  medians, min-of-medians, restart spread, throughput, matched deltas) is
+  recomputed from the recorded samples, which must be finite and positive;
+  a stored summary that differs from its samples disqualifies the record.
+  Each run persists the sha256 of every reference artifact its lineage
+  check saw; the three restarts of a cell must have been validated against
+  the same hashed validation references (r1 alone additionally checks the
+  eager-A clip outputs). The completeness audit re-derives every cell and
+  pair from the run records through the same validator (never from the
+  collector's summary), re-hashes every reference sidecar, and requires the
+  clock log to span every timing block.
   **Runtime pins and manifest scope:** every process checks torch ==
   2.8.0+cu128 and triton == 3.4.0 before building; the manifest binds the
   complete measuring set (fullmodel/**, arms/*, scripts/*, configs/*,
@@ -357,14 +372,20 @@ unavailable mode is recorded `UNTESTED(reason)`.
   lineage (directory marker and every sidecar), clock log, and every
   auxiliary terminal record OK — and writes the mechanical session verdict
   (COMPLETE / INCOMPLETE with per-item reasons) to `session_status.json`.
-  Collection and the audit are themselves supervised; if either fails the
-  session record is an explicit INCOMPLETE. Every on-pod reduction (nsys
+  Collection and the audit are themselves supervised; a previous verdict is
+  invalidated before every finalisation and any collection or audit failure
+  or timeout writes an explicit INCOMPLETE; every measurement or trace
+  attempt invalidates its own previous artifacts (run JSON, report, exports,
+  derived reductions) before it starts, so no stale success can survive a
+  failed attempt. Every on-pod reduction (nsys
   exports, graph verification, timing views, ideal costs, perturbation) is
   bounded by the session deadline, invalidates its stale outputs before the
   attempt, and leaves a terminal `aux_<name>.json` (OK / FAILED /
   UNTESTED); supervisor messages go to stderr. Pod setup (image boot,
   `setup.sh`) precedes the session clock. Evidence extraction (validated
-  archive, receipt bound to the pod id) before terminate.
+  archive, receipt bound to the pod id AND to the content hash of the pod's
+  evidence at extraction time; termination refuses if the pod's evidence
+  changed since) before terminate.
 - **Session 2 (≤ 3 h):** eager-A references + SDR at the sweep points; chunk
   sweep (A, C3, G, H × {22050, 88200}, 3 restarts, SDR gate in r1);
   node-level traces (ONE captured 50-pass block per traced run, outer NVTX
@@ -389,8 +410,13 @@ unavailable mode is recorded `UNTESTED(reason)`.
   preprocessing kernels excluded — and a case whose deployed backend is not
   established from a trace has NO ratio and is UNRESOLVED, never assumed);
   graph verification requires an affirmative node-level export record and
-  the registered pass count (else its verdict is UNRESOLVED); timing views
-  count kernels only (memcpy/memset rows are reported separately as memops);
+  exactly the registered 50 passes (any other expected count is an
+  unregistered shakedown; a missing record is UNRESOLVED); for the eager
+  and multi-stream arms (A, D, F) the expected qualified verdict is
+  NO_REPLAY_EVIDENCE; timing views count kernels only (memcpy/memset rows
+  are reported separately as memops); the recording observer assigns
+  lifetime-safe identities through a weak registry (address-based
+  identities leave stability UNRESOLVED);
   boundary microbench (§4) plus its node-level trace and traced-vs-unprofiled
   perturbation; per-kernel ideal costs (plan 1.4) computed only from the
   compiled variant(s) whose ORDERED per-pass Triton sequence is reproduced
@@ -418,10 +444,16 @@ unavailable mode is recorded `UNTESTED(reason)`.
   parameters (any other call form is UNRESOLVED); the L2 residency test
   uses the union of the distinct base allocations the call touches, each at
   its full allocated size (an over-estimate: a call passes the test only
-  when its whole working set provably fits); every measured value comes
-  from the validated per-pass windows (the aggregate kernel summary is only
-  reconciled against them), and an arm whose windows are not the registered
-  50 passes publishes no rows; graph-input dtypes from the wrapper's benchmark section;
+  when its whole working set provably fits — allocation size is the address
+  extent from the base allocation's own shape, stride and dtype, unknown →
+  no L2 ideal); every measured value comes from exactly 50 non-empty
+  validated per-pass windows (the aggregate kernel summary is reconciled
+  against them by name set, count and duration, differences reported), and
+  an arm whose windows are not the registered 50 passes publishes no rows;
+  boundary calibration accepts a segment only when its case carries a passed
+  dependency-proof counter (trivial chains) and, for PDL modes, the PTX
+  qualification — labels alone never qualify; source-map coverage credits
+  only exact, unambiguous kernel names with resolved fused ops; graph-input dtypes from the wrapper's benchmark section;
   fallback-op outputs from their `assert_size_stride`. This over-counts
   slice reads, so a row whose HBM-model ideal exceeds its measured time is
   flagged `bound_not_tight` and its recoverable share under the HBM model is

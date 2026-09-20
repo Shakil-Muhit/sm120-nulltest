@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 import torch
 
 import provenance
+import qualify
 
 TIMING_SEED = 0                  # sm120 arms/common.py::TIMING_SEED
 VAL_SEEDS = (1001, 2002)         # sm120 arms/common.py::VAL_SEEDS
@@ -78,18 +79,15 @@ STABILITY_KEYS = ('graph_break', 'unimplemented')
 
 
 def compile_stable(before, after):
-    """Recording/compilation stability (gate-02 f21): no NEW graph breaks or
-    unimplemented ops, the same number of unique Dynamo graphs, and EVERY
-    Inductor cudagraph counter unchanged (recordings, skips, non-static
-    input recordings). Per-call counters (calls, frames) are ignored."""
-    for k in STABILITY_KEYS:
-        if before.get(k, {}) != after.get(k, {}):
-            return False
-    if before.get('stats', {}).get('unique_graphs') != after.get('stats', {}).get('unique_graphs'):
-        return False
-    b_ind = {k: v for k, v in before.get('inductor', {}).items() if 'cudagraph' in k}
-    a_ind = {k: v for k, v in after.get('inductor', {}).items() if 'cudagraph' in k}
-    return b_ind == a_ind
+    """ONE implementation shared with the validators (qualify.compile_stable)."""
+    return qualify.compile_stable(before, after)
+
+
+import weakref
+
+_NODE_REGISTRY = weakref.WeakKeyDictionary()
+_MGR_REGISTRY = weakref.WeakKeyDictionary()
+_REGISTRY_BASE = [1]
 
 
 def cudagraph_tree_state():
@@ -114,21 +112,39 @@ def cudagraph_tree_state():
                 n_roots += 1
                 stack.append(node)
         seen = set()
+        mode = 'registry'
         while stack:
             node = stack.pop()
             if id(node) in seen:
                 continue
             seen.add(id(node))
-            node_ids.append(id(node))
+            # lifetime-safe identity (gate-05 f67): a weak registry assigns a
+            # monotonically increasing id on first sight; a freed node can never
+            # hand its id to a successor at the same address
+            try:
+                nid = _NODE_REGISTRY.get(node)
+                if nid is None:
+                    nid = len(_NODE_REGISTRY) + _REGISTRY_BASE[0]
+                    _NODE_REGISTRY[node] = nid
+                    _REGISTRY_BASE[0] += 1
+            except TypeError:                # not weak-referenceable
+                nid, mode = id(node), 'address'
+            node_ids.append(nid)
             ch = getattr(node, 'children', None)
             if isinstance(ch, dict):
                 for lst in ch.values():
                     stack.extend(lst)
+        try:
+            mgr_id = _MGR_REGISTRY.get(mgr)
+            if mgr_id is None:
+                mgr_id = _REGISTRY_BASE[0]
+                _MGR_REGISTRY[mgr] = mgr_id
+                _REGISTRY_BASE[0] += 1
+        except TypeError:
+            mgr_id, mode = id(mgr), 'address'
         ids = getattr(mgr, 'ids_to_funcs', None) or getattr(mgr, 'ids_to_stack', None)
-        # identities retained (gate-04 f48): manager object, every recorded node,
-        # and the function-id set; compared as sets, not counts
         return {'available': True, 'roots': n_roots, 'nodes': len(node_ids),
-                'manager_id': id(mgr), 'node_ids': sorted(node_ids),
+                'manager_id': mgr_id, 'node_ids': sorted(node_ids), 'identity_mode': mode,
                 'function_ids': sorted(str(k) for k in ids) if isinstance(ids, dict) else None,
                 'functions': len(ids) if ids is not None else None,
                 'current_gen': getattr(mgr, 'current_gen', None)}
@@ -142,14 +158,8 @@ def recording_state():
 
 
 def recording_stable(a, b):
-    if not (a['tree'].get('available') and b['tree'].get('available')):
-        return None                      # unresolved: observer missing
-    ta, tb = a['tree'], b['tree']
-    return (compile_stable(a['counters'], b['counters']) and
-            ta.get('manager_id') == tb.get('manager_id') and
-            ta.get('node_ids') == tb.get('node_ids') and
-            ta.get('function_ids') == tb.get('function_ids') and
-            ta['roots'] == tb['roots'])
+    """ONE implementation shared with the validators (qualify.recording_stable)."""
+    return qualify.recording_stable(a, b)
 
 
 def graph_gate(require_zero_breaks):

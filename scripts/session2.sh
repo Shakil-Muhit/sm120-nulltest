@@ -85,22 +85,25 @@ done
 
 echo "=== [4] attention-backend microbench (deployed backend per chunk/axis from the C3 traces) ==="
 T8="$EVID/traces/trace_C3_352800_trace"; T4="$EVID/traces/trace_C3_4410_trace"
+rm -f "$EVID/attn_backend_bench.json"
 run_aux attn_backend_bench 900 -- python "$REPO_DIR/fullmodel/attn_backend_bench.py" \
     --out "$EVID/attn_backend_bench.json" --passes "$ITERS" \
     $( [ -s "${T8}_cuda_gpu_trace.csv" ] && echo "--model-trace-352800 $T8" ) \
     $( [ -s "${T4}_cuda_gpu_trace.csv" ] && echo "--model-trace-4410 $T4" )
 
 echo "=== [5] boundary-cost microbench + its node-level trace ==="
-run_aux boundary_bench 900 -- python "$REPO_DIR/fullmodel/boundary_bench.py" --out "$EVID/boundary_bench.json"
+rm -f "$EVID/boundary_bench.json"
+run_aux boundary_bench 900 -- python "$REPO_DIR/fullmodel/boundary_bench.py" --out "$EVID/boundary_bench.json" || true
+rm -f "$EVID/traces/trace_boundary_bench.nsys-rep" "$EVID/traces/trace_boundary_bench"_*.csv \
+      "$EVID/boundary_bench_traced.json" "$EVID/boundary_bench_trace_analysis.json"
 run_aux boundary_bench_trace 900 -- nsys profile --cuda-graph-trace=node --force-overwrite=true \
     -o "$EVID/traces/trace_boundary_bench" \
-    python "$REPO_DIR/fullmodel/boundary_bench.py" --out "$EVID/boundary_bench_traced.json" \
-    && nsys stats --force-export=true --force-overwrite=true --format csv \
-        --report cuda_gpu_trace --report cuda_gpu_kern_sum --report nvtx_gpu_proj_trace \
-        --output "$EVID/traces/trace_boundary_bench" "$EVID/traces/trace_boundary_bench.nsys-rep" > /dev/null 2>&1 \
-    && python "$REPO_DIR/fullmodel/boundary_bench.py" --analyze-trace "$EVID/traces/trace_boundary_bench" \
-        --traced-json "$EVID/boundary_bench_traced.json" --out "$EVID/boundary_bench_trace_analysis.json" \
-    || echo "WARN: boundary trace/analysis incomplete"
+    python "$REPO_DIR/fullmodel/boundary_bench.py" --out "$EVID/boundary_bench_traced.json" || true
+run_aux boundary_bench_export 600 -- nsys stats --force-export=true --force-overwrite=true --format csv \
+    --report cuda_gpu_trace --report cuda_gpu_kern_sum --report nvtx_gpu_proj_trace \
+    --output "$EVID/traces/trace_boundary_bench" "$EVID/traces/trace_boundary_bench.nsys-rep" > /dev/null 2>&1 || true
+run_aux boundary_bench_analysis 300 -- python "$REPO_DIR/fullmodel/boundary_bench.py" --analyze-trace "$EVID/traces/trace_boundary_bench" \
+    --traced-json "$EVID/boundary_bench_traced.json" --out "$EVID/boundary_bench_trace_analysis.json" || true
 
 echo "=== [6] per-kernel ideal costs (plan 1.4; measured L2 rate from [5]) ==="
 BW_L2=$(python3 -c "import json;print(json.load(open('$EVID/boundary_bench.json')).get('l2_resident_bandwidth',{}).get('tbps',''))" 2>/dev/null)

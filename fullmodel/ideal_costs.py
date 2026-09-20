@@ -69,9 +69,10 @@ def per_pass_sequence(base, expected_passes):
     if err or not windows:
         return None, f'nvtx windows unavailable: {err}'
     passes, _ = split_passes(rows, windows, classify)
-    passes = [p for p in passes if p]
-    if expected_passes and len(passes) != expected_passes:
-        return None, f'{len(passes)} passes in the trace != expected {expected_passes}'
+    # exactly the expected number of windows, every one non-empty (gate-05 f70)
+    if len(windows) != expected_passes or any(not p for p in passes):
+        return None, (f'{len(windows)} windows ({sum(1 for p in passes if not p)} empty) '
+                      f'!= expected {expected_passes} non-empty passes')
     seqs = [[r['name'] for r in p if classify(r['name']) == 'INDUCTOR_FUSED'] for p in passes]
     counts = [collections.Counter(classify(r['name']) for r in p) for p in passes]
     if any(sq != seqs[0] for sq in seqs) or any(c != counts[0] for c in counts):
@@ -98,14 +99,21 @@ def graph_signature(g):
         args = []
         for a in c['args']:
             m = arg_meta(g, a)
+            base = m.get('base')
+            alloc = g['allocs'].get(base, {})
+            # allocation / alias semantics used by pricing (gate-05 f68)
             args.append((a.get('role', ''), tuple(m['shape']), tuple(m['stride']),
-                         k.get('ptr_dtypes', {}).get(a.get('role', ''), m['dtype'])))
-        # complete pricing semantics (gate-04 f50): kernel body hash, access
-        # sites, iteration literals, and every extern/fallback call in order
+                         k.get('ptr_dtypes', {}).get(a.get('role', ''), m['dtype']),
+                         base, tuple(alloc.get('shape') or ()), tuple(alloc.get('stride') or ()),
+                         alloc.get('dtype'), bool(a.get('reinterpret'))))
+        # complete pricing semantics: kernel body hash, access sites, iteration
+        # literals, and the FULL normalised call text (scalar/list/keyword args
+        # of extern, fallback and custom-op calls included)
         sig.append((c['kind'], c['name'], tuple(args), k.get('source_sha256'),
                     tuple(sorted((k.get('load_sites') or {}).items())),
                     tuple(sorted((k.get('store_sites') or {}).items())),
-                    tuple(c.get('numeric_literals') or ())))
+                    tuple(c.get('numeric_literals') or ()),
+                    ' '.join((c.get('line') or '').split())))
     return tuple(sig)
 
 
@@ -207,6 +215,18 @@ def gemm_site(call, gr):
             'flops': 2.0 * batch * M * N * K, 'bytes': by}
 
 
+def storage_extent(shape, stride):
+    """Elements spanned by an allocation's address range: 1 + sum((size-1)*|stride|)."""
+    if not shape:
+        return 0
+    ext = 1
+    for d, st in zip(shape, stride or [0] * len(shape)):
+        if int(d) == 0:
+            return 0
+        ext += (int(d) - 1) * abs(int(st))
+    return ext
+
+
 def ideal_us(flops, by, dtype, bw_l2, l2_bytes, footprint=None):
     """Per CALL. footprint = the call's unique resident bytes (max of read /
     write sets is used as a lower bound when aliases are unknown); the L2
@@ -252,15 +272,22 @@ def main():
         print(f"[ideal] {args.arm}@{args.chunk}: UNRESOLVED ({out['measurement_note']}) -> no rows published")
         return
     ks = {name: {'instances': v['instances'], 'total_ns': v['total_ns']} for name, v in observed['by_name'].items()}
+    # complete reconciliation (gate-05 f71): name sets, counts AND durations
     mismatches = []
-    for name, v in ks.items():
-        agg = ks_agg.get(name)
-        if agg is not None and agg.get('instances') != v['instances']:
-            mismatches.append({'kernel': name[:100], 'window_instances': v['instances'], 'aggregate_instances': agg.get('instances')})
+    for name in sorted(set(ks) | set(ks_agg)):
+        v, agg = ks.get(name), ks_agg.get(name)
+        if v is None or agg is None:
+            mismatches.append({'kernel': name[:100], 'window_instances': v and v['instances'],
+                               'aggregate_instances': agg and agg.get('instances'), 'kind': 'only in one inventory'})
+        elif agg.get('instances') != v['instances'] or abs(agg.get('total_ns', 0) - v['total_ns']) > 0.01 * max(1, v['total_ns']):
+            mismatches.append({'kernel': name[:100], 'window_instances': v['instances'], 'aggregate_instances': agg.get('instances'),
+                               'window_ns': v['total_ns'], 'aggregate_ns': agg.get('total_ns'), 'kind': 'count/duration'})
     out['measurement_status'] = 'ok'
     out['measurement_note'] = (f'{observed["passes"]} validated windows; aggregate summary '
-                               + ('agrees' if not mismatches else f'differs for {len(mismatches)} kernels (windowed values used)'))
-    out['aggregate_reconciliation'] = {'mismatches': mismatches[:50], 'aggregate_available': bool(ks_agg)}
+                               + ('agrees' if not mismatches else
+                                  f'differs for {len(mismatches)} kernels (outside-window launches or duration drift; windowed values used)'))
+    out['aggregate_reconciliation'] = {'mismatches': mismatches[:50], 'n_mismatches': len(mismatches),
+                                       'aggregate_available': bool(ks_agg)}
 
     fused_bytes, gemm_sites = {}, []
     if args.dump_dir and os.path.isdir(args.dump_dir):
@@ -321,9 +348,13 @@ def main():
                                 # base allocations touched, each at its full allocated size
                                 base = m.get('base')
                                 if base not in footprints:
+                                    # FULL allocated storage (gate-05 f69): address extent of the
+                                    # base allocation from its own shape/stride/dtype; unknown -> None
                                     alloc = g['allocs'].get(base, {})
-                                    ael = accessed_elems(alloc.get('shape') or m['shape'], alloc.get('stride') or m['stride'])
-                                    footprints[base] = ael * isz if ael else None
+                                    ash, ast_ = alloc.get('shape'), alloc.get('stride')
+                                    aisz = nbytes((1,), alloc['dtype']) if alloc.get('dtype') else None
+                                    footprints[base] = (storage_extent(ash, ast_) * aisz
+                                                        if (ash and ast_ is not None and aisz) else None)
                             fp = (None if (unresolved or any(v is None for v in footprints.values()))
                                   else sum(footprints.values()))
                             fused_bytes.setdefault(c['name'], []).append(
@@ -347,7 +378,7 @@ def main():
         template_gemm = name.startswith('triton_tem_')
         if template_gemm:
             cls = 'GEMM'          # Inductor GEMM templates (max-autotune) are GEMMs, not fused pointwise
-        row = {'kernel': name[:120], 'class': cls, 'launches_per_pass': v['instances'] / n_pass,
+        row = {'kernel': name[:120], 'kernel_full': name, 'class': cls, 'launches_per_pass': v['instances'] / n_pass,
                'time_us_per_pass': v['total_ns'] / n_pass / 1e3, 'flops_per_pass': None,
                'bytes_per_pass': None, 'ideal_us_hbm': None, 'ideal_us_l2': None, 'resolution': 'UNRESOLVED'}
         if template_gemm:

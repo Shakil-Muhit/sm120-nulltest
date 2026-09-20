@@ -13,7 +13,16 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import collect_full  # noqa: E402
+import provenance  # noqa: E402
 import qualify  # noqa: E402
+
+EAGER_NO_REPLAY = ('A', 'D', 'F')      # eager / multi-stream arms: qualified NO_REPLAY_EVIDENCE is the expected verdict
+MANDATORY_AUX = {
+    'session1': ['c3_operator_qualification', 'collect'],
+    'session2': ['attn_backend_bench', 'boundary_bench', 'boundary_bench_trace', 'boundary_bench_export',
+                 'boundary_bench_analysis', 'perturbation', 'collect'],
+}
 
 MATRIX_ARMS = ('A', 'C3', 'C1', 'H', 'G', 'B', 'E', 'D', 'F')
 MATRIX_S1 = [(a, c) for c in (352800, 4410) for a in MATRIX_ARMS] + [('C1D', 352800), ('C2', 352800), ('C2', 4410)]
@@ -44,7 +53,8 @@ def item(items, name, ok, reason=None, note=None):
 
 
 def audit_lineage(ev, items, manifest_id):
-    """Every reference file carries a lineage sidecar bound to THIS manifest."""
+    """Every reference file carries a lineage sidecar bound to THIS manifest
+    whose sha256 matches the file (re-hashed here, gate-05 f65)."""
     ref = os.path.join(ev, 'ref')
     marker = os.path.join(ref, 'manifest_id.txt')
     ok = os.path.exists(marker) and open(marker).read().strip() == manifest_id
@@ -53,18 +63,59 @@ def audit_lineage(ev, items, manifest_id):
     bad = []
     for f in files:
         side = load(f + '.lineage.json')
-        if not side or side.get('manifest_id') != manifest_id:
+        if not side or side.get('manifest_id') != manifest_id or side.get('sha256') != provenance.sha256_file(f):
             bad.append(os.path.basename(f))
-    item(items, f'reference lineage sidecars ({len(files)} files)', files and not bad, [f'unbound: {bad[:5]}'] if bad else ['no reference files'])
+    item(items, f'reference lineage sidecars ({len(files)} files, re-hashed)', files and not bad,
+         [f'unbound or changed: {bad[:5]}'] if bad else ['no reference files'])
 
 
-def audit_aux(ev, items, session):
+def load_runs(ev):
+    """The actual run records (never the collector's summary)."""
+    runs = {}
+    for path in sorted(glob.glob(os.path.join(ev, 'full_*.json'))):
+        r = load(path)
+        if r and 'arm' in r and 'chunk' in r and 'tag' in r:
+            runs.setdefault((r['arm'], r['chunk']), {})[r['tag']] = r
+    return runs
+
+
+def audit_aux(ev, items, session, runs):
+    required = MANDATORY_AUX[session]
+    for name in required:
+        rec = load(os.path.join(ev, f'aux_{name}.json')) or {}
+        item(items, f'auxiliary step {name}', rec.get('status') == 'OK', [f"{rec.get('status', 'MISSING')}: {rec.get('reason')}"])
     for path in sorted(glob.glob(os.path.join(ev, 'aux_*.json'))):
         rec = load(path) or {}
-        item(items, f"auxiliary step {rec.get('item', os.path.basename(path))}", rec.get('status') == 'OK',
-             [f"{rec.get('status')}: {rec.get('reason')}"])
+        name = rec.get('item', os.path.basename(path)[4:-5])
+        if name in required or name == 'completeness':
+            continue                     # the audit's own record is written after this run
+        item(items, f'auxiliary step {name}', rec.get('status') == 'OK', [f"{rec.get('status')}: {rec.get('reason')}"])
+    # clock coverage: the log must span every recorded timing block
     clocks = os.path.join(ev, f'clocks_{session}.csv')
-    item(items, 'clock log', os.path.exists(clocks) and os.path.getsize(clocks) > 0, ['clock log missing or empty'])
+    times = []
+    if os.path.exists(clocks):
+        import datetime as _dt
+        for line in open(clocks):
+            tok = line.split(',')[0].strip()
+            # nvidia-smi --format=csv timestamps: local time 'YYYY/MM/DD HH:MM:SS.mmm'
+            for fmt in ('%Y/%m/%d %H:%M:%S.%f', '%Y/%m/%d %H:%M:%S'):
+                try:
+                    times.append(_dt.datetime.strptime(tok, fmt).timestamp())
+                    break
+                except ValueError:
+                    continue
+            else:
+                try:
+                    times.append(_dt.datetime.fromisoformat(tok.replace('Z', '+00:00')).timestamp())
+                except Exception:
+                    continue
+    starts = [b.get('unix_start') for rs in runs.values() for r in rs.values() for b in ((r.get('timing') or {}).get('blocks') or [])]
+    ends = [b.get('unix_end') for rs in runs.values() for r in rs.values() for b in ((r.get('timing') or {}).get('blocks') or [])]
+    starts = [x for x in starts if isinstance(x, (int, float))]
+    ends = [x for x in ends if isinstance(x, (int, float))]
+    ok = bool(times) and bool(starts) and min(times) <= min(starts) + 60 and max(times) >= max(ends) - 60
+    item(items, 'clock log covers every timing block', ok,
+         ['clock log missing, unparsable, or not spanning the timed blocks'])
 
 
 def main():
@@ -78,10 +129,18 @@ def main():
     manifest_id = manifest.get('manifest_id')
     item(items, 'session manifest', bool(manifest_id), ['session_manifest.json missing'])
     summary = load(os.path.join(ev, 'summary_full.json'))
-    item(items, 'collection summary', summary is not None, ['summary_full.json missing or invalid'])
-    cells = (summary or {}).get('cells', {})
-    pairs = (summary or {}).get('matched_pairs', {})
-    runs = (summary or {}).get('runs', {})
+    item(items, 'collection summary present', summary is not None, ['summary_full.json missing or invalid'])
+    # independent re-derivation from the run records through the validators
+    # (gate-05 f65): the collector's labels are never consulted
+    run_map = load_runs(ev)
+    cells = {f'{a}_{c}': collect_full.cell(v) for (a, c), v in run_map.items()}
+    for k, c in cells.items():
+        for t, r in ((t, run_map[tuple([k.rsplit('_', 1)[0], int(k.rsplit('_', 1)[1])])].get(t)) for t in ('r1', 'r2', 'r3')):
+            if r and r.get('manifest_id') != manifest_id:
+                c['headline_status'] = 'INCOMPLETE'
+                c['reasons'].append(f'{t}: foreign manifest')
+    pairs = collect_full.pair_summaries(ev, cells, run_map)
+    runs = {f'{a}_{c}_{t}': r for (a, c), rs in run_map.items() for t, r in rs.items()}
     audit_lineage(ev, items, manifest_id)
 
     if args.session == 'session1':
@@ -145,8 +204,11 @@ def main():
             item(items, f'trace {a}@{c}', not probs, probs)
             if a != 'ANVTX':
                 gv = load(os.path.join(ev, 'traces', f'graph_verify_{a}_{c}.json')) or {}
-                item(items, f'graph verification {a}@{c}', gv.get('verdict') in ('FULLY_GRAPHED', 'NOT_FULLY_GRAPHED'),
-                     [f"verdict {gv.get('verdict', 'MISSING')}"])
+                # completed verification vs graph deployment (gate-05 f66): eager arms are
+                # expected to show qualified NO_REPLAY_EVIDENCE
+                accepted = ('FULLY_GRAPHED', 'NOT_FULLY_GRAPHED') + (('NO_REPLAY_EVIDENCE',) if a in EAGER_NO_REPLAY else ())
+                item(items, f'graph verification {a}@{c}', gv.get('verdict') in accepted and gv.get('qualified') is True,
+                     [f"verdict {gv.get('verdict', 'MISSING')} qualified={gv.get('qualified')}"])
                 tv = load(os.path.join(ev, 'traces', f'timing_views_{a}_{c}.json')) or {}
                 item(items, f'timing views {a}@{c}', tv.get('passes') == 50, ['timing views missing or not 50 passes'])
             if a in COMPILED_TRACED and not (a == 'C2' and c == 352800):
@@ -184,7 +246,7 @@ def main():
         qual = ta.get('_qualification') or {}
         item(items, 'boundary trace analysis qualified', bool(qual.get('cases')) and qual.get('accepted_segments', 0) > 0,
              [f"qualification {qual}"])
-    audit_aux(ev, items, args.session)
+    audit_aux(ev, items, args.session, run_map)
     n_ok = sum(1 for i in items if i['complete'])
     status = {'session': args.session, 'manifest_id': manifest_id, 'items': items,
               'complete_items': n_ok, 'total_items': len(items),
@@ -196,7 +258,7 @@ def main():
     for i in items:
         if not i['complete']:
             print(f"   INCOMPLETE {i['item']}: {i['reason']}")
-    return 0 if status['verdict'] == 'COMPLETE' else 3
+    return 0                              # the verdict lives in the record; a non-zero exit means the audit itself crashed
 
 
 if __name__ == '__main__':

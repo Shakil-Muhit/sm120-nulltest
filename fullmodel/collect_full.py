@@ -94,11 +94,20 @@ def cell(tag_runs):
     if sdr != 'PASS':
         c['reasons'].append(f'SDR qualification (r1) at this operating point: {sdr}' + (f' ({sdr_note})' if sdr_note else ''))
     if not c['reasons']:
-        vals = [req[t]['min_of_medians_ms'] for t in REQUIRED_RESTARTS]
-        c['headline_status'] = 'HEADLINE'
-        c['headline_ms'] = statistics.median(vals)
-        c['restart_spread_ms'] = max(vals) - min(vals)
-        c['throughput_best_ms'] = min(req[t]['throughput_ms_per_pass_best'] for t in REQUIRED_RESTARTS)
+        # published statistics recomputed from the samples (gate-05 f64), never
+        # copied from stored summaries (which the validator already cross-checked)
+        rts = {t: qualify.recomputed_timing(req[t]['timing'], qualify.REGISTERED_ITERS, qualify.REGISTERED_REPEATS)
+               for t in REQUIRED_RESTARTS}
+        if any(r is None for r in rts.values()):
+            c['reasons'].append('timing samples could not be recomputed')
+        else:
+            vals = [rts[t]['min_of_medians_ms'] for t in REQUIRED_RESTARTS]
+            c['headline_status'] = 'HEADLINE'
+            c['headline_ms'] = statistics.median(vals)
+            c['restart_spread_ms'] = max(vals) - min(vals)
+            c['throughput_best_ms'] = min(rts[t]['throughput_best_ms'] for t in REQUIRED_RESTARTS)
+            c['per_restart_min_of_medians_ms'] = {t: rts[t]['min_of_medians_ms'] for t in REQUIRED_RESTARTS}
+            c['per_restart_spread_ms'] = {t: rts[t]['median_spread_ms'] for t in REQUIRED_RESTARTS}
     vals = [v for v in c['per_restart_min_of_medians_ms'].values() if v]
     c['diagnostic_median_ms'] = statistics.median(vals) if vals else None
     return c
@@ -106,6 +115,67 @@ def cell(tag_runs):
 
 def fmt(v, spec='.4f'):
     return format(v, spec) if isinstance(v, (int, float)) else '-'
+
+
+def pair_summaries(evidence_dir, cells, runs, verbose=False):
+    pairs = {}
+    for path in sorted(glob.glob(os.path.join(evidence_dir, 'matched_*.json'))):
+        with open(path) as f:
+            m = json.load(f)
+        a, b = m['pair']
+        key = f"{a}_vs_{b}_c{m['chunk']}"
+        pairs.setdefault(key, {})[m['tag']] = m
+    pair_summary = {}
+    if pairs and verbose:
+        print('\nmatched pairs (median over alternating blocks of a - b, ms):')
+    for key, by_tag in sorted(pairs.items()):
+        a, b = key.split('_vs_')[0], key.split('_vs_')[1].rsplit('_c', 1)[0]
+        chunk = int(key.rsplit('_c', 1)[1])
+        reasons = []
+        req = {t: by_tag.get(t) for t in REQUIRED_MATCHED}
+        for t, m in req.items():
+            if m is None:
+                reasons.append(f'{t} missing')
+                continue
+            probs = qualify.pair_problems(m)     # independent of stored flags
+            if probs:
+                reasons.append(f"{t}: {'; '.join(probs)}")
+        present = [m for m in req.values() if m]
+        mans = sorted({str(m.get('manifest_id')) for m in present})
+        vars_ = sorted({json.dumps({k: qualify.variant(v) for k, v in (m.get('arms') or {}).items()}, sort_keys=True)
+                        for m in present})
+        if len(mans) != 1 or mans == ['None']:
+            reasons.append(f'matched restarts do not share one manifest: {mans}')
+        if len(vars_) != 1:
+            reasons.append('matched restarts differ in effective variants')
+        for arm in (a, b):
+            ca = cells.get((arm, chunk)) if isinstance(next(iter(cells), None), tuple) else cells.get(f'{arm}_{chunk}')
+            r1 = (runs.get((arm, chunk)) or {}).get('r1')
+            if not ca or ca['sdr_gate'] != 'PASS':
+                reasons.append(f'{arm}: SDR qualification at {chunk} is {(ca or {}).get("sdr_gate", "NONE")}')
+                continue
+            if mans and ca['manifests'] != mans:
+                reasons.append(f'{arm}: SDR qualification from another manifest')
+            mv = {qualify.variant((m.get('arms') or {}).get(arm) or {}) for m in present}
+            if len(mv) != 1 or (r1 and qualify.variant(r1) not in mv):
+                reasons.append(f'{arm}: matched variant differs from its r1 SDR-qualified variant')
+        rec_d = {t: (qualify.recomputed_matched_delta(m) if m else None) for t, m in by_tag.items()}
+        for t, m in req.items():
+            if m and rec_d.get(t) and (m.get('matched_delta_ms') or {}).get('median') is not None:
+                if abs(rec_d[t]['median'] - m['matched_delta_ms']['median']) > 1e-9:
+                    reasons.append(f'{t}: stored matched delta differs from the value recomputed from samples')
+        deltas = {t: (d['median'] if d else None) for t, d in rec_d.items()}
+        entry = {'required': {t: (m or {}).get('pair_eligible') for t, m in req.items()},
+                 'deltas_ms': deltas, 'reasons': reasons,
+                 'pair_headline': 'HEADLINE' if not reasons else 'INCOMPLETE'}
+        if not reasons:
+            entry['median_delta_ms'] = statistics.median(rec_d[t]['median'] for t in REQUIRED_MATCHED)
+            entry['median_delta_pct_of_a'] = statistics.median(rec_d[t]['median_pct_of_a'] for t in REQUIRED_MATCHED)
+        pair_summary[key] = entry
+        if verbose:
+            print(f"  {key}: {entry['pair_headline']} deltas {deltas} "
+                  + (f"-> median {entry['median_delta_ms']:+.4f} ms ({entry['median_delta_pct_of_a']:+.2f}% of a)" if not reasons else f"reasons {reasons}"))
+    return pair_summary
 
 
 def main():
@@ -126,59 +196,7 @@ def main():
                   f"({fmt(c['mean_delta_sdr_ref_db'], '+.3f')}) | {c['headline_status']} | "
                   f"{fmt(c['headline_ms'])} | {fmt(c['restart_spread_ms'])} | {fmt(c['throughput_best_ms'])} | "
                   f"{' '.join(c['variants'])} b={'/'.join(c['graph_breaks'])} | {'; '.join(c['reasons'])[:140]} |")
-    pairs = {}
-    for path in sorted(glob.glob(os.path.join(args.evidence_dir, 'matched_*.json'))):
-        with open(path) as f:
-            m = json.load(f)
-        a, b = m['pair']
-        key = f"{a}_vs_{b}_c{m['chunk']}"
-        pairs.setdefault(key, {})[m['tag']] = m
-    pair_summary = {}
-    if pairs:
-        print('\nmatched pairs (median over alternating blocks of a - b, ms):')
-        for key, by_tag in sorted(pairs.items()):
-            a, b = key.split('_vs_')[0], key.split('_vs_')[1].rsplit('_c', 1)[0]
-            chunk = int(key.rsplit('_c', 1)[1])
-            reasons = []
-            req = {t: by_tag.get(t) for t in REQUIRED_MATCHED}
-            for t, m in req.items():
-                if m is None:
-                    reasons.append(f'{t} missing')
-                    continue
-                probs = qualify.pair_problems(m)     # independent of stored flags
-                if probs:
-                    reasons.append(f"{t}: {'; '.join(probs)}")
-            present = [m for m in req.values() if m]
-            mans = sorted({str(m.get('manifest_id')) for m in present})
-            # canonical per-arm variants re-derived from each matched record
-            vars_ = sorted({json.dumps({k: qualify.variant(v) for k, v in (m.get('arms') or {}).items()}, sort_keys=True)
-                            for m in present})
-            if len(mans) != 1 or mans == ['None']:
-                reasons.append(f'matched restarts do not share one manifest: {mans}')
-            if len(vars_) != 1:
-                reasons.append('matched restarts differ in effective variants')
-            for arm in (a, b):
-                ca = cells.get((arm, chunk))
-                r1 = (runs.get((arm, chunk)) or {}).get('r1')
-                if not ca or ca['sdr_gate'] != 'PASS':
-                    reasons.append(f'{arm}: SDR qualification at {chunk} is {(ca or {}).get("sdr_gate", "NONE")}')
-                    continue
-                if mans and ca['manifests'] != mans:
-                    reasons.append(f'{arm}: SDR qualification from another manifest')
-                # each matched arm joins its r1 record by manifest, operating point AND full variant
-                mv = {qualify.variant((m.get('arms') or {}).get(arm) or {}) for m in present}
-                if len(mv) != 1 or (r1 and qualify.variant(r1) not in mv):
-                    reasons.append(f'{arm}: matched variant differs from its r1 SDR-qualified variant')
-            deltas = {t: (m.get('matched_delta_ms') or {}).get('median') for t, m in by_tag.items()}
-            entry = {'required': {t: (m or {}).get('pair_eligible') for t, m in req.items()},
-                     'deltas_ms': deltas, 'reasons': reasons,
-                     'pair_headline': 'HEADLINE' if not reasons else 'INCOMPLETE'}
-            if not reasons:
-                entry['median_delta_ms'] = statistics.median(req[t]['matched_delta_ms']['median'] for t in REQUIRED_MATCHED)
-                entry['median_delta_pct_of_a'] = statistics.median(req[t]['matched_delta_ms']['median_pct_of_a'] for t in REQUIRED_MATCHED)
-            pair_summary[key] = entry
-            print(f"  {key}: {entry['pair_headline']} deltas {deltas} "
-                  + (f"-> median {entry['median_delta_ms']:+.4f} ms ({entry['median_delta_pct_of_a']:+.2f}% of a)" if not reasons else f"reasons {reasons}"))
+    pair_summary = pair_summaries(args.evidence_dir, cells, runs, verbose=True)
     out = os.path.join(args.evidence_dir, 'summary_full.json')
     with open(out, 'w') as f:
         json.dump({'cells': {f'{a}_{c}': v for (a, c), v in cells.items()},

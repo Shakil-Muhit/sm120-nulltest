@@ -52,8 +52,10 @@ case "$CMD" in
     LOCAL_N=$(find "$DEST/evidence" -type f | wc -l)
     [ "$LOCAL_N" -eq "$REMOTE_N" ] || { echo "FATAL: file count mismatch remote=$REMOTE_N local=$LOCAL_N"; exit 1; }
     SHA=$(sha256sum "$DEST/evidence.tgz" | cut -d" " -f1)
-    # receipt bound to THIS pod id + archive hash (gate-04 f59)
-    echo "POD_ID=$POD_ID DEST=$DEST FILES=$LOCAL_N SHA256=$SHA TS=$TS" >> "$REPO_DIR/pod.env.extracted"
+    # content hash of the REMOTE evidence at extraction time: the receipt is
+    # invalid once any later measurement changes the pod's evidence (gate-05 f77)
+    REMOTE_SHA=$($SSH "cd /root/sm120-nulltest && find evidence -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1") || { echo "FATAL: remote content hash failed"; exit 1; }
+    echo "POD_ID=$POD_ID DEST=$DEST FILES=$LOCAL_N SHA256=$SHA REMOTE=$REMOTE_SHA TS=$TS" >> "$REPO_DIR/pod.env.extracted"
     du -sh "$DEST"; ls "$DEST/evidence" | head -20
     echo "EXTRACTED -> $DEST ($LOCAL_N files, sha256 $SHA)"
     ;;
@@ -62,8 +64,11 @@ case "$CMD" in
         || { echo "FATAL: no validated extraction receipt for pod $POD_ID — extract first"; exit 1; }
     LAST=$(grep "^POD_ID=$POD_ID " "$REPO_DIR/pod.env.extracted" | tail -1)
     D=$(echo "$LAST" | sed -n "s/.*DEST=\([^ ]*\).*/\1/p"); H=$(echo "$LAST" | sed -n "s/.*SHA256=\([^ ]*\).*/\1/p")
+    R=$(echo "$LAST" | sed -n "s/.*REMOTE=\([^ ]*\).*/\1/p")
     [ -f "$D/evidence.tgz" ] && [ "$(sha256sum "$D/evidence.tgz" | cut -d" " -f1)" = "$H" ] \
         || { echo "FATAL: extracted archive missing or changed ($D)"; exit 1; }
+    NOW=$($SSH "cd /root/sm120-nulltest && find evidence -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1") || { echo "FATAL: cannot hash remote evidence"; exit 1; }
+    [ -n "$R" ] && [ "$NOW" = "$R" ] || { echo "FATAL: remote evidence changed since the last extraction (extract again)"; exit 1; }
     echo "terminating pod $POD_ID (melband_profiling) — production pods untouched; evidence at $D"
     runpodctl pod terminate "$POD_ID"
     ;;

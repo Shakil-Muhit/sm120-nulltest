@@ -144,9 +144,10 @@ def source_map(evidence, iters):
                         rec['kernels'][name] = entry
             fused_rows = [r for r in ic['rows'] if r['class'] == 'INDUCTOR_FUSED']
             tot = sum(r['time_us_per_pass'] for r in fused_rows)
-            mapped = sum(r['time_us_per_pass'] for r in fused_rows
-                         if any(r['kernel'].startswith(n) and k.get('ops_source') != 'AMBIGUOUS'
-                                for n, k in rec['kernels'].items()))
+            def _mapped(r):
+                k = rec['kernels'].get(r.get('kernel_full') or r['kernel'])
+                return bool(k) and k.get('ops_source') != 'AMBIGUOUS' and bool(k.get('fused_ops'))
+            mapped = sum(r['time_us_per_pass'] for r in fused_rows if _mapped(r))
             rec['coverage'] = {'fused_time_us_per_pass': tot, 'mapped_time_us_per_pass': mapped,
                                'share': (mapped / tot) if tot else None}
         out[f'{arm}_{chunk}'] = rec

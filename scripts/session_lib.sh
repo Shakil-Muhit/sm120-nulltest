@@ -49,6 +49,7 @@ run_one() {
     fi
     local envv=() logs; logs="$(logs_for "$arm")"
     [ -n "$logs" ] && envv+=("TORCH_LOGS=$logs")
+    rm -f "$path"                       # no stale artifact survives a new attempt (gate-05 f75)
     echo "--- arm=$arm chunk=$chunk tag=$tag $(date -Is) cap=${cap}s remaining=$(remaining)s ---"
     env "${envv[@]}" timeout -k 30 "$cap" python "$RUN" --arm "$arm" --chunk "$chunk" \
         --tag "$tag" --iters "$ITERS" --repeats "$REPEATS" --clips-dir "$CLIPS_DIR" \
@@ -73,6 +74,7 @@ run_matched() {
         python3 -c "import json;json.dump({'pair':['$a','$b'],'chunk':$chunk,'tag':'$tag','status':'UNTESTED','error':'session deadline','pair_eligible':False},open('$path','w'),indent=1)"
         return
     fi
+    rm -f "$path"
     echo "--- matched pair $a vs $b chunk=$chunk tag=$tag $(date -Is) cap=${cap}s ---"
     env TORCH_LOGS="graph_breaks,recompiles,cudagraphs" timeout -k 30 "$cap" python "$MATCHED" \
         --pair "$a" "$b" --chunk "$chunk" --tag "$tag" --iters "$ITERS" --repeats "$REPEATS" \
@@ -100,6 +102,11 @@ run_traced() {
         local dump="$EVID/traces/dump_${arm}_${chunk}_${tag}"; rm -rf "$dump"; mkdir -p "$dump"
         envv+=("TORCH_COMPILE_DEBUG=1" "TORCH_COMPILE_DEBUG_DIR=$dump" "TORCHINDUCTOR_FORCE_DISABLE_CACHES=1")
     fi
+    # every artifact of this trace attempt is invalidated up front: run JSON, the
+    # nsys report, exports, and the reductions derived from them (gate-05 f75)
+    rm -f "$path" "$base.nsys-rep" "$base.sqlite" "${base}"_*.csv "${base}_exports.json" \
+          "$EVID/traces/graph_verify_${arm}_${chunk}.json" "$EVID/traces/timing_views_${arm}_${chunk}.json" \
+          "$EVID/traces/ideal_costs_${arm}_${chunk}.json" "$EVID/traces/ideal_costs_${arm}_${chunk}.csv"
     echo "--- TRACE arm=$arm chunk=$chunk tag=$tag graph-trace=$gmode $(date -Is) cap=${cap}s ---"
     env "${envv[@]}" timeout -k 30 "$cap" nsys profile --capture-range=cudaProfilerApi \
         --capture-range-end=stop --cuda-graph-trace="$gmode" --force-overwrite=true \
@@ -141,10 +148,15 @@ run_traced() {
 # either leaves an explicit INCOMPLETE session record (gate-04 f57)
 finalize_session() {
     local sess="$1" verdict
-    run_aux collect 600 -- python "$REPO_DIR/fullmodel/collect_full.py" --evidence-dir "$EVID" \
-        || python3 -c "import json;json.dump({'session':'$sess','verdict':'INCOMPLETE','reason':'collection failed'},open('$EVID/session_status.json','w'))"
-    run_aux completeness 300 -- python "$REPO_DIR/fullmodel/completeness.py" --evidence-dir "$EVID" --session "$sess"
-    [ -s "$EVID/session_status.json" ] || python3 -c "import json;json.dump({'session':'$sess','verdict':'INCOMPLETE','reason':'completeness audit failed'},open('$EVID/session_status.json','w'))"
+    # a previous verdict never survives a new finalisation (gate-05 f74)
+    rm -f "$EVID/session_status.json" "$EVID/summary_full.json" "$EVID/aux_collect.json" "$EVID/aux_completeness.json"
+    if ! run_aux collect 600 -- python "$REPO_DIR/fullmodel/collect_full.py" --evidence-dir "$EVID"; then
+        python3 -c "import json;json.dump({'session':'$sess','verdict':'INCOMPLETE','reason':'collection failed'},open('$EVID/session_status.json','w'))"
+    fi
+    if ! run_aux completeness 300 -- python "$REPO_DIR/fullmodel/completeness.py" --evidence-dir "$EVID" --session "$sess"; then
+        python3 -c "import json;json.dump({'session':'$sess','verdict':'INCOMPLETE','reason':'completeness audit failed or timed out'},open('$EVID/session_status.json','w'))"
+    fi
+    [ -s "$EVID/session_status.json" ] || python3 -c "import json;json.dump({'session':'$sess','verdict':'INCOMPLETE','reason':'no audit record'},open('$EVID/session_status.json','w'))"
     verdict=$(python3 -c "import json;print(json.load(open('$EVID/session_status.json')).get('verdict','INCOMPLETE'))" 2>/dev/null || echo INCOMPLETE)
     echo "SESSION VERDICT ($sess): $verdict"
 }

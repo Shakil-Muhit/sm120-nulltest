@@ -168,9 +168,11 @@ def analyze_trace(base, out, traced_json=None):
     Joined with the traced run's own JSON (gate-03 f40): a segment is only
     accepted when its case status is 'ok' (dependency proof + PTX passed) and
     the segment holds exactly N x REPEATS kernels; else UNRESOLVED."""
-    cases, qual_note = {}, None
+    cases, qual_note, pdl_ptx = {}, None, None
     if traced_json and os.path.exists(traced_json):
-        cases = json.load(open(traced_json)).get('chains', {})
+        tj = json.load(open(traced_json))
+        cases = tj.get('chains', {})
+        pdl_ptx = tj.get('pdl_ptx')
     if not cases:
         qual_note = 'UNRESOLVED: traced run qualification JSON missing — no calibration value derived'
     def read(path):
@@ -214,6 +216,16 @@ def analyze_trace(base, out, traced_json=None):
             continue
         if case.get('status') != 'ok':
             res[nm] = {'kernels': len(ks), 'status': f"UNRESOLVED: case status {case.get('status')}"}
+            continue
+        # the proof DATA decides, not the label (gate-05 f72): trivial chains carry the
+        # exact dependency counter; PDL modes additionally need the PTX qualification
+        if nm.startswith('trivial/'):
+            if not (case.get('dependency_proof') is True and case.get('counter_delta') is not None
+                    and case.get('counter_delta') == case.get('counter_expected')):
+                res[nm] = {'kernels': len(ks), 'status': 'UNRESOLVED: dependency proof data missing or failed'}
+                continue
+        if '/pdl_' in nm and pdl_ptx is not True:
+            res[nm] = {'kernels': len(ks), 'status': f'UNRESOLVED: PDL PTX qualification {pdl_ptx}'}
             continue
         if expected is not None and len(ks) != expected:
             res[nm] = {'kernels': len(ks), 'expected_kernels': expected,

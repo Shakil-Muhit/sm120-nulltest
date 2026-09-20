@@ -18,6 +18,8 @@ as not fully graphed with the offending kernel names.
 """
 
 import argparse
+
+REGISTERED_PASSES = 50
 import csv
 import json
 import os
@@ -166,7 +168,10 @@ def main():
     # affirmative qualification required (gate-04 f49): the registered pass
     # count must be given and met, and the node-level export record must
     # state completeness; anything less is UNRESOLVED, never FULLY_GRAPHED
-    complete = args.expected_passes is not None and len(per_pass) == args.expected_passes
+    # the registered protocol is 50 passes (gate-05 f70): a different expected
+    # count is a shakedown and can never yield a registered verdict
+    registered = args.expected_passes == REGISTERED_PASSES
+    complete = registered and len(per_pass) == args.expected_passes
     exports = args.base + '_exports.json'
     exports_ok = False
     if os.path.exists(exports):
@@ -177,6 +182,7 @@ def main():
             exports_ok = False
     summary['pass_count_complete'] = complete
     summary['exports_complete'] = exports_ok
+    summary['registered_protocol'] = registered
     summary['qualified'] = bool(complete and exports_ok)
     summary['min_captured_in_any_pass'] = min(p['captured_model_kernels'] for p in per_pass)
     summary['fully_graphed'] = bool(summary['qualified']
@@ -187,7 +193,8 @@ def main():
     summary['note'] = ('graph_launch_instances counts launch API instances by CorrId, not '
                        'distinct graph identities (not exported by nsys)')
     summary['eager_memop_names_union'] = sorted({n for p in per_pass for n in p['memop_names']})
-    summary['verdict'] = ('UNRESOLVED' if not summary['qualified'] else
+    summary['verdict'] = ('UNREGISTERED_PROTOCOL' if not registered else
+                          'UNRESOLVED' if not summary['qualified'] else
                           'FULLY_GRAPHED' if summary['fully_graphed'] else
                           'NOT_FULLY_GRAPHED' if summary['min_graph_launches_in_any_pass'] >= 1 else
                           'NO_REPLAY_EVIDENCE')

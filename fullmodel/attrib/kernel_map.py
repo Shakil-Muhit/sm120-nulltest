@@ -80,8 +80,9 @@ ASSERT_RE = re.compile(
 TRITON_CALL_RE = re.compile(r'^\s*(triton_\w+)\.run\((.*)\)', re.M)
 EXTERN_CALL_RE = re.compile(
     r'^\s*(?:(\w+)\s*=\s*)?extern_kernels\.(\w+)\((.*)\)', re.M)
+# every torch.ops namespace, custom operators included (gate-05 f68)
 FALLBACK_RE = re.compile(
-    r'^\s*(\w+)\s*=\s*torch\.ops\.(?:aten|prims)\.(\w+)[\.\w]*\((.*)\)', re.M)
+    r'^\s*(\w+)\s*=\s*torch\.ops\.(\w+)\.(\w+)[\.\w]*\((.*)\)', re.M)
 ARG_TOKEN_RE = re.compile(
     r'reinterpret_tensor\((\w+),\s*\(([^)]*)\),\s*\(([^)]*)\)(?:,\s*\d+)?\)'
     r'|(?<![\w.])(buf\d+|arg\d+_\d+|primals_\d+)(?![\w])')
@@ -264,8 +265,8 @@ def parse_output_code(dump_dir):
                 kind, name, argstr, assigned = ('extern', f'extern.{em.group(2)}',
                                                 em.group(3), em.group(1))
             else:
-                kind, name, argstr, assigned = ('fallback', f'aten.{fm.group(2)}',
-                                                fm.group(3), fm.group(1))
+                kind, name, argstr, assigned = ('fallback', f'{fm.group(2)}.{fm.group(3)}',
+                                                fm.group(4), fm.group(1))
             out_kw = re.search(r'\bout\s*=', argstr)
             args = []
             for mt in ARG_TOKEN_RE.finditer(argstr):
