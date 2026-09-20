@@ -1,5 +1,7 @@
-# VENDORED VERBATIM from axial-layout-scoping@a6f3e6f4bbd6acfeda70ce15d43db978d43de779 scoping/kernel_map.py (sha256 c12206080c43cf709e1ddac4f893811eb7cd70e43e836422d903717c3621dbc6)
-# Attribution parser reused for plan 1.3/1.4 (kernel -> fused ops, accesses, bytes). Do not edit; re-vendor.
+# ADAPTED from axial-layout-scoping@a6f3e6f4bbd6acfeda70ce15d43db978d43de779 scoping/kernel_map.py
+# (upstream body sha256 c1220608...; this copy adds: triton_meta signature dtypes, rand_strided input
+#  dtypes, own-name asserts, accessed_elems(), load/store site counts, numeric params, source hashes,
+#  full call lines). NOT verbatim — the current file hash is recorded by provenance.code_hashes().
 """Phase 1c/1d/1e — Inductor kernel map, materialization inventory, R_layout.
 v3 after codex gates 02+03 (docs/codex/02_code.md, 03_delta.md). Key
 properties the owner can audit:
@@ -39,6 +41,7 @@ properties the owner can audit:
 
 import argparse
 import ast
+import hashlib
 import bisect
 import csv
 import glob
@@ -169,13 +172,20 @@ def parse_output_code(dump_dir):
                 k['ops_raw_name'] = raw
             body = src[am.end():hi]       # this kernel's own source slice
             pm = re.search(r'def\s+' + re.escape(inner) + r'\s*\(([^)]*)\)', body)
-            params = []
+            params, numeric = [], []
             if pm:
                 for tok in pm.group(1).split(','):
-                    tok = tok.split(':')[0].strip()
-                    if tok.startswith(('in_ptr', 'out_ptr', 'in_out_ptr')):
-                        params.append(tok)
+                    name_only = tok.split(':')[0].split('=')[0].strip()
+                    if not name_only:
+                        continue
+                    if name_only.startswith(('in_ptr', 'out_ptr', 'in_out_ptr')):
+                        params.append(name_only)
+                    elif 'constexpr' in tok:
+                        continue
+                    else:
+                        numeric.append(name_only)      # xnumel / rnumel / ks* ...
             k['params'] = params
+            k['numeric_params'] = numeric
             k['load_exprs'] = {}
             k['store_exprs'] = {}
             k['loads_present'] = []
@@ -203,6 +213,8 @@ def parse_output_code(dump_dir):
             # (authoritative: the compiled kernel's ABI), e.g. 'in_ptr0': '*fp16'
             sg = SIGNATURE_RE.search(body)
             k['ptr_dtypes'] = dict(SIG_ITEM_RE.findall(sg.group(1))) if sg else {}
+            src_text = source_literals.get(lhs) or body
+            k['source_sha256'] = hashlib.sha256(src_text.encode()).hexdigest()
             kernels[lhs] = k
         # graph-input dtypes from the benchmark section (rand_strided(...))
         input_dtypes = {m.group(1): m.group(4) for m in RAND_STRIDED_RE.finditer(src)}
@@ -268,6 +280,24 @@ def parse_output_code(dump_dir):
             if kind == 'triton':
                 params = kernels.get(name, {}).get('params', [])
                 align_ok = len(params) == len(args)
+                # positional literals after the pointer arguments, bound later to
+                # the kernel's numeric params (gate-04 f52); keyword args excluded
+                inner = argstr
+                depth, pos_args, cur = 0, [], ''
+                for ch in inner:
+                    if ch in '([':
+                        depth += 1
+                    elif ch in ')]':
+                        depth -= 1
+                    if ch == ',' and depth == 0:
+                        pos_args.append(cur.strip())
+                        cur = ''
+                    else:
+                        cur += ch
+                if cur.strip():
+                    pos_args.append(cur.strip())
+                pos_args = [x for x in pos_args if '=' not in x.split('(')[0]]
+                numeric_literals = pos_args[len(args):]
                 for i, a in enumerate(args):
                     role = params[i] if i < len(params) else ''
                     a['read'] = role.startswith(('in_ptr', 'in_out_ptr'))
@@ -277,7 +307,8 @@ def parse_output_code(dump_dir):
                         kernels.get(name, {}), a['role'])
                 calls.append({'kind': kind, 'name': name, 'args': args,
                               'align_ok': align_ok, 'assigned': None,
-                              'line': line.strip()[:400]})
+                              'numeric_literals': numeric_literals,
+                              'line': line.strip()})
             elif kind == 'extern':
                 for a in args:
                     a['write'] = a['in_out_kw']
@@ -285,13 +316,13 @@ def parse_output_code(dump_dir):
                     a['role'] = 'out' if a['write'] else 'in'
                 calls.append({'kind': kind, 'name': name, 'args': args,
                               'align_ok': True, 'assigned': assigned,
-                              'line': line.strip()[:400]})
+                              'line': line.strip()})
             else:
                 for a in args:
                     a['read'], a['write'], a['role'] = True, False, 'in'
                 calls.append({'kind': kind, 'name': name, 'args': args,
                               'align_ok': True, 'assigned': assigned,
-                              'line': line.strip()[:400]})
+                              'line': line.strip()})
             calls[-1]['source_line'] = body_line
         graphs.append({'path': path, 'calls': calls, 'allocs': allocs,
                        'aliases': aliases, 'kernels': kernels})

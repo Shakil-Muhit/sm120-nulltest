@@ -134,7 +134,6 @@ done
 fi
 
 echo "=== [7] collection + completeness verdict ==="
-python "$REPO_DIR/fullmodel/collect_full.py" --evidence-dir "$EVID" || true
-python "$REPO_DIR/fullmodel/completeness.py" --evidence-dir "$EVID" --session session1 || true
+finalize_session session1
 echo "SESSION1 DONE $(date -Is) elapsed=$(( $(date +%s) - T0 ))s remaining=$(remaining)s"
 echo ">>> EXTRACT evidence/ OFF-POD BEFORE TERMINATE:  tar czf /root/evidence_s1_\$(date +%Y%m%d_%H%M).tgz -C $REPO_DIR evidence"

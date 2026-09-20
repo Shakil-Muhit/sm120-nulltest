@@ -236,12 +236,15 @@ NVIDIA's CUDA 12.6 figure ≈ 0.55 µs/node is empty-kernel graph device
 service time (RTX 3060), not CPU launch cost. **Until measured, no
 per-boundary number is used anywhere**, and the ledger's X10 must not count
 kernel execution as removable boundary overhead. Trace-derived gaps are
-accepted only for cases whose dependency proof and PTX qualification passed
-(joined from the traced run's own JSON) and whose NVTX segment holds exactly
-N × 20 kernels; the perturbation runs (plan 1.6) are accepted only when all
-three runs are VALID, validation PASS, one block × 50 passes, manifest-bound
-with the same effective variant — otherwise the ratio AND the caveat are
-UNRESOLVED. Any unavailable mode is recorded `UNTESTED(reason)`.
+accepted only for segments whose qualification case exists in the traced
+run's own JSON with a passed dependency proof and PTX verdict and whose
+NVTX segment holds exactly N × 20 kernels (a missing qualification file
+yields no calibration value at all); the perturbation runs (plan 1.6) are
+accepted only when all three runs are VALID, validation PASS, one block
+holding exactly 50 recorded passes, manifest-bound with the same recorded
+effective variant, and (compiled arms) affirmatively recording-stable —
+otherwise EVERY derived ratio and the caveat are cleared to UNRESOLVED. Any
+unavailable mode is recorded `UNTESTED(reason)`.
 
 ## 5. Session structure, protocol, budget
 - **Protocol 5a**, reused from `arms/common.py::timed_run` (per-iteration
@@ -293,9 +296,18 @@ UNRESOLVED. Any unavailable mode is recorded `UNTESTED(reason)`.
   arms' cells hold that SDR qualification; the matched runner re-checks each
   arm's recording state after the joint settle and after validation.
   **Recording observer:** compiled runs snapshot the cudagraph-trees
-  manager's recorded graph nodes (roots and descendants) together with the
-  dynamo/inductor counters at every phase boundary; a missing observer
-  leaves stability UNRESOLVED and the run ineligible.
+  manager identity, the identity set of its recorded graph nodes (roots and
+  descendants) and its function-id set together with the dynamo/inductor
+  counters at every phase boundary; stability means every one of these is
+  unchanged (sets compared, never counts); a missing observer leaves
+  stability UNRESOLVED and the run ineligible.
+  **Independent qualification:** every publisher (driver, matched runner,
+  collector, completeness audit) re-derives eligibility from the record
+  itself through one versioned validator (`fullmodel/qualify.py`); stored
+  eligibility flags are never trusted, and a record whose stored flag
+  contradicts the validator is ineligible. Each run persists the sha256 of
+  every reference artifact its lineage check saw; the three restarts of a
+  cell must have been validated against the same hashed reference set.
   **Runtime pins and manifest scope:** every process checks torch ==
   2.8.0+cu128 and triton == 3.4.0 before building; the manifest binds the
   complete measuring set (fullmodel/**, arms/*, scripts/*, configs/*,
@@ -322,17 +334,37 @@ UNRESOLVED. Any unavailable mode is recorded `UNTESTED(reason)`.
   compile arms, 15 min others); an **aggregate C2 allowance of 40 min**, and
   a timed-out cold C2 attempt is not retried at that operating point (the
   remaining restarts are `UNTESTED`; a timeout means unavailable
-  performance, not evidence that C2 is slow). Every run's JSON carries
+  performance, not evidence that C2 is slow; a C2 cell whose three restarts
+  are terminal `UNTESTED` records citing the allowance / no-retry / timeout
+  rule is permitted terminal unavailability and does not make the session
+  INCOMPLETE — every other missing or failed registered item does). Every run's JSON carries
   `headline_eligible` with machine-readable reasons; a headline per (arm ×
   operating point) requires three complete eligible restarts with the same
   effective variant (capture scope / adapter / compile mode), else the cell
   is `INCOMPLETE`. At the end of each session `fullmodel/completeness.py`
-  audits the registered mandatory items and writes the mechanical session
-  verdict (COMPLETE / INCOMPLETE with per-item reasons) to
-  `session_status.json`; supervisor messages go to stderr and every bounded
-  auxiliary step leaves a terminal `aux_<name>.json` (OK / FAILED /
-  UNTESTED). Pod setup (image boot, `setup.sh`) precedes the session clock.
-  Evidence extraction before terminate.
+  audits the registered mandatory items BY CONTENT — session 1: the 21
+  matrix cells, the three matched-pair families (m1–m3), the once-only
+  (C1, C1A) attempt's terminal record, both planted-fault records (FAIL at
+  the planted magnitude), the C3 operator qualification (all four frame
+  counts PASS); session 2: the eight sweep cells, the 19 node-level traces
+  (traced run VALID, one block of 50 passes, manifest-bound, exports
+  complete), graph verification and timing views per traced arm, ideal
+  costs (C3 requires a unique variant and validated windows), the 18
+  perturbation runs and six resolved ratios, source-map coverage for C3,
+  the attention bench (eight cases, model-layout ratios established), the
+  boundary bench (terminal status per registered chain) and its qualified
+  trace analysis; both sessions: manifest, collection summary, reference
+  lineage (directory marker and every sidecar), clock log, and every
+  auxiliary terminal record OK — and writes the mechanical session verdict
+  (COMPLETE / INCOMPLETE with per-item reasons) to `session_status.json`.
+  Collection and the audit are themselves supervised; if either fails the
+  session record is an explicit INCOMPLETE. Every on-pod reduction (nsys
+  exports, graph verification, timing views, ideal costs, perturbation) is
+  bounded by the session deadline, invalidates its stale outputs before the
+  attempt, and leaves a terminal `aux_<name>.json` (OK / FAILED /
+  UNTESTED); supervisor messages go to stderr. Pod setup (image boot,
+  `setup.sh`) precedes the session clock. Evidence extraction (validated
+  archive, receipt bound to the pod id) before terminate.
 - **Session 2 (≤ 3 h):** eager-A references + SDR at the sweep points; chunk
   sweep (A, C3, G, H × {22050, 88200}, 3 restarts, SDR gate in r1);
   node-level traces (ONE captured 50-pass block per traced run, outer NVTX
@@ -356,12 +388,16 @@ UNRESOLVED. Any unavailable mode is recorded `UNTESTED(reason)`.
   — the 12 attention executions per pass in (time, freq) × 6 order, Triton
   preprocessing kernels excluded — and a case whose deployed backend is not
   established from a trace has NO ratio and is UNRESOLVED, never assumed);
+  graph verification requires an affirmative node-level export record and
+  the registered pass count (else its verdict is UNRESOLVED); timing views
+  count kernels only (memcpy/memset rows are reported separately as memops);
   boundary microbench (§4) plus its node-level trace and traced-vs-unprofiled
   perturbation; per-kernel ideal costs (plan 1.4) computed only from the
   compiled variant(s) whose ORDERED per-pass Triton sequence is reproduced
   by a UNIQUE decomposition into compiled-graph call sequences (graphs may
-  repeat; graphs with identical kernel sequences and call signatures are one
-  interchangeable class; graphs without Triton kernels are invisible to the
+  repeat; graphs are interchangeable only when their complete pricing
+  semantics agree — kernel body hashes, access sites, iteration literals,
+  argument shapes/strides/types and every extern/fallback call in order; graphs without Triton kernels are invisible to the
   decomposition and are stated as such; SDPA call count reconciled exactly,
   GEMM events ≥ extern calls, captured pass count = 50; zero or several
   decompositions → UNRESOLVED, expected for graph-broken arms such as C1/C2
@@ -377,7 +413,15 @@ UNRESOLVED. Any unavailable mode is recorded `UNTESTED(reason)`.
   kernel's own ABI signature (`triton_meta`), traffic = min(distinct
   elements of the argument's strided footprint, load/store sites × the
   call's iteration space) × element size, reads and writes charged
-  separately; graph-input dtypes from the wrapper's benchmark section;
+  separately, where the iteration space is the product of the call's
+  positional integer literals bound one-to-one to the kernel's numeric
+  parameters (any other call form is UNRESOLVED); the L2 residency test
+  uses the union of the distinct base allocations the call touches, each at
+  its full allocated size (an over-estimate: a call passes the test only
+  when its whole working set provably fits); every measured value comes
+  from the validated per-pass windows (the aggregate kernel summary is only
+  reconciled against them), and an arm whose windows are not the registered
+  50 passes publishes no rows; graph-input dtypes from the wrapper's benchmark section;
   fallback-op outputs from their `assert_size_stride`. This over-counts
   slice reads, so a row whose HBM-model ideal exceeds its measured time is
   flagged `bound_not_tight` and its recoverable share under the HBM model is

@@ -120,12 +120,17 @@ def main():
     assert wins, 'no pass windows'
     per = []
     for s, e in wins:
-        p = [r for r in rows if s <= r['start'] < e]
+        allrows = [r for r in rows if s <= r['start'] < e]
+        # kernels only (gate-04 f58): memcpy/memset rows are memops, reported
+        # separately and never counted as kernel time
+        p = [r for r in allrows if not r['name'].startswith('[CUDA mem')]
+        mem = [r for r in allrows if r['name'].startswith('[CUDA mem')]
         cp, dom = critical_path_ns(p)
         u = union_ns(p)
         span = (max(r['start'] + r['dur'] for r in p) - min(r['start'] for r in p)) if p else 0
         assert cp <= u + 1 and u <= span + 1, (cp, u, span)   # observed-order bound
-        per.append({'kernels': len(p), 'streams': sorted({r['stream'] for r in p}),
+        per.append({'kernels': len(p), 'memops': len(mem), 'memops_sum_ns': sum(r['dur'] for r in mem),
+                    'streams': sorted({r['stream'] for r in p}),
                     'sum_ns': sum(r['dur'] for r in p), 'union_ns': u,
                     'critical_path_observed_order_ns': cp, 'span_ns': span,
                     'window_ns': e - s, 'dominant_stream': dom})

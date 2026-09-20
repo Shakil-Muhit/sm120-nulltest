@@ -114,17 +114,39 @@ run_traced() {
     fi
     [ -s "$base.nsys-rep" ] || { echo "    no .nsys-rep"; return 1; }
     if [ "$gmode" = "node" ]; then
-        nsys stats --force-export=true --force-overwrite=true --format csv \
-            --report cuda_gpu_trace --report cuda_gpu_kern_sum --report cuda_api_trace \
-            --report nvtx_gpu_proj_trace --report nvtx_gpu_proj_sum \
-            --output "$base" "$base.nsys-rep" > /dev/null 2>&1 || echo "    WARN: some exports failed for $base"
+        # stale outputs invalidated BEFORE the attempt; the export is bounded and
+        # its exit code decides completeness (gate-04 f57)
+        rm -f "${base}"_*.csv "${base}_exports.json" "${base}.sqlite"
+        local ecap; ecap=$(cap_for 900)
+        local erc=1
+        if [ "$ecap" -ge 60 ]; then
+            timeout -k 30 "$ecap" nsys stats --force-export=true --force-overwrite=true --format csv \
+                --report cuda_gpu_trace --report cuda_gpu_kern_sum --report cuda_api_trace \
+                --report nvtx_gpu_proj_trace --report nvtx_gpu_proj_sum \
+                --output "$base" "$base.nsys-rep" > /dev/null 2>&1; erc=$?
+            [ "$erc" = "0" ] || echo "    WARN: export exit $erc for $base"
+        else
+            echo "    DEADLINE: exports not attempted for $base"
+        fi
         local missing=0
         for rep in cuda_gpu_trace cuda_gpu_kern_sum cuda_api_trace nvtx_gpu_proj_trace; do
             [ -s "${base}_${rep}.csv" ] || { echo "    MISSING export: ${base}_${rep}.csv"; missing=1; }
         done
-        python3 -c "import json;json.dump({'complete': $(( 1 - missing )) == 1, 'graph_trace_mode': '$gmode'}, open('${base}_exports.json','w'))"
+        python3 -c "import json;json.dump({'complete': ($(( 1 - missing )) == 1) and ($erc == 0), 'export_exit': $erc, 'graph_trace_mode': '$gmode'}, open('${base}_exports.json','w'))"
     fi
     return 0
+}
+
+# finalize_session SESSION: collection and audit are supervised; a failure of
+# either leaves an explicit INCOMPLETE session record (gate-04 f57)
+finalize_session() {
+    local sess="$1" verdict
+    run_aux collect 600 -- python "$REPO_DIR/fullmodel/collect_full.py" --evidence-dir "$EVID" \
+        || python3 -c "import json;json.dump({'session':'$sess','verdict':'INCOMPLETE','reason':'collection failed'},open('$EVID/session_status.json','w'))"
+    run_aux completeness 300 -- python "$REPO_DIR/fullmodel/completeness.py" --evidence-dir "$EVID" --session "$sess"
+    [ -s "$EVID/session_status.json" ] || python3 -c "import json;json.dump({'session':'$sess','verdict':'INCOMPLETE','reason':'completeness audit failed'},open('$EVID/session_status.json','w'))"
+    verdict=$(python3 -c "import json;print(json.load(open('$EVID/session_status.json')).get('verdict','INCOMPLETE'))" 2>/dev/null || echo INCOMPLETE)
+    echo "SESSION VERDICT ($sess): $verdict"
 }
 
 # bounded auxiliary command: run_aux NAME CAP -- cmd...   (supervisor messages

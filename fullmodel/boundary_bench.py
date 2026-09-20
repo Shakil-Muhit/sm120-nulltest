@@ -168,9 +168,11 @@ def analyze_trace(base, out, traced_json=None):
     Joined with the traced run's own JSON (gate-03 f40): a segment is only
     accepted when its case status is 'ok' (dependency proof + PTX passed) and
     the segment holds exactly N x REPEATS kernels; else UNRESOLVED."""
-    cases = {}
+    cases, qual_note = {}, None
     if traced_json and os.path.exists(traced_json):
         cases = json.load(open(traced_json)).get('chains', {})
+    if not cases:
+        qual_note = 'UNRESOLVED: traced run qualification JSON missing — no calibration value derived'
     def read(path):
         with open(path, newline='') as f:
             rows = list(csv.reader(f))
@@ -207,7 +209,10 @@ def analyze_trace(base, out, traced_json=None):
         case = cases.get(nm)
         n = int(nm.rsplit('N', 1)[1]) if 'N' in nm else None
         expected = n * REPEATS if n else None
-        if case is not None and case.get('status') != 'ok':
+        if case is None:                       # gate-04 f54: qualification is mandatory
+            res[nm] = {'kernels': len(ks), 'status': 'UNRESOLVED: no qualification case for this segment'}
+            continue
+        if case.get('status') != 'ok':
             res[nm] = {'kernels': len(ks), 'status': f"UNRESOLVED: case status {case.get('status')}"}
             continue
         if expected is not None and len(ks) != expected:
@@ -227,6 +232,8 @@ def analyze_trace(base, out, traced_json=None):
                    'negative_gap_fraction': sum(1 for g in gaps if g < 0) / len(gaps),
                    'note': ('overlapping kernels (PDL): gap is not a boundary estimate'
                             if 'pdl' in nm else 'serial gap = boundary estimate for this mode')}
+    res['_qualification'] = {'traced_json': traced_json, 'cases': len(cases), 'note': qual_note,
+                             'accepted_segments': sum(1 for k, v in res.items() if not k.startswith('_') and v.get('status') == 'ok')}
     with open(out, 'w') as f:
         json.dump(res, f, indent=1)
     for nm, r in sorted(res.items()):

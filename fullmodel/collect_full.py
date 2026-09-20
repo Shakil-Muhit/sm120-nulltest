@@ -18,6 +18,10 @@ import glob
 import json
 import os
 import statistics
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import qualify  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARMS = ('A', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H', 'ANVTX')
@@ -36,34 +40,29 @@ def load(evidence_dir):
 
 
 def variant(r):
-    return r.get('effective_variant') or '/'.join(str(r.get(k)) for k in
-                                                   ('capture_scope', 'capture_adapter_active',
-                                                    'compile_mode', 'stream_count'))
+    """Canonical variant re-derived from the record's fields (never the stored string)."""
+    return qualify.variant(r)
 
 
-def sdr_from_r1(tag_runs, manifest_id, var):
-    """The registered qualification record: r1, same manifest, same variant."""
+def sdr_from_r1(tag_runs, chunk, manifest_id, var):
+    """The registered qualification record: r1, same manifest, same variant,
+    gate PASS at this operating point, clip outputs lineage-hashed."""
     r1 = tag_runs.get('r1')
-    if not r1 or not r1.get('sdr_gate'):
-        return 'NONE', None, 'no SDR record in r1'
-    if manifest_id and r1.get('manifest_id') != manifest_id:
-        return 'NONE', None, 'r1 SDR record belongs to another manifest'
-    if var and variant(r1) != var:
-        return 'NONE', None, 'r1 SDR record has another effective variant'
-    g = r1['sdr_gate']
-    if g.get('operating_point') not in (None, r1['chunk']):
-        return 'NONE', None, 'r1 SDR record operating point mismatch'
-    return g.get('status'), g.get('mean_delta_sdr_ref_db'), None
+    probs = qualify.sdr_problems(r1, chunk, manifest_id, var)
+    g = (r1 or {}).get('sdr_gate') or {}
+    return (g.get('status', 'NONE') if not probs else 'NONE'), g.get('mean_delta_sdr_ref_db'), ('; '.join(probs) or None)
 
 
 def cell(tag_runs):
     req = {t: tag_runs.get(t) for t in REQUIRED_RESTARTS}
     present = [r for r in req.values() if r]
+    chunk = present[0]['chunk'] if present else None
     manifests = sorted({str(r.get('manifest_id')) for r in present})
     variants = sorted({variant(r) for r in present})
+    ref_hashes = sorted({json.dumps(qualify.reference_hashes(r), sort_keys=True) for r in present})
     manifest_id = manifests[0] if len(manifests) == 1 else None
     var = variants[0] if len(variants) == 1 else None
-    sdr, sdr_delta, sdr_note = sdr_from_r1(tag_runs, manifest_id, var)
+    sdr, sdr_delta, sdr_note = sdr_from_r1(tag_runs, chunk, manifest_id, var)
     c = {'restarts_found': sorted(t for t in tag_runs if t.startswith('r')),
          'statuses': {t: (r or {}).get('status', 'MISSING') for t, r in req.items()},
          'tier': sorted({r.get('registered_tier') or r.get('tier') for r in present if r.get('tier')}),
@@ -78,12 +77,19 @@ def cell(tag_runs):
     for t, r in req.items():
         if r is None:
             c['reasons'].append(f'{t} missing')
-        elif not r.get('headline_eligible'):
-            c['reasons'].append(f"{t}: {'; '.join(r.get('ineligibility_reasons') or ['ineligible'])}")
+            continue
+        probs = qualify.run_problems(r)          # independent of stored flags (gate-04 f47)
+        if probs:
+            c['reasons'].append(f"{t}: {'; '.join(probs)}")
+        if r.get('headline_eligible') and probs:
+            c['reasons'].append(f'{t}: stored eligibility flag contradicts the record')
     if len(manifests) != 1 or manifests == ['None']:
         c['reasons'].append(f'restarts do not share one session manifest: {manifests}')
     if len(variants) != 1:
         c['reasons'].append(f'effective variants differ: {variants}')
+    if len(ref_hashes) != 1 or ref_hashes == ['{}']:
+        c['reasons'].append('restarts were not validated against one lineage-hashed reference set')
+    c['reference_hashes'] = json.loads(ref_hashes[0]) if len(ref_hashes) == 1 else None
     if sdr != 'PASS':
         c['reasons'].append(f'SDR qualification (r1) at this operating point: {sdr}' + (f' ({sdr_note})' if sdr_note else ''))
     if not c['reasons']:
@@ -137,21 +143,31 @@ def main():
             for t, m in req.items():
                 if m is None:
                     reasons.append(f'{t} missing')
-                elif not m.get('pair_eligible'):
-                    reasons.append(f"{t}: {'; '.join(m.get('ineligibility_reasons') or ['ineligible'])}")
+                    continue
+                probs = qualify.pair_problems(m)     # independent of stored flags
+                if probs:
+                    reasons.append(f"{t}: {'; '.join(probs)}")
             present = [m for m in req.values() if m]
             mans = sorted({str(m.get('manifest_id')) for m in present})
-            vars_ = sorted({json.dumps(m.get('effective_variants'), sort_keys=True) for m in present})
+            # canonical per-arm variants re-derived from each matched record
+            vars_ = sorted({json.dumps({k: qualify.variant(v) for k, v in (m.get('arms') or {}).items()}, sort_keys=True)
+                            for m in present})
             if len(mans) != 1 or mans == ['None']:
                 reasons.append(f'matched restarts do not share one manifest: {mans}')
             if len(vars_) != 1:
                 reasons.append('matched restarts differ in effective variants')
             for arm in (a, b):
                 ca = cells.get((arm, chunk))
+                r1 = (runs.get((arm, chunk)) or {}).get('r1')
                 if not ca or ca['sdr_gate'] != 'PASS':
                     reasons.append(f'{arm}: SDR qualification at {chunk} is {(ca or {}).get("sdr_gate", "NONE")}')
-                elif mans and ca['manifests'] != mans:
+                    continue
+                if mans and ca['manifests'] != mans:
                     reasons.append(f'{arm}: SDR qualification from another manifest')
+                # each matched arm joins its r1 record by manifest, operating point AND full variant
+                mv = {qualify.variant((m.get('arms') or {}).get(arm) or {}) for m in present}
+                if len(mv) != 1 or (r1 and qualify.variant(r1) not in mv):
+                    reasons.append(f'{arm}: matched variant differs from its r1 SDR-qualified variant')
             deltas = {t: (m.get('matched_delta_ms') or {}).get('median') for t, m in by_tag.items()}
             entry = {'required': {t: (m or {}).get('pair_eligible') for t, m in req.items()},
                      'deltas_ms': deltas, 'reasons': reasons,

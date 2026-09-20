@@ -41,17 +41,30 @@ case "$CMD" in
     $SSH "tmux ls 2>/dev/null || echo 'no tmux session'; nvidia-smi --query-gpu=name,utilization.gpu,memory.used,clocks.sm --format=csv,noheader; ls /root/sm120-nulltest/evidence 2>/dev/null | wc -l; for f in /root/sm120-nulltest/evidence/session*.log; do [ -f \$f ] && { echo \"--- \$f\"; tail -n 6 \$f; }; done"
     ;;
   extract)
+    set -o pipefail
     TS=$(date +%Y%m%d_%H%M)
-    DEST="$HOME/ms/evidence_pod/$TS"
+    DEST="$HOME/ms/evidence_pod/${POD_ID}_$TS"
     mkdir -p "$DEST"
-    $SSH "cd /root/sm120-nulltest && tar czf - evidence" | tar xzf - -C "$DEST"
-    echo "$DEST" >> "$REPO_DIR/pod.env.extracted"
+    REMOTE_N=$($SSH "cd /root/sm120-nulltest && find evidence -type f | wc -l") || { echo "FATAL: cannot count remote files"; exit 1; }
+    $SSH "cd /root/sm120-nulltest && tar czf - evidence" > "$DEST/evidence.tgz" || { echo "FATAL: transfer failed"; exit 1; }
+    tar tzf "$DEST/evidence.tgz" > /dev/null || { echo "FATAL: archive invalid"; exit 1; }
+    tar xzf "$DEST/evidence.tgz" -C "$DEST" || { echo "FATAL: extraction failed"; exit 1; }
+    LOCAL_N=$(find "$DEST/evidence" -type f | wc -l)
+    [ "$LOCAL_N" -eq "$REMOTE_N" ] || { echo "FATAL: file count mismatch remote=$REMOTE_N local=$LOCAL_N"; exit 1; }
+    SHA=$(sha256sum "$DEST/evidence.tgz" | cut -d" " -f1)
+    # receipt bound to THIS pod id + archive hash (gate-04 f59)
+    echo "POD_ID=$POD_ID DEST=$DEST FILES=$LOCAL_N SHA256=$SHA TS=$TS" >> "$REPO_DIR/pod.env.extracted"
     du -sh "$DEST"; ls "$DEST/evidence" | head -20
-    echo "EXTRACTED -> $DEST (recorded in pod.env.extracted)"
+    echo "EXTRACTED -> $DEST ($LOCAL_N files, sha256 $SHA)"
     ;;
   terminate)
-    [ -s "$REPO_DIR/pod.env.extracted" ] || { echo "FATAL: no extraction recorded for this pod — extract first"; exit 1; }
-    echo "terminating pod $POD_ID (melband_profiling) — production pods untouched"
+    grep -q "^POD_ID=$POD_ID " "$REPO_DIR/pod.env.extracted" 2>/dev/null \
+        || { echo "FATAL: no validated extraction receipt for pod $POD_ID — extract first"; exit 1; }
+    LAST=$(grep "^POD_ID=$POD_ID " "$REPO_DIR/pod.env.extracted" | tail -1)
+    D=$(echo "$LAST" | sed -n "s/.*DEST=\([^ ]*\).*/\1/p"); H=$(echo "$LAST" | sed -n "s/.*SHA256=\([^ ]*\).*/\1/p")
+    [ -f "$D/evidence.tgz" ] && [ "$(sha256sum "$D/evidence.tgz" | cut -d" " -f1)" = "$H" ] \
+        || { echo "FATAL: extracted archive missing or changed ($D)"; exit 1; }
+    echo "terminating pod $POD_ID (melband_profiling) — production pods untouched; evidence at $D"
     runpodctl pod terminate "$POD_ID"
     ;;
   *) echo "usage: $0 ship|session1|session2|tail [name]|status|extract|terminate"; exit 2 ;;

@@ -108,7 +108,7 @@ def cudagraph_tree_state():
         roots = getattr(mgr, 'roots', None)
         if not isinstance(roots, dict):
             return {'available': False, 'reason': 'roots not a dict'}
-        n_nodes, n_roots, stack = 0, 0, []
+        n_roots, stack, node_ids = 0, [], []
         for lst in roots.values():
             for node in lst:
                 n_roots += 1
@@ -119,13 +119,17 @@ def cudagraph_tree_state():
             if id(node) in seen:
                 continue
             seen.add(id(node))
-            n_nodes += 1
+            node_ids.append(id(node))
             ch = getattr(node, 'children', None)
             if isinstance(ch, dict):
                 for lst in ch.values():
                     stack.extend(lst)
         ids = getattr(mgr, 'ids_to_funcs', None) or getattr(mgr, 'ids_to_stack', None)
-        return {'available': True, 'roots': n_roots, 'nodes': n_nodes,
+        # identities retained (gate-04 f48): manager object, every recorded node,
+        # and the function-id set; compared as sets, not counts
+        return {'available': True, 'roots': n_roots, 'nodes': len(node_ids),
+                'manager_id': id(mgr), 'node_ids': sorted(node_ids),
+                'function_ids': sorted(str(k) for k in ids) if isinstance(ids, dict) else None,
                 'functions': len(ids) if ids is not None else None,
                 'current_gen': getattr(mgr, 'current_gen', None)}
     except Exception as e:
@@ -140,8 +144,12 @@ def recording_state():
 def recording_stable(a, b):
     if not (a['tree'].get('available') and b['tree'].get('available')):
         return None                      # unresolved: observer missing
+    ta, tb = a['tree'], b['tree']
     return (compile_stable(a['counters'], b['counters']) and
-            a['tree']['nodes'] == b['tree']['nodes'] and a['tree']['roots'] == b['tree']['roots'])
+            ta.get('manager_id') == tb.get('manager_id') and
+            ta.get('node_ids') == tb.get('node_ids') and
+            ta.get('function_ids') == tb.get('function_ids') and
+            ta['roots'] == tb['roots'])
 
 
 def graph_gate(require_zero_breaks):
@@ -283,7 +291,7 @@ def validate(step, ctx, tier, chunk, ref_dir, save_reference=False, manifest_id=
             torch.save(out.float().cpu(), path)
             if manifest_id is not None:
                 provenance.bind_artifact(path, manifest_id)
-            passes.append({'seed': seed, 'saved': path,
+            passes.append({'seed': seed, 'saved': path, 'ref_sha256': provenance.sha256_file(path),
                            'finite': bool(torch.isfinite(out).all())})
             continue
         if not os.path.exists(path):
@@ -294,6 +302,9 @@ def validate(step, ctx, tier, chunk, ref_dir, save_reference=False, manifest_id=
         ref = torch.load(path, map_location='cuda', weights_only=True)
         rec = compare_outputs(out, ref, tier)
         rec['seed'] = seed
+        # persisted, checked reference identity (gate-04 f47): the hash the
+        # lineage check saw, so collectors can join restarts on it
+        rec['ref_sha256'] = provenance.sha256_file(path) if manifest_id is not None else None
         passes.append(rec)
         del ref
     if save_reference:

@@ -141,12 +141,14 @@ def run_gate(step, ctx, clips, ref_dir, chunk, save_reference=False, manifest_id
             torch.save(est, path)
             if manifest_id is not None:
                 provenance.bind_artifact(path, manifest_id)
+                row['a_output_sha256'] = provenance.sha256_file(path)
             row['saved'] = path
         else:
             if not os.path.exists(path):
                 raise FileNotFoundError(f'eager-A clip output missing: {path}')
             if manifest_id is not None:
                 provenance.check_artifact(path, manifest_id)
+                row['a_output_sha256'] = provenance.sha256_file(path)
             a_out = torch.load(path, weights_only=True)
             row['sdr_ref_A_db'] = sdr_db(vocals, a_out)
             d = (row['sdr_ref_db'] - row['sdr_ref_A_db']

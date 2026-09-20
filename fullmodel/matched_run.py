@@ -31,7 +31,8 @@ for _p in (_ROOT, _HERE):
 import torch                      # noqa: E402
 import fullarms as arms_mod       # noqa: E402
 import loader                     # noqa: E402
-import provenance                 # noqa: E402
+import provenance
+import qualify                 # noqa: E402
 import timing as tm               # noqa: E402
 
 
@@ -102,6 +103,7 @@ def main():
     out_path = os.path.join(args.evidence_dir, f'matched_{a}_{b}_c{args.chunk}_{args.tag}.json')
     result = {'pair': [a, b], 'chunk': args.chunk, 'tag': args.tag, 'status': 'VALID',
               'error': None, 'env': tm.env_fingerprint(), 'arms': {}, 'blocks': [],
+              'iters': args.iters, 'repeats': args.repeats,
               'torch_logs_env': os.environ.get('TORCH_LOGS'), 'manifest_id': None,
               'pair_eligible': False, 'ineligibility_reasons': []}
     reasons = result['ineligibility_reasons']
@@ -125,7 +127,8 @@ def main():
                 result['arms'][arm] = {'build_status': 'OK', 'settle': bi['settle'], 'graph_gate': bi['gate'],
                                        'capture_scope': bi['info'].get('capture_scope'),
                                        'capture_adapter_active': bi['info'].get('capture_adapter_active'),
-                                       'compile_mode': bi['info'].get('compile_mode')}
+                                       'compile_mode': bi['info'].get('compile_mode'),
+                                       'stream_count': bi['info'].get('stream_count')}
                 if bi['settle'] and bi['settle']['settle_capped']:
                     reasons.append(f'{arm}: settle capped')
                 if bi['gate'] and bi['gate']['status'] != 'PASS':
@@ -203,8 +206,15 @@ def main():
         result['status'], result['error'] = 'INVALID', traceback.format_exc()
         reasons.append('exception')
         print(result['error'], file=sys.stderr)
-    result['effective_variants'] = {k: '/'.join(str(v.get(x)) for x in ('capture_scope', 'capture_adapter_active', 'compile_mode'))
-                                    for k, v in result['arms'].items()}
+    result['effective_variants'] = {k: qualify.variant(v) for k, v in result['arms'].items()}
+    result['qualify_version'] = qualify.QUALIFY_VERSION
+    # independent re-derivation from the record itself (gate-04 f47)
+    for prob in qualify.pair_problems(result, args.iters, args.repeats):
+        if prob not in reasons:
+            reasons.append(prob)
+    if (args.iters, args.repeats) != (qualify.REGISTERED_ITERS, qualify.REGISTERED_REPEATS):
+        reasons.append(f'protocol {args.repeats}x{args.iters} is not the registered 5x50') if \
+            f'protocol {args.repeats}x{args.iters} is not the registered 5x50' not in reasons else None
     result['pair_eligible'] = result['status'] == 'VALID' and not reasons
     with open(out_path, 'w') as f:
         json.dump(result, f, indent=1)

@@ -76,7 +76,16 @@ def per_pass_sequence(base, expected_passes):
     counts = [collections.Counter(classify(r['name']) for r in p) for p in passes]
     if any(sq != seqs[0] for sq in seqs) or any(c != counts[0] for c in counts):
         return None, 'per-pass kernel sequences / class counts differ across passes'
-    return {'triton_seq': seqs[0], 'class_counts': counts[0]}, None
+    # measurements from the VALIDATED windows only (gate-04 f51): per-name
+    # launch counts and device time summed over the accepted passes
+    by_name = {}
+    for p in passes:
+        for r in p:
+            d = by_name.setdefault(r['name'], {'instances': 0, 'total_ns': 0})
+            d['instances'] += 1
+            d['total_ns'] += r['dur']
+    return {'triton_seq': seqs[0], 'class_counts': counts[0], 'by_name': by_name,
+            'passes': len(passes)}, None
 
 
 def graph_signature(g):
@@ -85,15 +94,18 @@ def graph_signature(g):
     signatures are interchangeable for the byte model."""
     sig = []
     for c in g['calls']:
-        if c['kind'] != 'triton':
-            continue
-        k = g['kernels'].get(c['name'], {})
+        k = g['kernels'].get(c['name'], {}) if c['kind'] == 'triton' else {}
         args = []
         for a in c['args']:
             m = arg_meta(g, a)
             args.append((a.get('role', ''), tuple(m['shape']), tuple(m['stride']),
                          k.get('ptr_dtypes', {}).get(a.get('role', ''), m['dtype'])))
-        sig.append((c['name'], tuple(args)))
+        # complete pricing semantics (gate-04 f50): kernel body hash, access
+        # sites, iteration literals, and every extern/fallback call in order
+        sig.append((c['kind'], c['name'], tuple(args), k.get('source_sha256'),
+                    tuple(sorted((k.get('load_sites') or {}).items())),
+                    tuple(sorted((k.get('store_sites') or {}).items())),
+                    tuple(c.get('numeric_literals') or ())))
     return tuple(sig)
 
 
@@ -220,19 +232,41 @@ def main():
     ap.add_argument('--bw-l2-tbps', type=float, default=None)
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
-    ks = read_kern_sum(args.base + '_cuda_gpu_kern_sum.csv')
     n_pass = max(1, args.passes)
     out = {'arm': args.arm, 'chunk': args.chunk, 'passes': n_pass,
            'constants': {'P_fp16_tflops': P_FP16_TFLOPS, 'P_fp32_tflops': P_FP32_TFLOPS,
                          'BW_hbm_tbps': BW_HBM_TBPS, 'BW_l2_tbps': args.bw_l2_tbps, 'l2_bytes': args.l2_bytes},
-           'variant_selection': None, 'rows': [], 'gemm_sites': [], 'unresolved': []}
+           'variant_selection': None, 'rows': [], 'gemm_sites': [], 'unresolved': [],
+           'measurement_status': None, 'measurement_note': None}
+    # every measured value comes from the VALIDATED per-pass windows (gate-04 f51);
+    # the aggregate kernel summary is reconciled against them, never used as a source
+    observed, err = per_pass_sequence(args.base, n_pass)
+    ks_path = args.base + '_cuda_gpu_kern_sum.csv'
+    ks_agg = read_kern_sum(ks_path) if os.path.exists(ks_path) else {}
+    if observed is None:
+        out['measurement_status'] = 'UNRESOLVED'
+        out['measurement_note'] = f'pass windows not validated: {err}'
+        out['variant_selection'] = {'status': 'UNRESOLVED', 'reason': out['measurement_note']}
+        with open(args.out, 'w') as f:
+            json.dump(out, f, indent=1)
+        print(f"[ideal] {args.arm}@{args.chunk}: UNRESOLVED ({out['measurement_note']}) -> no rows published")
+        return
+    ks = {name: {'instances': v['instances'], 'total_ns': v['total_ns']} for name, v in observed['by_name'].items()}
+    mismatches = []
+    for name, v in ks.items():
+        agg = ks_agg.get(name)
+        if agg is not None and agg.get('instances') != v['instances']:
+            mismatches.append({'kernel': name[:100], 'window_instances': v['instances'], 'aggregate_instances': agg.get('instances')})
+    out['measurement_status'] = 'ok'
+    out['measurement_note'] = (f'{observed["passes"]} validated windows; aggregate summary '
+                               + ('agrees' if not mismatches else f'differs for {len(mismatches)} kernels (windowed values used)'))
+    out['aggregate_reconciliation'] = {'mismatches': mismatches[:50], 'aggregate_available': bool(ks_agg)}
 
     fused_bytes, gemm_sites = {}, []
     if args.dump_dir and os.path.isdir(args.dump_dir):
         graphs = parse_output_code(args.dump_dir)
-        observed, err = per_pass_sequence(args.base, n_pass)
-        if observed is None:
-            out['variant_selection'] = {'status': 'UNRESOLVED', 'reason': err}
+        if False:
+            pass
         else:
             chosen, how = select_variants(graphs, observed)
             if chosen is None:
@@ -247,12 +281,22 @@ def main():
                             k = g['kernels'].get(c['name'], {})
                             b_read = b_write = 0
                             unresolved = False
+                            footprints = {}
                             # iteration space from the call's trailing numeric args
                             # (poi: xnumel; red/per: xnumel, rnumel): a pointer is
                             # touched at most (sites x space) times per launch
-                            space = 1
-                            for tok in re.findall(r'(?<![\w.])(\d+)(?![\w.])', c['line'].split('.run(')[-1]):
-                                space *= int(tok)
+                            # iteration space bound structurally (gate-04 f52): the
+                            # positional literals after the pointer args, one per
+                            # numeric kernel parameter, all integer; else unresolved
+                            lits = c.get('numeric_literals') or []
+                            nparams = k.get('numeric_params') or []
+                            space = None
+                            if len(lits) == len(nparams) and all(re.fullmatch(r'\d+', x) for x in lits):
+                                space = 1
+                                for x in lits:
+                                    space *= int(x)
+                            if space is None or space == 0:
+                                unresolved = True
                             for a in c['args']:
                                 r, w, unres = refined_access(k, a.get('role', ''))
                                 m = arg_meta(g, a)
@@ -267,13 +311,23 @@ def main():
                                     continue
                                 isz = tsz if tsz else nbytes((1,), m['dtype'])
                                 rl = a.get('role', '')
+                                if space is None:
+                                    continue
                                 if r:
                                     b_read += min(numel, max(1, k.get('load_sites', {}).get(rl, 1)) * space) * isz
                                 if w:
                                     b_write += min(numel, max(1, k.get('store_sites', {}).get(rl, 1)) * space) * isz
+                                # resident footprint (gate-04 f53): the UNION of the distinct
+                                # base allocations touched, each at its full allocated size
+                                base = m.get('base')
+                                if base not in footprints:
+                                    alloc = g['allocs'].get(base, {})
+                                    ael = accessed_elems(alloc.get('shape') or m['shape'], alloc.get('stride') or m['stride'])
+                                    footprints[base] = ael * isz if ael else None
+                            fp = (None if (unresolved or any(v is None for v in footprints.values()))
+                                  else sum(footprints.values()))
                             fused_bytes.setdefault(c['name'], []).append(
-                                None if unresolved else {'bytes': b_read + b_write,
-                                                         'footprint': max(b_read, b_write)})
+                                None if unresolved else {'bytes': b_read + b_write, 'footprint': fp})
                         elif c['kind'] == 'extern' and any(t in c['name'] for t in ('mm', 'bmm', 'addmm')):
                             gs = gemm_site(c, g)
                             if gs is None:
@@ -305,7 +359,8 @@ def main():
                 by = sum(v['bytes'] for v in vals)
                 # per-call ideals, summed (each call's own L2 residency test)
                 hbm = sum(ideal_us(0.0, v['bytes'], 'torch.float16', None, None)['ideal_us_hbm'] for v in vals)
-                l2 = [ideal_us(0.0, v['bytes'], 'torch.float16', args.bw_l2_tbps, args.l2_bytes,
+                l2 = [ideal_us(0.0, v['bytes'], 'torch.float16', args.bw_l2_tbps,
+                               args.l2_bytes if v['footprint'] is not None else None,
                                footprint=v['footprint']).get('ideal_us_l2') for v in vals]
                 row.update(flops_per_pass=0.0, bytes_per_pass=by, ideal_us_hbm=hbm,
                            ideal_us_l2=(sum(l2) if all(x is not None for x in l2) else None),

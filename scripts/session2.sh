@@ -57,17 +57,21 @@ for chunk in 352800 4410; do
         run_traced "$arm" "$chunk" trace node || continue
         base="$EVID/traces/trace_${arm}_${chunk}_trace"
         [ -s "${base}_cuda_gpu_trace.csv" ] || continue
-        python "$REPO_DIR/fullmodel/graph_verify.py" --base "$base" --arm "$arm" --expected-passes "$ITERS" \
-            --out "$EVID/traces/graph_verify_${arm}_${chunk}.json" || echo "    graph_verify failed for $arm/$chunk"
-        python "$REPO_DIR/fullmodel/timing_views.py" --base "$base" --arm "$arm" \
-            --out "$EVID/traces/timing_views_${arm}_${chunk}.json" || echo "    timing_views failed"
+        rm -f "$EVID/traces/graph_verify_${arm}_${chunk}.json" "$EVID/traces/timing_views_${arm}_${chunk}.json"
+        run_aux "graph_verify_${arm}_${chunk}" 300 -- python "$REPO_DIR/fullmodel/graph_verify.py" --base "$base" --arm "$arm" \
+            --expected-passes "$ITERS" --out "$EVID/traces/graph_verify_${arm}_${chunk}.json" || true
+        run_aux "timing_views_${arm}_${chunk}" 300 -- python "$REPO_DIR/fullmodel/timing_views.py" --base "$base" --arm "$arm" \
+            --out "$EVID/traces/timing_views_${arm}_${chunk}.json" || true
     done
 done
 # C2 replay verification at 4410 only (registered: the §6 comparator point)
 if run_traced C2 4410 trace node; then
     base="$EVID/traces/trace_C2_4410_trace"
-    python "$REPO_DIR/fullmodel/graph_verify.py" --base "$base" --arm C2 --expected-passes "$ITERS" \
-        --out "$EVID/traces/graph_verify_C2_4410.json" || echo "    graph_verify failed for C2"
+    rm -f "$EVID/traces/graph_verify_C2_4410.json" "$EVID/traces/timing_views_C2_4410.json"
+    run_aux graph_verify_C2_4410 300 -- python "$REPO_DIR/fullmodel/graph_verify.py" --base "$base" --arm C2 \
+        --expected-passes "$ITERS" --out "$EVID/traces/graph_verify_C2_4410.json" || true
+    run_aux timing_views_C2_4410 300 -- python "$REPO_DIR/fullmodel/timing_views.py" --base "$base" --arm C2 \
+        --out "$EVID/traces/timing_views_C2_4410.json" || true
 fi
 
 echo "=== [3] profiling perturbation: A, C3, G — unprofiled vs graph-level vs node-level (one block each) ==="
@@ -106,19 +110,20 @@ for chunk in 352800 4410; do
         base="$EVID/traces/trace_${arm}_${chunk}_trace"
         [ -s "${base}_cuda_gpu_kern_sum.csv" ] || continue
         dump="$EVID/traces/dump_${arm}_${chunk}_trace"; [ -d "$dump" ] || dump=""
-        python "$REPO_DIR/fullmodel/ideal_costs.py" --base "$base" --arm "$arm" --chunk "$chunk" \
+        rm -f "$EVID/traces/ideal_costs_${arm}_${chunk}.json" "$EVID/traces/ideal_costs_${arm}_${chunk}.csv"
+        run_aux "ideal_costs_${arm}_${chunk}" 600 -- python "$REPO_DIR/fullmodel/ideal_costs.py" --base "$base" --arm "$arm" --chunk "$chunk" \
             ${dump:+--dump-dir "$dump"} --passes "$ITERS" \
             ${BW_L2:+--bw-l2-tbps "$BW_L2"} ${L2B:+--l2-bytes "$L2B"} \
-            --out "$EVID/traces/ideal_costs_${arm}_${chunk}.json" || echo "    ideal_costs failed for $arm/$chunk"
+            --out "$EVID/traces/ideal_costs_${arm}_${chunk}.json" || true
     done
 done
 
 echo "=== [7] post-processing: perturbation ratios, boundary perturbation, source map ==="
-python "$REPO_DIR/fullmodel/perturbation.py" --evidence-dir "$EVID" --iters "$ITERS" \
-    --out "$EVID/perturbation_and_source_map.json" || echo "WARN: post-processing failed"
+rm -f "$EVID/perturbation_and_source_map.json"
+run_aux perturbation 600 -- python "$REPO_DIR/fullmodel/perturbation.py" --evidence-dir "$EVID" --iters "$ITERS" \
+    --out "$EVID/perturbation_and_source_map.json" || true
 
 echo "=== [8] collection + completeness verdict ==="
-python "$REPO_DIR/fullmodel/collect_full.py" --evidence-dir "$EVID" || true
-python "$REPO_DIR/fullmodel/completeness.py" --evidence-dir "$EVID" --session session2 || true
+finalize_session session2
 echo "SESSION2 DONE $(date -Is) elapsed=$(( $(date +%s) - T0 ))s remaining=$(remaining)s"
 echo ">>> EXTRACT evidence/ OFF-POD BEFORE TERMINATE"

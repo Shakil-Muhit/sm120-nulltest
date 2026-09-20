@@ -163,13 +163,23 @@ def main():
                'uncaptured_names_union': sorted({n for p in per_pass for n in p['uncaptured_names']}),
                'unresolved_names_union': sorted({n for p in per_pass for n in p['unresolved_names']}),
                'per_pass': per_pass}
-    complete = args.expected_passes is None or len(per_pass) == args.expected_passes
+    # affirmative qualification required (gate-04 f49): the registered pass
+    # count must be given and met, and the node-level export record must
+    # state completeness; anything less is UNRESOLVED, never FULLY_GRAPHED
+    complete = args.expected_passes is not None and len(per_pass) == args.expected_passes
     exports = args.base + '_exports.json'
-    exports_ok = (json.load(open(exports)).get('complete') is True) if os.path.exists(exports) else None
+    exports_ok = False
+    if os.path.exists(exports):
+        try:
+            ex = json.load(open(exports))
+            exports_ok = ex.get('complete') is True and ex.get('graph_trace_mode') == 'node'
+        except Exception:
+            exports_ok = False
     summary['pass_count_complete'] = complete
     summary['exports_complete'] = exports_ok
+    summary['qualified'] = bool(complete and exports_ok)
     summary['min_captured_in_any_pass'] = min(p['captured_model_kernels'] for p in per_pass)
-    summary['fully_graphed'] = bool(complete and exports_ok is not False
+    summary['fully_graphed'] = bool(summary['qualified']
                                     and summary['min_graph_launches_in_any_pass'] >= 1
                                     and summary['min_captured_in_any_pass'] > 0
                                     and summary['max_uncaptured_in_any_pass'] == 0
@@ -177,7 +187,8 @@ def main():
     summary['note'] = ('graph_launch_instances counts launch API instances by CorrId, not '
                        'distinct graph identities (not exported by nsys)')
     summary['eager_memop_names_union'] = sorted({n for p in per_pass for n in p['memop_names']})
-    summary['verdict'] = ('FULLY_GRAPHED' if summary['fully_graphed'] else
+    summary['verdict'] = ('UNRESOLVED' if not summary['qualified'] else
+                          'FULLY_GRAPHED' if summary['fully_graphed'] else
                           'NOT_FULLY_GRAPHED' if summary['min_graph_launches_in_any_pass'] >= 1 else
                           'NO_REPLAY_EVIDENCE')
     with open(args.out, 'w') as f:

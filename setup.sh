@@ -21,9 +21,15 @@ else
         echo "deb [signed-by=/usr/share/keyrings/nvidia-devtools.gpg] https://developer.download.nvidia.com/devtools/repos/ubuntu2204/amd64/ /" \
             > /etc/apt/sources.list.d/nvidia-devtools.list
         apt-get update -qq
-        # package naming drifts (nsight-systems-cli vs nsight-systems-<ver>): take newest match
-        PKG=$(apt-cache search '^nsight-systems' | awk '{print $1}' | sort -V | tail -1)
-        apt-get install -y -qq "${PKG:-nsight-systems-cli}"
+        # package naming drifts (nsight-systems-cli vs nsight-systems-<ver>): prefer the
+        # CLI meta-package when the repo offers it (2026-09-20: candidate 2026.5.1.161),
+        # else the newest versioned package; never the 2021 'nsight-systems-target' stub
+        if apt-cache policy nsight-systems-cli 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+            PKG=nsight-systems-cli
+        else
+            PKG=$(apt-cache search '^nsight-systems-20' | awk '{print $1}' | sort -V | tail -1)
+        fi
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${PKG:-nsight-systems-cli}"
     fi
 fi
 command -v nsys >/dev/null 2>&1 && nsys --version | head -1 \

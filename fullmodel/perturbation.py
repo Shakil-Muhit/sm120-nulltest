@@ -36,56 +36,67 @@ def block_median(run):
     return blocks[0]['latency_median_ms'] if blocks else None
 
 
-def _qualified(run):
+COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H')
+
+
+def _qualified(run, iters=50):
     """One-block perturbation protocol: VALID, validation PASS, exactly one
-    block of 50 passes, manifest-bound, effective variant recorded."""
+    block holding exactly `iters` recorded passes, manifest-bound, effective
+    variant recorded, compile arms affirmatively recording-stable."""
     if not run or run.get('status') != 'VALID':
         return 'run missing or not VALID'
     if (run.get('validation') or {}).get('status') != 'PASS':
         return 'validation not PASS'
     t = run.get('timing') or {}
-    if len(t.get('blocks') or []) != 1 or t.get('iters_per_block') != 50:
-        return 'not a one-block x 50 run'
+    blocks = t.get('blocks') or []
+    if len(blocks) != 1 or t.get('iters_per_block') != iters:
+        return f'not a one-block x {iters} run'
+    if len(blocks[0].get('latency_ms_per_iter') or []) != iters:
+        return 'the block does not hold the registered pass count'
     if run.get('manifest_id') is None:
         return 'not manifest-bound'
+    if not run.get('effective_variant'):
+        return 'effective variant not recorded'
     if run.get('settle') and run['settle'].get('settle_capped'):
         return 'settle capped'
-    if run.get('counters_stable') is False:
-        return 'recording unstable'
+    if run.get('arm') in COMPILE_ARMS and run.get('counters_stable') is not True:
+        return 'recording stability not affirmatively established'
     return None
 
 
-def perturbation(evidence):
+def perturbation(evidence, iters=50):
     out = {}
     for path in glob.glob(os.path.join(evidence, 'full_*_pert_unprofiled.json')):
         base = j(path)
         arm, chunk = base['arm'], base['chunk']
         rec = {'unprofiled_block_ms': block_median(base), 'status': 'ok', 'problems': []}
-        q = _qualified(base)
+        q = _qualified(base, iters)
         if q:
             rec['problems'].append(f'unprofiled: {q}')
         for mode in ('graph', 'node'):
             p = os.path.join(evidence, f'full_{arm}_c{chunk}_pert_{mode}.json')
             r = j(p) if os.path.exists(p) else None
-            q = _qualified(r)
+            q = _qualified(r, iters)
+            rec[f'{mode}_block_ms'] = block_median(r) if r else None
+            rec[f'{mode}_over_unprofiled'] = None
             if q:
                 rec['problems'].append(f'{mode}: {q}')
-                rec[f'{mode}_block_ms'] = block_median(r) if r else None
-                rec[f'{mode}_over_unprofiled'] = None
                 continue
             if r.get('manifest_id') != base.get('manifest_id') or r.get('effective_variant') != base.get('effective_variant'):
                 rec['problems'].append(f'{mode}: manifest/variant differs from the unprofiled run')
-                rec[f'{mode}_over_unprofiled'] = None
                 continue
             m = block_median(r)
-            rec[f'{mode}_block_ms'] = m
             rec[f'{mode}_over_unprofiled'] = m / rec['unprofiled_block_ms'] if (m and rec['unprofiled_block_ms']) else None
-        if rec['problems'] or rec.get('node_over_unprofiled') is None:
+        if rec['problems'] or rec.get('node_over_unprofiled') is None or rec.get('graph_over_unprofiled') is None:
+            # every prerequisite failure clears ALL derived ratios (gate-04 f55)
             rec['status'] = 'UNRESOLVED'
             rec['caveat_required'] = 'UNRESOLVED'
+            rec['graph_over_unprofiled'] = None
+            rec['node_over_unprofiled'] = None
+            rec['inflation_factor_node'] = None
         else:
             rec['caveat_required'] = rec['node_over_unprofiled'] > 1.05
-        rec['inflation_factor_node'] = rec.get('node_over_unprofiled')
+            rec['inflation_factor_node'] = rec['node_over_unprofiled']
         out[f'{arm}_{chunk}'] = rec
     return out
 
@@ -120,21 +131,31 @@ def source_map(evidence, iters):
                 if rel not in wanted:
                     continue
                 for name, k in g['kernels'].items():
-                    rec['kernels'][name] = {'fused_ops': k.get('ops') or [],
-                                            'ops_source': k.get('ops_source'), 'source_file': rel}
+                    entry = {'fused_ops': k.get('ops') or [], 'ops_source': k.get('ops_source'),
+                             'source_file': rel, 'source_sha256': k.get('source_sha256')}
+                    prev = rec['kernels'].get(name)
+                    if prev is not None and prev.get('source_sha256') != entry['source_sha256']:
+                        # the same kernel name denotes different programs in two selected
+                        # graphs (gate-04 f50): the mapping is ambiguous, not overwritten
+                        rec['kernels'][name] = {'fused_ops': [], 'ops_source': 'AMBIGUOUS',
+                                                'source_file': f"{prev['source_file']};{rel}",
+                                                'source_sha256': None}
+                    elif prev is None:
+                        rec['kernels'][name] = entry
             fused_rows = [r for r in ic['rows'] if r['class'] == 'INDUCTOR_FUSED']
             tot = sum(r['time_us_per_pass'] for r in fused_rows)
             mapped = sum(r['time_us_per_pass'] for r in fused_rows
-                         if any(r['kernel'].startswith(n) for n in rec['kernels']))
+                         if any(r['kernel'].startswith(n) and k.get('ops_source') != 'AMBIGUOUS'
+                                for n, k in rec['kernels'].items()))
             rec['coverage'] = {'fused_time_us_per_pass': tot, 'mapped_time_us_per_pass': mapped,
                                'share': (mapped / tot) if tot else None}
         out[f'{arm}_{chunk}'] = rec
         csv_path = os.path.join(evidence, 'traces', f'kernel_source_map_{arm}_{chunk}.csv')
         with open(csv_path, 'w', newline='') as f:
             w = csv.writer(f)
-            w.writerow(['kernel', 'fused_ops', 'ops_source', 'source_file'])
+            w.writerow(['kernel', 'fused_ops', 'ops_source', 'source_file', 'source_sha256'])
             for name, k in sorted(rec['kernels'].items()):
-                w.writerow([name, ';'.join(k['fused_ops']), k['ops_source'], k['source_file']])
+                w.writerow([name, ';'.join(k['fused_ops']), k['ops_source'], k['source_file'], k.get('source_sha256')])
     return out
 
 
@@ -144,7 +165,7 @@ def main():
     ap.add_argument('--iters', type=int, default=50)
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
-    res = {'perturbation': perturbation(args.evidence_dir),
+    res = {'perturbation': perturbation(args.evidence_dir, args.iters),
            'boundary_perturbation': boundary_perturbation(args.evidence_dir),
            'source_map': source_map(args.evidence_dir, args.iters)}
     with open(args.out, 'w') as f:

@@ -40,6 +40,7 @@ import torch                      # noqa: E402
 import fullarms as arms_mod       # noqa: E402
 import loader                     # noqa: E402
 import provenance                 # noqa: E402
+import qualify                    # noqa: E402
 import sdr_gate                   # noqa: E402
 import timing as tm               # noqa: E402
 
@@ -102,7 +103,7 @@ def main():
     settle = gate = validation = sdr = timing_rec = None
     snapshots = {}
     use_amp = None
-    prov = manifest_id = None
+    prov = manifest_id = manifest = None
     tier = args.force_tier or arms_mod.TIER[args.arm]
     try:
         paths = loader.paths_from_env()
@@ -173,6 +174,11 @@ def main():
                       f'throughput {b["throughput_ms_per_pass"]:.4f} ms/pass')
 
         if args.sdr:                                   # registered: after the timed region
+            if manifest is not None:                   # gate-04 f46: the clip manifest is bound
+                got = provenance.sha256_file(args.clips_manifest)
+                if got != manifest.get('clips_manifest_sha256'):
+                    raise RuntimeError('clip manifest differs from the session manifest '
+                                       f'({got[:12]} != {str(manifest.get("clips_manifest_sha256"))[:12]})')
             manifest_clips, clips = sdr_gate.load_clips(args.clips_dir, args.clips_manifest)
             sdr = sdr_gate.run_gate(step, ctx, clips, args.ref_dir, args.chunk,
                                     save_reference=args.save_reference, manifest_id=manifest_id)
@@ -252,18 +258,27 @@ def main():
         'capture_adapter_istft': info.get('capture_adapter_istft'),
         'capture_attempts': info.get('capture_attempts'),
         'stream_count': info.get('stream_count'), 'compile_mode': info.get('compile_mode'),
-        'effective_variant': '/'.join(str(x) for x in (info.get('capture_scope'),
-                                                       info.get('capture_adapter_active'),
-                                                       info.get('compile_mode'),
-                                                       info.get('stream_count'))),
+        'effective_variant': qualify.variant({'capture_scope': info.get('capture_scope'),
+                                              'capture_adapter_active': info.get('capture_adapter_active'),
+                                              'compile_mode': info.get('compile_mode'),
+                                              'stream_count': info.get('stream_count')}),
+        'qualify_version': qualify.QUALIFY_VERSION,
         'c3_fixes': info.get('c3_fixes'), 'padbatch': info.get('padbatch'),
         'nvtx_boundary_mode': info.get('nvtx_boundary_mode'),
         'planted_fault_const': info.get('planted_fault_const'),
+        'planted_fault': bool(args.planted_fault), 'nvtx_pass': bool(args.nvtx_pass),
         'nvtx_pass': args.nvtx_pass,
         'generated_dir': gen_dir if os.path.isdir(gen_dir) else None,
         'notes': info.get('notes', []),
-        'headline_eligible': not reasons, 'ineligibility_reasons': reasons,
+        'headline_eligible': None, 'ineligibility_reasons': None,
     }
+    # the shared validator re-derives eligibility from the RECORD (gate-04 f47);
+    # the stored flag is the union of both views, never a shortcut past either
+    for prob in qualify.run_problems(result):
+        if prob not in reasons:
+            reasons.append(prob)
+    result['headline_eligible'] = not reasons
+    result['ineligibility_reasons'] = reasons
     with open(out_path, 'w') as f:
         json.dump(result, f, indent=1)
     if timing_rec:
