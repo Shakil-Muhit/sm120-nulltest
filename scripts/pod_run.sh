@@ -2,7 +2,7 @@
 # Drive the session pod from muhit-pc (after scripts/pod_up.sh wrote pod.env).
 #   pod_run.sh ship        re-ship the COMMITTED tree (git bundle) to the pod, keep evidence/
 #   pod_run.sh session1    launch scripts/session1.sh in a detached tmux session on the pod
-#   pod_run.sh session2    launch scripts/session2.sh likewise
+#   pod_run.sh session2    launch scripts/session2.sh likewise (SESSION_ENV="SESSION_BUDGET_S=14400" passes knobs)
 #   pod_run.sh tail        follow the pod's session console log
 #   pod_run.sh status      tmux + GPU + last console lines
 #   pod_run.sh extract     tar the pod's evidence/ into ~/ms/evidence_pod/<ts>/ (OFF-POD copy)
@@ -29,8 +29,8 @@ case "$CMD" in
     ;;
   session1|session2)
     $SSH "cd /root/sm120-nulltest && mkdir -p evidence && { [ -e evidence/.terminating ] && { echo 'FATAL: termination lock present'; exit 1; }; tmux has-session -t run 2>/dev/null && { echo 'FATAL: a tmux session named run already exists'; exit 1; }; }
-          export MSST_DIR=/root/work/msst CLIPS_DIR=/root/work/sdr_clips PYTHONDONTWRITEBYTECODE=1
-          tmux new -d -s run \"bash scripts/$CMD.sh > evidence/${CMD}.log 2>&1; echo EXIT=\\\$? >> evidence/${CMD}.log\"
+          export MSST_DIR=/root/work/msst CLIPS_DIR=/root/work/sdr_clips PYTHONDONTWRITEBYTECODE=1 ${SESSION_ENV:-}
+          tmux new -d -s run \"export ${SESSION_ENV:-PYTHONDONTWRITEBYTECODE=1}; bash scripts/$CMD.sh > evidence/${CMD}.log 2>&1; echo EXIT=\\\$? >> evidence/${CMD}.log\"
           sleep 3; tail -n 5 evidence/${CMD}.log"
     ;;
   tail)
