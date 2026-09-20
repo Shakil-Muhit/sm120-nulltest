@@ -432,15 +432,18 @@ def pair_problems(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
             problems.append('recording state changed (or unresolved) across a matched phase transition')
     if m.get('pair_eligible') is False and not problems:
         problems.append(f"stored pair flag says ineligible: {m.get('ineligibility_reasons')}")
+    # exactly the two declared arms, each with its full numerical validation
+    # payload and stable blocks (gate-08 f112)
+    if sorted((m.get('arms') or {}).keys()) != sorted(x for x in (m.get('pair') or []) if x):
+        problems.append('matched record does not carry exactly the two declared arms')
     for arm, a in (m.get('arms') or {}).items():
         if a.get('build_status') != 'OK':
             problems.append(f'{arm}: build {a.get("build_status")}')
             continue
-        v = a.get('validation') or {}
-        if v.get('status') != 'PASS':
-            problems.append(f"{arm}: validation {v.get('status', 'NONE')}")
-        elif not all(p.get('ref_sha256') for p in v.get('passes') or []):
-            problems.append(f'{arm}: references not lineage-checked')
+        problems += [f'{arm}: {x}' for x in validation_problems({'arm': arm, 'validation': a.get('validation')})]
+        arm_blocks = [b for b in (m.get('blocks') or []) if b.get('arm') == arm]
+        if not arm_blocks or not all(b.get('counters_stable') is True for b in arm_blocks):
+            problems.append(f'{arm}: recording not affirmatively stable during every block')
         # each arm reconciles its gate against the snapshot taken right after its own
         # gate (the next arm's build clears the global counters)
         problems += [f'{arm}: {x}' for x in gate_problems(arm, a.get('graph_gate'), a.get('gate_snapshot'))]

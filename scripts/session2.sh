@@ -38,6 +38,12 @@ clocks_start "$EVID/clocks_session2.csv"
 # registered prerequisites (gate-07 f99): planted-fault validator checks and the C3
 # operator qualification must exist, bound to THIS manifest, before any C3/H work;
 # missing ones are regenerated under supervision, failures leave dependent work UNTESTED
+# references FIRST (gate-08 f113): the planted checks validate against them
+for chunk in 352800 4410 22050 88200; do
+    if [ ! -s "$REF/ref_A_c${chunk}_s2002.pt" ] || [ ! -s "$REF/sdr_A_c${chunk}_clip07.pt" ]; then
+        run_one A "$chunk" ref --save-reference --sdr --skip-timing
+    fi
+done
 PREREQ_OK=1; C3_QUAL_OK=1
 MID=$(python3 -c "import json;print(json.load(open('$EVID/session_manifest.json'))['manifest_id'])")
 check_planted() {
@@ -83,11 +89,6 @@ run_traced_q() {
     if [ "$C3_QUAL_OK" != "1" ] && needs_c3 "$1"; then terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "C3 operator qualification failed"; return 1; fi
     run_traced "$@"
 }
-for chunk in 352800 4410 22050 88200; do
-    if [ ! -s "$REF/ref_A_c${chunk}_s2002.pt" ] || [ ! -s "$REF/sdr_A_c${chunk}_clip07.pt" ]; then
-        run_one A "$chunk" ref --save-reference --sdr --skip-timing
-    fi
-done
 
 echo "=== [1] chunk sweep: $SWEEP_ARMS x {22050, 88200} x $RESTARTS restarts (round-major) ==="
 for r in $(seq 1 "$RESTARTS"); do
