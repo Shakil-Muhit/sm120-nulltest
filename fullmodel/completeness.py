@@ -163,6 +163,8 @@ def audit_references(ev, items, manifest_id, session, runs, matched):
     joined = 0
     mismatch = []
     for (arm, chunk), tr in runs.items():
+        if chunk not in OPS[session]:
+            continue                      # records of the other session's operating points
         for tag, r in tr.items():
             for p in (r.get('validation') or {}).get('passes') or []:
                 if p.get('ref_sha256'):

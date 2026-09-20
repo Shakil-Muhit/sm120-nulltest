@@ -208,7 +208,14 @@ def build(ev):
                     # each kernel row counted once per set (a name's row is the per-pass total)
                     prev_extern = i > 0 and kinds[i - 1] == 'extern' and any(x in names[i - 1] for x in ('mm', 'bmm', 'addmm'))
                     prev_sdpa = i > 0 and (i - 1) in sdpa_idx
-                    if prev_extern and any(any(e in o for e in EPILOGUE_OPS) for o in ops):
+                    # epilogue = the fused kernel READS the GEMM's output buffer (its out= arg or
+                    # assigned name) and applies bias/activation/residual/norm ops
+                    gemm_out = set()
+                    if prev_extern:
+                        pc = calls[i - 1][0]
+                        gemm_out = {a.get('buf') for a in pc.get('args') or [] if a.get('write')} | ({pc.get('assigned')} if pc.get('assigned') else set())
+                    reads_gemm = any(a.get('read') and a.get('buf') in gemm_out for a in c.get('args') or [])
+                    if prev_extern and reads_gemm and any(any(e in o for e in EPILOGUE_OPS) for o in ops):
                         sets['X2'][c['name']] = r
                     if prev_sdpa and ops and all(o in PURE_COPY_OPS for o in ops):
                         sets['X4'][c['name']] = r
@@ -336,18 +343,29 @@ def build(ev):
                 n_cur = statistics.median(p.get('captured_model_kernels', 0) + p.get('uncaptured_model_kernels', 0) + p.get('input_staging_kernels', 0) for p in pp)
             else:
                 n_cur = None
-            n_floor = None
-            if calls:
+            n_floor, floor_src = None, None
+            best_calls = None
+            icb = E.ideal(best_arm, O)
+            selb = icb.get('variant_selection') or {}
+            dumpb = os.path.join(E.ev, 'traces', f'dump_{best_arm}_{O}_trace')
+            if selb.get('status') == 'ok' and os.path.isdir(dumpb):
+                wanted = set(selb.get('selected') or [])
+                for g in parse_output_code(dumpb):
+                    if os.path.relpath(g['path'], dumpb) in wanted:
+                        best_calls = (best_calls or []) + [(c, g) for c in g['calls']]
+                floor_src = f'{best_arm} wrapper'
+            floor_calls = best_calls or (calls if best_arm == 'C3' else None)
+            if floor_calls:
                 groups, prev = 0, None
-                for c, g in calls:
+                for c, g in floor_calls:
                     k = c['kind']
                     if k == 'triton' and prev != 'triton':
                         groups += 1
                     prev = k
-                n_floor = groups + sum(1 for c, g in calls if c['kind'] != 'triton')
+                n_floor = groups + sum(1 for c, g in floor_calls if c['kind'] != 'triton')
             if fin(n_cur) and fin(n_floor) and fin(c_boundary):
                 rows.append(row('X10 kernel-count reduction', O, c_boundary * max(0.0, n_cur - n_floor) / 1e3, 1.0, 'C', 'kernel', 'numerical', 'G3',
-                                f'graph_verify_{best_arm}_{O}.json (N_current {n_cur:.0f}), C3 wrapper (N_floor {n_floor}), boundary_bench_trace_analysis {gap_key} gap {c_boundary:.3f} µs',
+                                f'graph_verify_{best_arm}_{O}.json (N_current {n_cur:.0f}), {floor_src} (N_floor {n_floor}), boundary_bench_trace_analysis {gap_key} gap {c_boundary:.3f} µs',
                                 'boundary gaps overlap with execution (gap is a serial upper bound)', wall))
             else:
                 rows.append(unresolved('X10 kernel-count reduction', O, 'kernel counts or the boundary gap are unresolved', group='G3'))
