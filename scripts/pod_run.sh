@@ -47,7 +47,7 @@ case "$CMD" in
     mkdir -p "$DEST"
     # writers must be stopped and the content must not move during extraction (gate-06 f95)
     $SSH "tmux has-session -t run 2>/dev/null" && { echo "FATAL: a session is still running on the pod"; exit 1; }
-    HASH_CMD="cd /root/sm120-nulltest && find evidence -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1"
+    HASH_CMD="cd /root/sm120-nulltest && find evidence -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1"
     PRE_SHA=$($SSH "$HASH_CMD") || { echo "FATAL: remote content hash failed"; exit 1; }
     REMOTE_N=$($SSH "cd /root/sm120-nulltest && find evidence -type f | wc -l") || { echo "FATAL: cannot count remote files"; exit 1; }
     $SSH "cd /root/sm120-nulltest && tar czf - evidence" > "$DEST/evidence.tgz" || { echo "FATAL: transfer failed"; exit 1; }
@@ -60,7 +60,7 @@ case "$CMD" in
     # invalid once any later measurement changes the pod's evidence (gate-05 f77)
     REMOTE_SHA=$($SSH "$HASH_CMD") || { echo "FATAL: remote content hash failed"; exit 1; }
     [ "$REMOTE_SHA" = "$PRE_SHA" ] || { echo "FATAL: remote evidence changed during extraction (before $PRE_SHA, after $REMOTE_SHA)"; exit 1; }
-    LOCAL_SHA=$(cd "$DEST" && find evidence -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+    LOCAL_SHA=$(cd "$DEST" && find evidence -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
     [ "$LOCAL_SHA" = "$REMOTE_SHA" ] || { echo "FATAL: extracted content manifest differs from the remote one"; exit 1; }
     echo "POD_ID=$POD_ID DEST=$DEST FILES=$LOCAL_N SHA256=$SHA REMOTE=$REMOTE_SHA TS=$TS" >> "$REPO_DIR/pod.env.extracted"
     du -sh "$DEST"; ls "$DEST/evidence" | head -20
@@ -78,7 +78,7 @@ case "$CMD" in
     R=$(echo "$LAST" | sed -n "s/.*REMOTE=\([^ ]*\).*/\1/p")
     [ -f "$D/evidence.tgz" ] && [ "$(sha256sum "$D/evidence.tgz" | cut -d" " -f1)" = "$H" ] \
         || { echo "FATAL: extracted archive missing or changed ($D)"; exit 1; }
-    NOW=$($SSH "cd /root/sm120-nulltest && find evidence -type f ! -name .terminating -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1") || { echo "FATAL: cannot hash remote evidence"; exit 1; }
+    NOW=$($SSH "cd /root/sm120-nulltest && find evidence -type f ! -name .terminating -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1") || { echo "FATAL: cannot hash remote evidence"; exit 1; }
     [ -n "$R" ] && [ "$NOW" = "$R" ] || { $SSH "rm -f /root/sm120-nulltest/evidence/.terminating"; echo "FATAL: remote evidence changed since the last extraction (extract again)"; exit 1; }
     echo "terminating pod $POD_ID (melband_profiling) — production pods untouched; evidence at $D"
     runpodctl pod terminate "$POD_ID"
