@@ -30,8 +30,8 @@ else
     python - "$EVID" <<'PYEOF' || { echo "FATAL: session manifest does not match this tree"; exit 1; }
 import os, sys
 sys.path.insert(0, os.path.join(os.getcwd(), 'fullmodel'))
-import provenance
-print('manifest ok', provenance.load_manifest(sys.argv[1])['manifest_id'])
+import loader, provenance, timing
+print('manifest ok', provenance.load_manifest(sys.argv[1], loader.paths_from_env(), timing.env_fingerprint())['manifest_id'])
 PYEOF
 fi
 clocks_start "$EVID/clocks_session2.csv"
@@ -79,10 +79,12 @@ for chunk in 352800 4410; do
     done
 done
 
-echo "=== [4] attention-backend microbench (model backend from the C3 trace) ==="
-KS="$EVID/traces/trace_C3_352800_trace_cuda_gpu_kern_sum.csv"
+echo "=== [4] attention-backend microbench (deployed backend per chunk/axis from the C3 traces) ==="
+T8="$EVID/traces/trace_C3_352800_trace"; T4="$EVID/traces/trace_C3_4410_trace"
 run_aux attn_backend_bench 900 -- python "$REPO_DIR/fullmodel/attn_backend_bench.py" \
-    --out "$EVID/attn_backend_bench.json" $( [ -s "$KS" ] && echo "--model-kern-sum $KS" )
+    --out "$EVID/attn_backend_bench.json" --passes "$ITERS" \
+    $( [ -s "${T8}_cuda_gpu_trace.csv" ] && echo "--model-trace-352800 $T8" ) \
+    $( [ -s "${T4}_cuda_gpu_trace.csv" ] && echo "--model-trace-4410 $T4" )
 
 echo "=== [5] boundary-cost microbench + its node-level trace ==="
 run_aux boundary_bench 900 -- python "$REPO_DIR/fullmodel/boundary_bench.py" --out "$EVID/boundary_bench.json"
@@ -93,7 +95,7 @@ run_aux boundary_bench_trace 900 -- nsys profile --cuda-graph-trace=node --force
         --report cuda_gpu_trace --report cuda_gpu_kern_sum --report nvtx_gpu_proj_trace \
         --output "$EVID/traces/trace_boundary_bench" "$EVID/traces/trace_boundary_bench.nsys-rep" > /dev/null 2>&1 \
     && python "$REPO_DIR/fullmodel/boundary_bench.py" --analyze-trace "$EVID/traces/trace_boundary_bench" \
-        --out "$EVID/boundary_bench_trace_analysis.json" \
+        --traced-json "$EVID/boundary_bench_traced.json" --out "$EVID/boundary_bench_trace_analysis.json" \
     || echo "WARN: boundary trace/analysis incomplete"
 
 echo "=== [6] per-kernel ideal costs (plan 1.4; measured L2 rate from [5]) ==="
@@ -115,7 +117,8 @@ echo "=== [7] post-processing: perturbation ratios, boundary perturbation, sourc
 python "$REPO_DIR/fullmodel/perturbation.py" --evidence-dir "$EVID" --iters "$ITERS" \
     --out "$EVID/perturbation_and_source_map.json" || echo "WARN: post-processing failed"
 
-echo "=== [8] collection ==="
+echo "=== [8] collection + completeness verdict ==="
 python "$REPO_DIR/fullmodel/collect_full.py" --evidence-dir "$EVID" || true
+python "$REPO_DIR/fullmodel/completeness.py" --evidence-dir "$EVID" --session session2 || true
 echo "SESSION2 DONE $(date -Is) elapsed=$(( $(date +%s) - T0 ))s remaining=$(remaining)s"
 echo ">>> EXTRACT evidence/ OFF-POD BEFORE TERMINATE"

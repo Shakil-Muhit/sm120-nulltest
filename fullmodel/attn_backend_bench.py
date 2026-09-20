@@ -82,53 +82,71 @@ def bench(q, k, v, backend):
     return statistics.median(times), min(times), max(times)
 
 
-def deployed_backend(kern_sum_csv):
-    """From a node-level kernel summary: which SDPA kernel family carries the
-    SDPA class time."""
-    totals = {'flash': 0, 'cudnn': 0, 'efficient': 0}
-    with open(kern_sum_csv, newline='') as f:
-        rd = csv.reader(f)
-        head = next(rd)
-        c_t = next(i for i, h in enumerate(head) if 'Total Time' in h)
-        c_n = next(i for i, h in enumerate(head) if h.strip().strip('"') == 'Name')
-        for r in rd:
-            try:
-                t = int(float(r[c_t].replace(',', '')))
-            except (ValueError, IndexError):
-                continue
-            n = r[c_n].lower()
-            if 'flash' in n:
-                totals['flash'] += t
-            elif 'cudnn' in n and ('attn' in n or 'fmha' in n or 'sdpa' in n):
-                totals['cudnn'] += t
-            elif 'fmha' in n or 'mem_eff' in n or 'efficient' in n:
-                totals['efficient'] += t
-    if not any(totals.values()):
-        return None, totals
-    return max(totals, key=totals.get), totals
+def _family(name):
+    """Attention EXECUTION kernel family; Triton/preprocessing names are never
+    attention executions."""
+    n = name.lower()
+    if n.startswith('triton') or 'triton_' in n:
+        return None
+    if 'flash' in n and ('fwd' in n or 'attn' in n or 'kernel' in n):
+        return 'flash'
+    if 'cudnn' in n or 'fmha_v2' in n or 'sm100_fmha' in n or 'sm90_fmha' in n:
+        return 'cudnn'
+    if 'fmha' in n or 'mem_eff' in n or 'efficient' in n or 'attention_kernel' in n:
+        return 'efficient'
+    return None
+
+
+def deployed_backends(base, expected_passes=50):
+    """Per (axis) at the trace's operating point: the attention execution
+    family of the 12 SDPA events per pass, in order (time, freq) x 6 layers.
+    Returns {'time': family|None, 'freq': family|None, 'note': ...} or None
+    (UNRESOLVED) when the per-pass SDPA structure is not the registered one."""
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'attrib'))
+    from classify import classify
+    from kernel_map import read_gpu_trace, nvtx_pass_windows, split_passes
+    rows = read_gpu_trace(base + '_cuda_gpu_trace.csv')
+    windows, err = nvtx_pass_windows(base + '_nvtx_gpu_proj_trace.csv')
+    if err or len(windows) != expected_passes:
+        return None
+    passes, _ = split_passes(rows, windows, classify)
+    fams = None
+    for p in passes:
+        sd = [r['name'] for r in p if classify(r['name']) == 'SDPA' and _family(r['name'])]
+        if len(sd) != 12:
+            return None
+        f = [_family(n) for n in sd]
+        if fams is None:
+            fams = f
+        elif f != fams:
+            return None
+    time_f = {fams[i] for i in range(0, 12, 2)}
+    freq_f = {fams[i] for i in range(1, 12, 2)}
+    return {'time': time_f.pop() if len(time_f) == 1 else None,
+            'freq': freq_f.pop() if len(freq_f) == 1 else None,
+            'note': '12 SDPA executions per pass in (time, freq) x 6 order (registered axis order)'}
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--out', required=True)
-    ap.add_argument('--model-kern-sum', default=None,
-                    help='cuda_gpu_kern_sum csv of the deployed compiled arm (C3) trace')
+    ap.add_argument('--model-trace-352800', default=None, help='export basename of the C3 8-s node trace')
+    ap.add_argument('--model-trace-4410', default=None, help='export basename of the C3 4410 node trace')
+    ap.add_argument('--passes', type=int, default=50)
     args = ap.parse_args()
     assert torch.cuda.is_available()
     gen = torch.Generator(device='cpu').manual_seed(3)
-    if args.model_kern_sum:
-        mb, totals = deployed_backend(args.model_kern_sum)
-        model_backend = {'backend': mb, 'source': args.model_kern_sum, 'sdpa_class_ns': totals,
-                         'assumed': mb is None}
-        if mb is None:
-            model_backend['backend'] = 'flash'
-    else:
-        model_backend = {'backend': 'flash', 'source': None, 'assumed': True,
-                         'note': 'Attend cuda_config=(True,False,False) + repaired context (flash, cudnn)'}
+    # deployed backend per (chunk, axis) from the C3 traces; anything not
+    # established from a trace is UNRESOLVED (no ratio), never assumed
+    model_backend = {}
+    for chunk, base in ((352800, args.model_trace_352800), (4410, args.model_trace_4410)):
+        model_backend[chunk] = deployed_backends(base, args.passes) if base else None
     result = {'device': torch.cuda.get_device_name(0), 'torch': torch.__version__,
               'dtype': 'float16', 'heads': H, 'dim_head': D, 'bands': 60,
               'scale': 'default dim_head**-0.5', 'dropout': 0.0,
-              'model_backend': model_backend, 'cases': {}}
+              'model_backend_per_chunk': {str(k): v for k, v in model_backend.items()}, 'cases': {}}
     for chunk, T in FRAMES.items():
         for axis, (b, n) in {'time': (60, T), 'freq': (T, 60)}.items():
             for layout, make in (('model', model_layout), ('contiguous', contiguous_layout)):
@@ -156,13 +174,21 @@ def main():
                 ok = {k2: v2['us_median'] for k2, v2 in case['backends'].items() if v2['status'] == 'ok'}
                 if ok:
                     best = min(ok, key=ok.get)
-                    mbk = model_backend['backend']
                     case['best_backend'] = best
                     case['best_us'] = ok[best]
-                    case['model_backend_us'] = ok.get(mbk)
-                    case['ratio_best_over_model'] = (ok[best] / ok[mbk]) if mbk in ok else None
-                    case['ratio_note'] = ('model backend ASSUMED (no trace given)' if model_backend.get('assumed')
-                                          else f'model backend from trace: {mbk}')
+                    dep = (model_backend.get(chunk) or {}).get(axis) if model_backend.get(chunk) else None
+                    case['model_backend'] = dep
+                    if dep and dep in ok:
+                        case['model_backend_us'] = ok[dep]
+                        case['ratio_best_over_model'] = ok[best] / ok[dep]
+                        case['ratio_note'] = f'deployed backend from the C3 trace at {chunk}/{axis}: {dep}'
+                    else:
+                        case['model_backend_us'] = None
+                        case['ratio_best_over_model'] = None
+                        case['ratio_note'] = 'UNRESOLVED: deployed backend not established from a trace'
+                        case['status'] = 'UNRESOLVED'
+                    if layout == 'contiguous':
+                        case['note'] = 'separate experiment (not the model layout)'
                 result['cases'][f'c{chunk}_{axis}_{layout}'] = case
                 del keep
     with open(args.out, 'w') as f:

@@ -38,6 +38,15 @@ scope/adapter, graph gate, settle, notes); `ref/` (eager-A references); `generat
 `attn_backend_bench.json`, `boundary_bench.json`; `clocks_session*.csv`;
 `summary_full.json` (collector). `SESSION_RESULT.md` cites these paths.
 
+- `session_status.json` — mechanical session verdict from `fullmodel/completeness.py`
+  (COMPLETE / INCOMPLETE with per-item reasons over the registered mandatory items).
+- `aux_<name>.json` — terminal record of every bounded auxiliary step (OK / FAILED /
+  UNTESTED); supervisor banners go to stderr.
+- `ref/*.lineage.json` — per-artifact lineage sidecars (manifest id + sha256) written
+  with every reference output and checked before any use.
+- `traces/ideal_costs_<arm>_<chunk>.{json,csv}` — per-kernel ideal costs; rows carry
+  `recoverable_share_hbm_model` and, where the byte bound over-counts, `bound_not_tight`.
+
 ## Shakedown (engineering only, never evidence)
 ml-beast GPU 4: `rsync -a --exclude .git --exclude evidence sm120-nulltest/ ml-beast:~/axial/sm120-nulltest/`,
 env in `~/axial/fullmodel_smoke/env.sh`, outputs in `~/axial/fullmodel_smoke/`.

@@ -79,13 +79,17 @@ sys.exit(0 if ok_all else 1)
 PYEOF
 
 echo "=== [3] C3 operator qualification per registered frame count ==="
-run_aux c3_operator_qualification 600 -- python - <<'PYEOF' > "$EVID/c3_operator_qualification.json" || { echo "FATAL: C3 operator qualification failed"; exit 1; }
+run_aux c3_operator_qualification 600 -- python - "$EVID/c3_operator_qualification.json" <<'PYEOF' || { echo "FATAL: C3 operator qualification failed"; exit 1; }
 import json, os, sys
 sys.path.insert(0, os.path.join(os.getcwd(), 'fullmodel'))
 import fullarms
-print(json.dumps(fullarms.verify_c3_operator(), indent=1))
+rec = fullarms.verify_c3_operator()
+json.dump(rec, open(sys.argv[1], 'w'), indent=1)
+assert all(v.get('status') == 'PASS' for v in rec.values()), rec
+print('C3 operator qualification PASS for frames', sorted(rec))
 PYEOF
-grep -q '"status": "PASS"' "$EVID/c3_operator_qualification.json" || { echo "FATAL: C3 qualification has no PASS"; exit 1; }
+python3 -c "import json,sys; r=json.load(open('$EVID/c3_operator_qualification.json')); assert set(r)=={'11','51','201','801'} and all(v['status']=='PASS' for v in r.values())" \
+    || { echo "FATAL: C3 qualification JSON invalid"; exit 1; }
 
 echo "=== [4] matched block-alternation pairs @352800 (plan 1.2) ==="
 [ "${SMOKE:-0}" = "1" ] || run_matched C1 C1A 352800 m1
@@ -129,7 +133,8 @@ for chunk in 352800 4410; do
 done
 fi
 
-echo "=== [7] collection ==="
+echo "=== [7] collection + completeness verdict ==="
 python "$REPO_DIR/fullmodel/collect_full.py" --evidence-dir "$EVID" || true
+python "$REPO_DIR/fullmodel/completeness.py" --evidence-dir "$EVID" --session session1 || true
 echo "SESSION1 DONE $(date -Is) elapsed=$(( $(date +%s) - T0 ))s remaining=$(remaining)s"
 echo ">>> EXTRACT evidence/ OFF-POD BEFORE TERMINATE:  tar czf /root/evidence_s1_\$(date +%Y%m%d_%H%M).tgz -C $REPO_DIR evidence"

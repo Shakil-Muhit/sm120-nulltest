@@ -58,9 +58,11 @@ def build_one(arm, chunk, streams, gen_dir, paths, settle_max):
 
 
 def joint_settle(built, arms, rounds=2, passes=3):
-    """Alternate the two steps; stable iff counters unchanged across the
-    last two alternation rounds."""
-    snaps = []
+    """Alternate the two steps. The recording state is snapshotted BEFORE the
+    first round and after every round; stable iff unchanged across ALL rounds
+    (a re-recording of the arm built first shows up in round 1), and no new
+    graph breaks / unimplemented ops appear at any point."""
+    snaps = [tm.recording_state()]
     for r in range(rounds + 1):
         for arm in arms:
             b = built[arm]
@@ -68,9 +70,13 @@ def joint_settle(built, arms, rounds=2, passes=3):
                 for _ in range(passes):
                     b['step'](b['x'])
         torch.cuda.synchronize()
-        snaps.append(tm.dynamo_counters())
-    stable = all(tm.compile_stable(a, c) for a, c in zip(snaps, snaps[1:]))
-    return {'stable': stable, 'rounds': rounds, 'snapshots': snaps}
+        snaps.append(tm.recording_state())
+    verdicts = [tm.recording_stable(a, c) for a, c in zip(snaps, snaps[1:])]
+    breaks = [sum(x['counters'].get('graph_break', {}).values()) +
+              sum(x['counters'].get('unimplemented', {}).values()) for x in snaps]
+    return {'stable': (None if any(v is None for v in verdicts) else all(verdicts)),
+            'new_breaks_during_joint_settle': breaks[-1] - breaks[0],
+            'rounds': rounds, 'snapshots': snaps}
 
 
 def main():
@@ -87,6 +93,8 @@ def main():
     ap.add_argument('--ref-dir', default=None)
     ap.add_argument('--no-manifest', action='store_true')
     args = ap.parse_args()
+    if (args.iters, args.repeats) != (50, 5):
+        print('[matched] WARNING: not the registered 5 x 50 protocol — pair ineligible')
     assert torch.cuda.is_available()
     os.makedirs(args.evidence_dir, exist_ok=True)
     ref_dir = args.ref_dir or os.path.join(args.evidence_dir, 'ref')
@@ -101,10 +109,13 @@ def main():
         paths = loader.paths_from_env()
         result['provenance'] = provenance.verify(paths)
         if not args.no_manifest:
-            result['manifest_id'] = provenance.load_manifest(args.evidence_dir)['manifest_id']
+            result['manifest_id'] = provenance.load_manifest(
+                args.evidence_dir, paths, tm.env_fingerprint())['manifest_id']
             tm.bind_refs(ref_dir, result['manifest_id'])
         else:
             reasons.append('not bound to a session manifest')
+        if (args.iters, args.repeats) != (50, 5):
+            reasons.append(f'protocol {args.repeats}x{args.iters} is not the registered 5x50')
         built = {}
         for arm in (a, b):
             gen_dir = os.path.join(args.evidence_dir, 'generated', f'matched_{arm}_c{args.chunk}_{args.tag}')
@@ -129,19 +140,34 @@ def main():
             result['status'] = 'INVALID'
         else:
             js = joint_settle(built, (a, b))
-            result['joint_settle'] = {'stable': js['stable'], 'rounds': js['rounds']}
-            if not js['stable']:
-                reasons.append('joint alternation did not settle')
+            result['joint_settle'] = js
+            if js['stable'] is None:
+                reasons.append('joint settle: recording observer unavailable (UNRESOLVED)')
+            elif not js['stable']:
+                reasons.append('joint alternation did not settle (recording state changed)')
+            if js['new_breaks_during_joint_settle']:
+                reasons.append(f"{js['new_breaks_during_joint_settle']} new graph breaks/unimplemented "
+                               'during the joint settle')
+            # per-arm zero-break requalification after the joint settle (global delta)
+            before_val = tm.recording_state()
             for arm in (a, b):
                 v = tm.validate(built[arm]['step'], built[arm]['ctx'], arms_mod.TIER[arm],
-                                args.chunk, ref_dir)
+                                args.chunk, ref_dir, manifest_id=result['manifest_id'])
                 result['arms'][arm]['validation'] = v
                 if v['status'] != 'PASS':
                     reasons.append(f'{arm}: validation {v["status"]}')
                 print(f'[matched] {arm}: validation {v["status"]} '
                       f'{[p.get("max_abs_diff") for p in v["passes"]]}')
+            after_val = tm.recording_state()
+            result['snapshots'] = {'joint_settle': js['snapshots'], 'before_validation': before_val,
+                                   'after_validation': after_val, 'blocks': []}
+            sv = tm.recording_stable(before_val, after_val)
+            if sv is None:
+                reasons.append('validation: recording observer unavailable')
+            elif not sv:
+                reasons.append('recording state changed during validation')
             per = {a: [], b: []}
-            prev = tm.dynamo_counters()
+            prev = after_val
             block_stable = True
             for r in range(args.repeats):
                 for arm in (a, b):
@@ -149,9 +175,10 @@ def main():
                     lat, thr = tm.timed_run(built[arm]['step'], built[arm]['x'],
                                             built[arm]['ctx'], args.iters)
                     t1 = time.time()
-                    cur = tm.dynamo_counters()
-                    stable = tm.compile_stable(prev, cur)
-                    block_stable &= stable
+                    cur = tm.recording_state()
+                    stable = tm.recording_stable(prev, cur)
+                    block_stable = block_stable and bool(stable)
+                    result['snapshots']['blocks'].append(cur)
                     prev = cur
                     blk = {'repeat': r, 'arm': arm, 'latency_median_ms': tm.median(lat),
                            'throughput_ms_per_pass': thr, 'latency_ms_per_iter': lat,
@@ -176,6 +203,8 @@ def main():
         result['status'], result['error'] = 'INVALID', traceback.format_exc()
         reasons.append('exception')
         print(result['error'], file=sys.stderr)
+    result['effective_variants'] = {k: '/'.join(str(v.get(x)) for x in ('capture_scope', 'capture_adapter_active', 'compile_mode'))
+                                    for k, v in result['arms'].items()}
     result['pair_eligible'] = result['status'] == 'VALID' and not reasons
     with open(out_path, 'w') as f:
         json.dump(result, f, indent=1)

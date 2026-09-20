@@ -36,23 +36,55 @@ def block_median(run):
     return blocks[0]['latency_median_ms'] if blocks else None
 
 
+def _qualified(run):
+    """One-block perturbation protocol: VALID, validation PASS, exactly one
+    block of 50 passes, manifest-bound, effective variant recorded."""
+    if not run or run.get('status') != 'VALID':
+        return 'run missing or not VALID'
+    if (run.get('validation') or {}).get('status') != 'PASS':
+        return 'validation not PASS'
+    t = run.get('timing') or {}
+    if len(t.get('blocks') or []) != 1 or t.get('iters_per_block') != 50:
+        return 'not a one-block x 50 run'
+    if run.get('manifest_id') is None:
+        return 'not manifest-bound'
+    if run.get('settle') and run['settle'].get('settle_capped'):
+        return 'settle capped'
+    if run.get('counters_stable') is False:
+        return 'recording unstable'
+    return None
+
+
 def perturbation(evidence):
     out = {}
     for path in glob.glob(os.path.join(evidence, 'full_*_pert_unprofiled.json')):
         base = j(path)
         arm, chunk = base['arm'], base['chunk']
-        rec = {'unprofiled_block_ms': block_median(base)}
+        rec = {'unprofiled_block_ms': block_median(base), 'status': 'ok', 'problems': []}
+        q = _qualified(base)
+        if q:
+            rec['problems'].append(f'unprofiled: {q}')
         for mode in ('graph', 'node'):
             p = os.path.join(evidence, f'full_{arm}_c{chunk}_pert_{mode}.json')
-            if os.path.exists(p):
-                r = j(p)
-                m = block_median(r)
-                rec[f'{mode}_block_ms'] = m
-                rec[f'{mode}_over_unprofiled'] = (m / rec['unprofiled_block_ms']
-                                                  if m and rec['unprofiled_block_ms'] else None)
-            else:
-                rec[f'{mode}_block_ms'] = None
-        rec['caveat_required'] = bool(rec.get('node_over_unprofiled') and rec['node_over_unprofiled'] > 1.05)
+            r = j(p) if os.path.exists(p) else None
+            q = _qualified(r)
+            if q:
+                rec['problems'].append(f'{mode}: {q}')
+                rec[f'{mode}_block_ms'] = block_median(r) if r else None
+                rec[f'{mode}_over_unprofiled'] = None
+                continue
+            if r.get('manifest_id') != base.get('manifest_id') or r.get('effective_variant') != base.get('effective_variant'):
+                rec['problems'].append(f'{mode}: manifest/variant differs from the unprofiled run')
+                rec[f'{mode}_over_unprofiled'] = None
+                continue
+            m = block_median(r)
+            rec[f'{mode}_block_ms'] = m
+            rec[f'{mode}_over_unprofiled'] = m / rec['unprofiled_block_ms'] if (m and rec['unprofiled_block_ms']) else None
+        if rec['problems'] or rec.get('node_over_unprofiled') is None:
+            rec['status'] = 'UNRESOLVED'
+            rec['caveat_required'] = 'UNRESOLVED'
+        else:
+            rec['caveat_required'] = rec['node_over_unprofiled'] > 1.05
         rec['inflation_factor_node'] = rec.get('node_over_unprofiled')
         out[f'{arm}_{chunk}'] = rec
     return out
@@ -118,8 +150,8 @@ def main():
     with open(args.out, 'w') as f:
         json.dump(res, f, indent=1)
     for k, v in res['perturbation'].items():
-        print(f"[perturbation] {k}: graph x{v.get('graph_over_unprofiled') or 0:.3f} node x"
-              f"{v.get('node_over_unprofiled') or 0:.3f} caveat={v['caveat_required']}")
+        print(f"[perturbation] {k}: {v['status']} graph x{v.get('graph_over_unprofiled') or 0:.3f} node x"
+              f"{v.get('node_over_unprofiled') or 0:.3f} caveat={v['caveat_required']} {v['problems']}")
     for k, v in res['source_map'].items():
         cov = v.get('coverage') or {}
         print(f"[source_map] {k}: variants={v['variant_selection']} coverage={cov.get('share')}")

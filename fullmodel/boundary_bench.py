@@ -35,6 +35,7 @@ Protocol (registered):
 import argparse
 import csv
 import json
+import os
 import re
 import statistics
 import traceback
@@ -162,8 +163,14 @@ def fit(points):
             'points': points}
 
 
-def analyze_trace(base, out):
-    """Per NVTX chain segment: kernel durations and serial inter-kernel gaps."""
+def analyze_trace(base, out, traced_json=None):
+    """Per NVTX chain segment: kernel durations and serial inter-kernel gaps.
+    Joined with the traced run's own JSON (gate-03 f40): a segment is only
+    accepted when its case status is 'ok' (dependency proof + PTX passed) and
+    the segment holds exactly N x REPEATS kernels; else UNRESOLVED."""
+    cases = {}
+    if traced_json and os.path.exists(traced_json):
+        cases = json.load(open(traced_json)).get('chains', {})
     def read(path):
         with open(path, newline='') as f:
             rows = list(csv.reader(f))
@@ -197,12 +204,24 @@ def analyze_trace(base, out):
     res = {}
     for nm, (s, e) in segs.items():
         ks = [k for k in kern if s <= k[0] < e]
+        case = cases.get(nm)
+        n = int(nm.rsplit('N', 1)[1]) if 'N' in nm else None
+        expected = n * REPEATS if n else None
+        if case is not None and case.get('status') != 'ok':
+            res[nm] = {'kernels': len(ks), 'status': f"UNRESOLVED: case status {case.get('status')}"}
+            continue
+        if expected is not None and len(ks) != expected:
+            res[nm] = {'kernels': len(ks), 'expected_kernels': expected,
+                       'status': 'UNRESOLVED: kernel count != N x REPEATS'}
+            continue
         if len(ks) < 2:
             res[nm] = {'kernels': len(ks), 'status': 'UNRESOLVED: too few kernels in range'}
             continue
         durs = [k[1] for k in ks]
         gaps = [ks[i + 1][0] - (ks[i][0] + ks[i][1]) for i in range(len(ks) - 1)]
-        res[nm] = {'kernels': len(ks), 'kernel_us_median': statistics.median(durs) / 1e3,
+        res[nm] = {'kernels': len(ks), 'expected_kernels': expected, 'status': 'ok',
+                   'case_status': (case or {}).get('status'),
+                   'kernel_us_median': statistics.median(durs) / 1e3,
                    'gap_us_median': statistics.median(gaps) / 1e3,
                    'gap_us_min': min(gaps) / 1e3, 'gap_us_max': max(gaps) / 1e3,
                    'negative_gap_fraction': sum(1 for g in gaps if g < 0) / len(gaps),
@@ -221,9 +240,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--out', required=True)
     ap.add_argument('--analyze-trace', default=None, help='export basename of a traced run')
+    ap.add_argument('--traced-json', default=None, help='the traced run\'s own boundary JSON')
     args = ap.parse_args()
     if args.analyze_trace:
-        analyze_trace(args.analyze_trace, args.out)
+        analyze_trace(args.analyze_trace, args.out, args.traced_json)
         return
     assert torch.cuda.is_available()
     dev = 'cuda'

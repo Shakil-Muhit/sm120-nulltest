@@ -127,14 +127,25 @@ run_traced() {
     return 0
 }
 
-# bounded auxiliary command: run_aux NAME CAP -- cmd...
+# bounded auxiliary command: run_aux NAME CAP -- cmd...   (supervisor messages
+# go to STDERR so a redirected stdout stays clean; a terminal JSON records
+# the outcome either way)
+aux_json() {   # name status reason
+    python3 -c "import json,sys;json.dump({'item':sys.argv[1],'status':sys.argv[2],'reason':sys.argv[3]},open('$EVID/aux_'+sys.argv[1]+'.json','w'))" "$1" "$2" "$3"
+}
 run_aux() {
     local name="$1" want="$2"; shift 2; [ "$1" = "--" ] && shift
     local cap; cap=$(cap_for "$want")
-    if [ "$cap" -lt 60 ]; then echo "--- $name: DEADLINE -> skipped (UNTESTED) ---"; echo "UNTESTED: deadline" > "$EVID/${name}.UNTESTED"; return 1; fi
-    echo "--- $name $(date -Is) cap=${cap}s ---"
+    if [ "$cap" -lt 60 ]; then
+        echo "--- $name: DEADLINE -> skipped (UNTESTED) ---" >&2
+        aux_json "$name" UNTESTED "session deadline"; return 1
+    fi
+    echo "--- $name $(date -Is) cap=${cap}s ---" >&2
     timeout -k 30 "$cap" "$@"; local rc=$?
-    [ "$rc" = "0" ] || { echo "    $name exit $rc"; echo "exit $rc" > "$EVID/${name}.FAILED"; }
+    if [ "$rc" = "0" ]; then aux_json "$name" OK ""; else
+        echo "    $name exit $rc" >&2
+        aux_json "$name" $([ "$rc" = "124" ] && echo UNTESTED || echo FAILED) "exit $rc"
+    fi
     return $rc
 }
 

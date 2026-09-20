@@ -110,7 +110,7 @@ def main():
         if args.no_manifest:
             info['notes'].append('--no-manifest: shakedown run, never headline-eligible')
         else:
-            manifest = provenance.load_manifest(args.evidence_dir)
+            manifest = provenance.load_manifest(args.evidence_dir, paths, tm.env_fingerprint())
             manifest_id = manifest['manifest_id']
         if args.save_reference and manifest_id:
             tm.bind_refs(args.ref_dir, manifest_id, write=True)
@@ -142,8 +142,7 @@ def main():
             if gate['status'] == 'FAIL':
                 status = 'INVALID'
                 info['notes'].append('graph gate FAILED (registered zero-break arm)')
-            snapshots['after_settle'] = settle['dynamo_counters']
-            snapshots['tree_after_settle'] = tm.cudagraph_tree_state()
+            snapshots['after_settle'] = tm.recording_state()
         else:
             with torch.no_grad(), ctx():
                 for _ in range(args.warmup):
@@ -151,24 +150,23 @@ def main():
             torch.cuda.synchronize()
 
         validation = tm.validate(step, ctx, tier, args.chunk, args.ref_dir,
-                                 save_reference=args.save_reference)
+                                 save_reference=args.save_reference, manifest_id=manifest_id)
         print(f'[full] validation: {validation["status"]} '
               f'{[p.get("max_abs_diff") for p in validation["passes"]]} tier={validation["tier"]}')
         if validation['status'] == 'FAIL':
             status = 'INVALID'
         if compiled:
-            snapshots['after_validation'] = tm.dynamo_counters()
+            snapshots['after_validation'] = tm.recording_state()
 
         if args.skip_timing:
             info['notes'].append('--skip-timing: no timed region executed')
         else:
             if compiled:
-                snapshots['before_timing'] = tm.dynamo_counters()
+                snapshots['before_timing'] = tm.recording_state()
             timing_rec = tm.five_repeats(step, x, ctx, args.iters, args.repeats,
                                          nvtx_pass=args.nvtx_pass)
             if compiled:
-                snapshots['after_timing'] = tm.dynamo_counters()
-                snapshots['tree_after_timing'] = tm.cudagraph_tree_state()
+                snapshots['after_timing'] = tm.recording_state()
             for b in timing_rec['blocks']:
                 print(f'  block {b["repeat"]}: median {b["latency_median_ms"]:.4f} ms '
                       f'(min {b["latency_min_ms"]:.4f}, max {b["latency_max_ms"]:.4f}) '
@@ -177,19 +175,25 @@ def main():
         if args.sdr:                                   # registered: after the timed region
             manifest_clips, clips = sdr_gate.load_clips(args.clips_dir, args.clips_manifest)
             sdr = sdr_gate.run_gate(step, ctx, clips, args.ref_dir, args.chunk,
-                                    save_reference=args.save_reference)
+                                    save_reference=args.save_reference, manifest_id=manifest_id)
             sdr['manifest_revision'] = manifest_clips.get('revision')
             print(f'[full] SDR gate: {sdr["status"]} mean_sdr_ref={sdr.get("mean_sdr_ref_db")} '
                   f'mean_delta={sdr.get("mean_delta_sdr_ref_db")}')
             if compiled:
-                snapshots['after_sdr'] = tm.dynamo_counters()
+                snapshots['after_sdr'] = tm.recording_state()
 
         if compiled and settle is not None:
             seq = [snapshots.get(k) for k in ('after_settle', 'after_validation', 'before_timing',
                                               'after_timing', 'after_sdr') if snapshots.get(k)]
-            info['counters_stable'] = all(tm.compile_stable(a, b) for a, b in zip(seq, seq[1:]))
-            if not info['counters_stable']:
-                info['notes'].append('compile/recording counters changed between measured phases')
+            verdicts = [tm.recording_stable(a, b) for a, b in zip(seq, seq[1:])]
+            if any(v is None for v in verdicts):
+                info['counters_stable'] = None      # observer missing -> unresolved
+                info['notes'].append('recording observer unavailable: stability UNRESOLVED')
+            else:
+                info['counters_stable'] = all(verdicts)
+                if not info['counters_stable']:
+                    info['notes'].append('recording state (counters or graph nodes) changed '
+                                         'between measured phases')
     except Exception:
         status, error = 'INVALID', traceback.format_exc()
         print(f'[full] ERROR (recorded, not fatal to the session):\n{error}', file=sys.stderr)
@@ -204,13 +208,17 @@ def main():
     if not timing_rec:
         reasons.append('no timed region')
     else:
-        if timing_rec['repeats'] < REGISTERED_REPEATS or timing_rec['iters_per_block'] < REGISTERED_ITERS:
-            reasons.append(f"timing protocol incomplete ({timing_rec['repeats']} repeats x "
-                           f"{timing_rec['iters_per_block']} iters; registered 5 x 50)")
-        if any(len(b['latency_ms_per_iter']) < REGISTERED_ITERS for b in timing_rec['blocks']):
-            reasons.append('a latency block completed fewer than 50 passes')
+        if timing_rec['repeats'] != REGISTERED_REPEATS or timing_rec['iters_per_block'] != REGISTERED_ITERS:
+            reasons.append(f"timing protocol is not the registered one ({timing_rec['repeats']} repeats x "
+                           f"{timing_rec['iters_per_block']} iters; registered exactly 5 x 50)")
+        if any(len(b['latency_ms_per_iter']) != REGISTERED_ITERS for b in timing_rec['blocks']):
+            reasons.append('a latency block did not complete exactly 50 passes')
     if args.nvtx_pass:
         reasons.append('traced/attribution run (never a headline)')
+    if args.arm == 'ANVTX':
+        reasons.append('attribution arm (never a headline)')
+    if args.arm in arms_mod.COMPILE_ARMS and info.get('counters_stable') is None and timing_rec:
+        reasons.append('recording stability UNRESOLVED (observer unavailable)')
     if args.planted_fault:
         reasons.append('planted fault run')
     if validation and validation.get('status') != 'PASS':
@@ -244,6 +252,10 @@ def main():
         'capture_adapter_istft': info.get('capture_adapter_istft'),
         'capture_attempts': info.get('capture_attempts'),
         'stream_count': info.get('stream_count'), 'compile_mode': info.get('compile_mode'),
+        'effective_variant': '/'.join(str(x) for x in (info.get('capture_scope'),
+                                                       info.get('capture_adapter_active'),
+                                                       info.get('compile_mode'),
+                                                       info.get('stream_count'))),
         'c3_fixes': info.get('c3_fixes'), 'padbatch': info.get('padbatch'),
         'nvtx_boundary_mode': info.get('nvtx_boundary_mode'),
         'planted_fault_const': info.get('planted_fault_const'),

@@ -14,8 +14,9 @@ Exactness (registered): padded entries are zero on every path —
                GLU(dim=-1) over the padded width equals the per-band GLU
                (pad columns: 0 * sigmoid(0) = 0); valid columns are gathered
                back in band order == torch.cat(dim=-1).
-The only numerical difference is cuBLAS summation order (loose tier by the
-classification rule; H is compiled anyway).
+Claim: ALGEBRAIC equivalence. Numerically the padded/batched program changes
+reduction trees (and the compiler changes fusion), so agreement is verified
+at the loose tier (the classification rule; H is compiled), never bitwise.
 """
 
 import torch

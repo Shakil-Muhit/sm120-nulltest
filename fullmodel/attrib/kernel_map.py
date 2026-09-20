@@ -59,6 +59,12 @@ NORM_OP_HINTS = ('norm', 'var_mean', 'welford', 'rsqrt', 'mean', 'pow')
 B_SITE_MIN_READ_BYTES = 1_000_000   # ignore broadcast/tiny reads for (B)
 
 ASSIGN_TRITON_RE = re.compile(r"^(\w+)\s*=\s*async_compile\.triton\('(\w+)'", re.M)
+SIGNATURE_RE = re.compile(r"'signature':\s*\{([^}]*)\}")
+SIG_ITEM_RE = re.compile(r"'(\w+)':\s*'\*(\w+)'")
+TRITON_ITEMSIZE = {'fp16': 2, 'bf16': 2, 'fp32': 4, 'fp64': 8, 'i1': 1, 'u8': 1, 'i8': 1,
+                   'i16': 2, 'u16': 2, 'i32': 4, 'u32': 4, 'i64': 8, 'u64': 8}
+RAND_STRIDED_RE = re.compile(
+    r'^\s*(\w+)\s*=\s*rand_strided\(\((.*?)\),\s*\((.*?)\),.*?dtype=(torch\.\w+)', re.M)
 ATEN_COMMENT_RE = re.compile(r'Original ATen:\s*\[([^\]]*)\]')
 ALLOC_RE = re.compile(
     r'^\s*(\w+)\s*=\s*empty_strided_(?:cuda|xpu)\(\((.*?)\),\s*\((.*?)\),\s*(torch\.\w+)', re.M)
@@ -174,10 +180,16 @@ def parse_output_code(dump_dir):
             k['store_exprs'] = {}
             k['loads_present'] = []
             k['stores_present'] = []
+            k['load_sites'] = {}
+            k['store_sites'] = {}
             for p in params:
-                if re.search(r'tl\.load\(\s*' + re.escape(p) + r'\b', body):
+                nl = len(re.findall(r'tl\.load\(\s*' + re.escape(p) + r'\b', body))
+                ns = len(re.findall(r'tl\.store\(\s*' + re.escape(p) + r'\b', body))
+                k['load_sites'][p] = nl
+                k['store_sites'][p] = ns
+                if nl:
                     k['loads_present'].append(p)
-                if re.search(r'tl\.store\(\s*' + re.escape(p) + r'\b', body):
+                if ns:
                     k['stores_present'].append(p)
                 lm = re.search(r'tl\.load\(' + re.escape(p) + r'\s*\+\s*\(([^)]*)\)', body)
                 sm2 = re.search(r'tl\.store\(' + re.escape(p) + r'\s*\+\s*\(([^)]*)\)', body)
@@ -187,7 +199,13 @@ def parse_output_code(dump_dir):
                     k['store_exprs'][p] = _canon_expr(sm2.group(1))
             if lhs in source_literals:
                 k.update(access_expressions(source_literals[lhs], params))
+            # pointer element types from the kernel's own triton_meta signature
+            # (authoritative: the compiled kernel's ABI), e.g. 'in_ptr0': '*fp16'
+            sg = SIGNATURE_RE.search(body)
+            k['ptr_dtypes'] = dict(SIG_ITEM_RE.findall(sg.group(1))) if sg else {}
             kernels[lhs] = k
+        # graph-input dtypes from the benchmark section (rand_strided(...))
+        input_dtypes = {m.group(1): m.group(4) for m in RAND_STRIDED_RE.finditer(src)}
 
         try:
             body = src.split('def call(')[1]
@@ -221,7 +239,7 @@ def parse_output_code(dump_dir):
             if sm:
                 allocs.setdefault(sm.group(1), {'shape': _ints(sm.group(2)),
                                                 'stride': _ints(sm.group(3)),
-                                                'dtype': None})
+                                                'dtype': input_dtypes.get(sm.group(1))})
                 continue
             tm = TRITON_CALL_RE.match(line)
             em = EXTERN_CALL_RE.match(line)
@@ -296,17 +314,23 @@ def resolve(gr, buf):
 
 
 def arg_meta(gr, a):
-    """Effective (shape, stride, dtype, base) the kernel sees for arg a."""
+    """Effective (shape, stride, dtype, base) the kernel sees for arg a.
+    Shape precedence: reinterpret literal > alias view meta > an
+    assert_size_stride/alloc on the arg's OWN name (fallback outputs and
+    getitem results are asserted by name) > the base allocation."""
     base, alias_meta = resolve(gr, a['buf'])
     alloc = gr['allocs'].get(base, {})
+    own = gr['allocs'].get(a['buf'], {})
     if a.get('reinterpret') and a.get('shape'):
         shape, stride = a['shape'], a['stride']
     elif alias_meta:
         shape, stride = alias_meta['shape'], alias_meta['stride']
+    elif own.get('shape'):
+        shape, stride = own['shape'], own.get('stride', ())
     else:
         shape, stride = alloc.get('shape', ()), alloc.get('stride', ())
     return {'shape': shape or (), 'stride': stride or (),
-            'dtype': alloc.get('dtype'), 'base': base}
+            'dtype': alloc.get('dtype') or own.get('dtype'), 'base': base}
 
 
 def refined_access(k, role):
@@ -356,6 +380,29 @@ def is_permuted(shape, stride):
     if nt[-1][1] != 1:
         return True
     return any(nt[i][1] < nt[i + 1][1] for i in range(len(nt) - 1))
+
+
+def accessed_elems(shape, stride):
+    """Distinct elements a strided view can touch: broadcast dims (stride 0)
+    contribute 1, overlapping windows (unfold-style strides) are bounded by
+    the address extent 1 + sum((size-1)*|stride|); never more than numel."""
+    if not shape:
+        return 0
+    numel = 1
+    for d in shape:
+        numel *= int(d)
+    if not stride or len(stride) != len(shape):
+        return numel
+    nz = 1
+    extent = 1
+    for d, st in zip(shape, stride):
+        d, st = int(d), abs(int(st))
+        if d == 0:
+            return 0
+        if st != 0:
+            nz *= d
+            extent += (d - 1) * st
+    return min(numel, nz, extent)
 
 
 def nbytes(shape, dtype):

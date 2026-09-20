@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 
 import torch
 
+import provenance
+
 TIMING_SEED = 0                  # sm120 arms/common.py::TIMING_SEED
 VAL_SEEDS = (1001, 2002)         # sm120 arms/common.py::VAL_SEEDS
 TIERS = {'loose': (1e-2, 1e-3), 'tight': (1e-4, 1e-5)}   # sm120 VAL_TOL values
@@ -91,22 +93,55 @@ def compile_stable(before, after):
 
 
 def cudagraph_tree_state():
-    """Best-effort snapshot of the cudagraph-trees manager (torch 2.8):
-    number of recorded graphs / roots; None if the API is unavailable."""
+    """Recording observer (gate-03 f36): the cudagraph-trees manager's recorded
+    graph NODES (roots and all descendants) — the identity set that must not
+    change between measured phases. torch 2.8: TreeManager.roots is
+    {FunctionID: [CUDAGraphNode]}, each node has .children of the same shape.
+    'available': False -> the observer is missing and a compiled run cannot
+    be accepted (unresolved recording state)."""
     try:
         from torch._inductor import cudagraph_trees
         container = cudagraph_trees.get_container(0)
         mgr = getattr(container, 'tree_manager', None)
         if mgr is None:
-            return {'available': False}
+            return {'available': False, 'reason': 'no tree manager on device 0'}
         roots = getattr(mgr, 'roots', None)
-        n_roots = sum(len(v) for v in roots.values()) if isinstance(roots, dict) else None
+        if not isinstance(roots, dict):
+            return {'available': False, 'reason': 'roots not a dict'}
+        n_nodes, n_roots, stack = 0, 0, []
+        for lst in roots.values():
+            for node in lst:
+                n_roots += 1
+                stack.append(node)
+        seen = set()
+        while stack:
+            node = stack.pop()
+            if id(node) in seen:
+                continue
+            seen.add(id(node))
+            n_nodes += 1
+            ch = getattr(node, 'children', None)
+            if isinstance(ch, dict):
+                for lst in ch.values():
+                    stack.extend(lst)
         ids = getattr(mgr, 'ids_to_funcs', None) or getattr(mgr, 'ids_to_stack', None)
-        return {'available': True, 'roots': n_roots,
+        return {'available': True, 'roots': n_roots, 'nodes': n_nodes,
                 'functions': len(ids) if ids is not None else None,
                 'current_gen': getattr(mgr, 'current_gen', None)}
     except Exception as e:
         return {'available': False, 'reason': f'{type(e).__name__}: {e}'[:120]}
+
+
+def recording_state():
+    """Counters + tree node identity, compared together by phase."""
+    return {'counters': dynamo_counters(), 'tree': cudagraph_tree_state()}
+
+
+def recording_stable(a, b):
+    if not (a['tree'].get('available') and b['tree'].get('available')):
+        return None                      # unresolved: observer missing
+    return (compile_stable(a['counters'], b['counters']) and
+            a['tree']['nodes'] == b['tree']['nodes'] and a['tree']['roots'] == b['tree']['roots'])
 
 
 def graph_gate(require_zero_breaks):
@@ -212,7 +247,8 @@ def ref_path(ref_dir, chunk, seed):
 
 
 def bind_refs(ref_dir, manifest_id, write=False):
-    """References belong to ONE session manifest (gate-02 f23)."""
+    """Directory marker (kept for the session preflight); every reference
+    file additionally carries its own lineage sidecar (provenance.bind_artifact)."""
     path = os.path.join(ref_dir, 'manifest_id.txt')
     if write:
         os.makedirs(ref_dir, exist_ok=True)
@@ -225,7 +261,7 @@ def bind_refs(ref_dir, manifest_id, write=False):
         raise RuntimeError('reference outputs are not bound to this session manifest')
 
 
-def validate(step, ctx, tier, chunk, ref_dir, save_reference=False):
+def validate(step, ctx, tier, chunk, ref_dir, save_reference=False, manifest_id=None):
     """AUDIT-MAP[2] mechanics: two passes, different data (asserted), each
     compared to the SAVED eager-A output for that (chunk, seed). With
     save_reference=True (arm A reference step) the outputs are written
@@ -245,12 +281,16 @@ def validate(step, ctx, tier, chunk, ref_dir, save_reference=False):
         if save_reference:
             os.makedirs(ref_dir, exist_ok=True)
             torch.save(out.float().cpu(), path)
+            if manifest_id is not None:
+                provenance.bind_artifact(path, manifest_id)
             passes.append({'seed': seed, 'saved': path,
                            'finite': bool(torch.isfinite(out).all())})
             continue
         if not os.path.exists(path):
             raise FileNotFoundError(f'reference output missing: {path} '
                                     '(run the arm-A reference step first)')
+        if manifest_id is not None:
+            provenance.check_artifact(path, manifest_id)
         ref = torch.load(path, map_location='cuda', weights_only=True)
         rec = compare_outputs(out, ref, tier)
         rec['seed'] = seed

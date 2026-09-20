@@ -143,8 +143,8 @@ on both seeds (engineering data, not evidence).
   MUSDB BSS-eval SDR) and `SI-SDR(ref, est)` (both signals zero-mean; `s =
   ⟨est,ref⟩/‖ref‖²·ref`; `10·log10(‖s‖²/‖est−s‖²)`); stereo is flattened to
   one vector; float64 accumulation; a perfect match (e.g. `SDR(A_out, A_out)`)
-  is reported as `inf`, and a paired row with a non-finite value fails the
-  gate. Computed (a) vs the reference vocals stem and (b) vs the saved
+  is reported as `inf` (the gate's non-finite rule is the SDR_ref-terms rule
+  stated below, which governs). Computed (a) vs the reference vocals stem and (b) vs the saved
   eager-A output for the same clip at the same operating point
   (`SDR(A_out, est)` — output fidelity).
 - **Gate (common to every arm compared on speed):** mean over the 8 clips of
@@ -235,8 +235,13 @@ points to compare against: Hazy (H100 ≈ 2.1 µs stream, ≈ 1.3 µs graph);
 NVIDIA's CUDA 12.6 figure ≈ 0.55 µs/node is empty-kernel graph device
 service time (RTX 3060), not CPU launch cost. **Until measured, no
 per-boundary number is used anywhere**, and the ledger's X10 must not count
-kernel execution as removable boundary overhead. Any unavailable mode is
-recorded `UNTESTED(reason)`.
+kernel execution as removable boundary overhead. Trace-derived gaps are
+accepted only for cases whose dependency proof and PTX qualification passed
+(joined from the traced run's own JSON) and whose NVTX segment holds exactly
+N × 20 kernels; the perturbation runs (plan 1.6) are accepted only when all
+three runs are VALID, validation PASS, one block × 50 passes, manifest-bound
+with the same effective variant — otherwise the ratio AND the caveat are
+UNRESOLVED. Any unavailable mode is recorded `UNTESTED(reason)`.
 
 ## 5. Session structure, protocol, budget
 - **Protocol 5a**, reused from `arms/common.py::timed_run` (per-iteration
@@ -277,10 +282,27 @@ recorded `UNTESTED(reason)`.
   environment) that every run and every reference is bound to; a mismatch
   refuses the run.
   **Headline rule:** a cell publishes a headline only if restarts r1, r2 AND
-  r3 all exist and are eligible (5×50 protocol completed, validation PASS,
-  stable counters, manifest-bound, not a planted/traced run), share the same
-  effective variant, and the cell holds an SDR PASS at that operating point;
-  a failed required restart is never replaced by a later tag.
+  r3 all exist and are eligible (EXACTLY the 5×50 protocol, validation PASS,
+  recording state stable, manifest-bound, not a planted/traced/attribution
+  run), share ONE session manifest and ONE effective variant (capture scope
+  / adapter / compile mode / stream count), and the cell's SDR qualification
+  — taken only from the r1 record, same manifest and variant — is PASS; a
+  failed required restart is never replaced by a later tag. A matched pair
+  publishes a pair headline only if m1, m2 AND m3 are pair-eligible (5×50,
+  three matched restarts) under one manifest with one variant pair and both
+  arms' cells hold that SDR qualification; the matched runner re-checks each
+  arm's recording state after the joint settle and after validation.
+  **Recording observer:** compiled runs snapshot the cudagraph-trees
+  manager's recorded graph nodes (roots and descendants) together with the
+  dynamo/inductor counters at every phase boundary; a missing observer
+  leaves stability UNRESOLVED and the run ineligible.
+  **Runtime pins and manifest scope:** every process checks torch ==
+  2.8.0+cu128 and triton == 3.4.0 before building; the manifest binds the
+  complete measuring set (fullmodel/**, arms/*, scripts/*, configs/*,
+  frontend.py, frontend_rms_fused.py, setup.sh, this registration, the
+  runtime identity) and is compared field by field on every load; every
+  reference artifact (validation outputs, eager-A clip outputs) carries its
+  own lineage sidecar (manifest id + sha256) checked before use.
 - **Unprofiled timing is the primary result.** Session-2 traces are for
   mechanism; profiled and unprofiled numbers never share a ratio. Profiling
   perturbation (plan 1.6): A, C3, G at 4410 and 352800, wall unprofiled vs
@@ -304,7 +326,13 @@ recorded `UNTESTED(reason)`.
   `headline_eligible` with machine-readable reasons; a headline per (arm ×
   operating point) requires three complete eligible restarts with the same
   effective variant (capture scope / adapter / compile mode), else the cell
-  is `INCOMPLETE`. Evidence extraction before terminate.
+  is `INCOMPLETE`. At the end of each session `fullmodel/completeness.py`
+  audits the registered mandatory items and writes the mechanical session
+  verdict (COMPLETE / INCOMPLETE with per-item reasons) to
+  `session_status.json`; supervisor messages go to stderr and every bounded
+  auxiliary step leaves a terminal `aux_<name>.json` (OK / FAILED /
+  UNTESTED). Pod setup (image boot, `setup.sh`) precedes the session clock.
+  Evidence extraction before terminate.
 - **Session 2 (≤ 3 h):** eager-A references + SDR at the sweep points; chunk
   sweep (A, C3, G, H × {22050, 88200}, 3 restarts, SDR gate in r1);
   node-level traces (ONE captured 50-pass block per traced run, outer NVTX
@@ -324,12 +352,39 @@ recorded `UNTESTED(reason)`.
   and, as a separate experiment, contiguous (b,h,n,d); flash / efficient /
   cuDNN / math forced one at a time, fp32 MATH-forced reference, CUDA-graph-
   replayed device timing, unsupported cases recorded; the model's deployed
-  backend read from its C3 trace kernel summary, else flagged ASSUMED);
+  backend established PER operating point AND axis from the C3 node traces
+  — the 12 attention executions per pass in (time, freq) × 6 order, Triton
+  preprocessing kernels excluded — and a case whose deployed backend is not
+  established from a trace has NO ratio and is UNRESOLVED, never assumed);
   boundary microbench (§4) plus its node-level trace and traced-vs-unprofiled
   perturbation; per-kernel ideal costs (plan 1.4) computed only from the
-  compiled variant(s) whose per-pass Triton inventory matches the trace
-  exactly (else UNRESOLVED), with a kernel → fused-op source map and its
-  coverage share; exports; evidence extraction. Session 2 runs under the
+  compiled variant(s) whose ORDERED per-pass Triton sequence is reproduced
+  by a UNIQUE decomposition into compiled-graph call sequences (graphs may
+  repeat; graphs with identical kernel sequences and call signatures are one
+  interchangeable class; graphs without Triton kernels are invisible to the
+  decomposition and are stated as such; SDPA call count reconciled exactly,
+  GEMM events ≥ extern calls, captured pass count = 50; zero or several
+  decompositions → UNRESOLVED, expected for graph-broken arms such as C1/C2
+  whose per-graph kernel numbering makes names non-unique). Inductor GEMM
+  template kernels (`triton_tem_*`, max-autotune) are counted in the GEMM
+  class and are not priced by the byte model. Registered deviations from a literal
+  per-kernel FLOPs/bytes table: cuBLAS kernel names carry no shapes, so GEMM
+  ideals are computed per extern call site from the wrapper and compared at
+  class level; SDPA ideals are class-level (12 calls/pass at the model
+  shapes); Inductor fused pointwise/reduction kernels are priced by bytes
+  only (bandwidth bound, zero FLOPs) with per-call L2 residency tests. Byte
+  model for a fused kernel call: per pointer argument, element size from the
+  kernel's own ABI signature (`triton_meta`), traffic = min(distinct
+  elements of the argument's strided footprint, load/store sites × the
+  call's iteration space) × element size, reads and writes charged
+  separately; graph-input dtypes from the wrapper's benchmark section;
+  fallback-op outputs from their `assert_size_stride`. This over-counts
+  slice reads, so a row whose HBM-model ideal exceeds its measured time is
+  flagged `bound_not_tight` and its recoverable share under the HBM model is
+  0 (never negative, never inflated); eager ATen fallbacks, cuFFT and copy
+  kernels without wrapper shapes stay UNRESOLVED. A kernel → fused-op source
+  map with its coverage share accompanies the table; exports; evidence
+  extraction. Session 2 runs under the
   same deadline/reserve/terminal-record rules as session 1 (qualification
   and microbenchmarks included).
   **Plan 1.7 dependency model (registered):** the exports carry no event or
