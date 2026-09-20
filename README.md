@@ -283,3 +283,14 @@ scripts/version_matrix_check.sh  isolated venv, latest stable torch, probe
 scripts/grouped_mm_probe.py      P7 probe (both patterns, all dtypes)
 evidence/                 all outputs; gitignored except .gitkeep
 ```
+
+## 8. Ceiling-ledger full-model sessions (2026-09-20 →)
+
+The plan `../plan_ceiling_ledger.md` reuses this harness for a FULL-MODEL arm
+matrix. Registration: `prereg_amendments.md` (pushed before session 1).
+Runbook: `docs/fullmodel_runbook.md`. Code: `fullmodel/` (arm builder,
+5a timing, capture ladder, pad-and-batch arm H, SDR gate, graph
+verification, microbenchmarks, collectors); sessions: `scripts/session1.sh`,
+`scripts/session2.sh`; clip manifest `configs/sdr_clips.json` (audio never
+committed). The original front-end-only arms (`arms/run_arm.py`,
+`scripts/run_all.sh`) are unchanged.

@@ -21,3 +21,8 @@ torch_compile_debug/
 
 # version-matrix venv (scripts/version_matrix_check.sh) if created repo-locally
 .venv_latest/
+
+# ceiling-ledger sessions: clip audio and generated code never committed
+data/
+fullmodel/**/generated/
+pod.env

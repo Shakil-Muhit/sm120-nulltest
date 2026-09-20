@@ -1,0 +1,190 @@
+{
+ "dataset": "roro128/musdb18-hq-flac",
+ "revision": "32fd4e850b45ea0b635be067b921661984b53029",
+ "license": "CC BY-NC-SA 4.0 (research use; audio not redistributed)",
+ "derived_from": "danjacobellis/musdb18HQ (MUSDB18-HQ test split)",
+ "selection_rule": "first 8 tracks in shard order with mixture+vocals and a non-silent vocals segment; start = largest multiple of 441 <= 30% of length, advanced in 1-s steps until vocals RMS >= 0.01; 352800 samples; float32 wav",
+ "min_vocal_rms": 0.01,
+ "shards": [
+  {
+   "file": "test-00000.parquet",
+   "rows": 27,
+   "size_bytes": 563514966
+  },
+  {
+   "file": "test-00001.parquet",
+   "rows": 30,
+   "size_bytes": 531895801
+  }
+ ],
+ "clips": [
+  {
+   "index": 0,
+   "track": "BKS - Bulldozer",
+   "source_path": "musdb18hq/test/BKS - Bulldozer",
+   "start_sample": 4458951,
+   "n_samples": 352800,
+   "sample_rate": 44100,
+   "track_length_samples": 14863472,
+   "files": {
+    "mixture": {
+     "name": "clip00_mixture.wav",
+     "sha256": "cff472f45d0397361abe7122a90b204c504c8f350838ca5340b159f2541fc672",
+     "rms": 0.10995221883058548
+    },
+    "vocals": {
+     "name": "clip00_vocals.wav",
+     "sha256": "f54bf030a80d76ccf3355fa05dec5bdc765bf3bbd0cad359446601b49ae0a35d",
+     "rms": 0.05299852415919304
+    }
+   }
+  },
+  {
+   "index": 1,
+   "track": "Angels In Amplifiers - I'm Alright",
+   "source_path": "musdb18hq/test/Angels In Amplifiers - I'm Alright",
+   "start_sample": 2375667,
+   "n_samples": 352800,
+   "sample_rate": 44100,
+   "track_length_samples": 7920084,
+   "files": {
+    "mixture": {
+     "name": "clip01_mixture.wav",
+     "sha256": "c5e580532e45319e4ce513a845c9fbde52e76bf9cd48e5fbd8eafeabaacc3ee3",
+     "rms": 0.11051634699106216
+    },
+    "vocals": {
+     "name": "clip01_vocals.wav",
+     "sha256": "94136d4fb3f3d3a434c023a9660222040e7dc25eaf15fb0eea856d6cc868bb05",
+     "rms": 0.027324561029672623
+    }
+   }
+  },
+  {
+   "index": 2,
+   "track": "Secretariat - Borderline",
+   "source_path": "musdb18hq/test/Secretariat - Borderline",
+   "start_sample": 3794805,
+   "n_samples": 352800,
+   "sample_rate": 44100,
+   "track_length_samples": 12649892,
+   "files": {
+    "mixture": {
+     "name": "clip02_mixture.wav",
+     "sha256": "3f0c32dbd52981ad3b4f0c65a49d54c42900546fcc3ce77ece85351082fd13e8",
+     "rms": 0.09645286947488785
+    },
+    "vocals": {
+     "name": "clip02_vocals.wav",
+     "sha256": "fe420c7474969f9999f6a15dda01d0c18ce5d80802ef2fb7c0d73626f5aa9c3c",
+     "rms": 0.058619141578674316
+    }
+   }
+  },
+  {
+   "index": 3,
+   "track": "Girls Under Glass - We Feel Alright",
+   "source_path": "musdb18hq/test/Girls Under Glass - We Feel Alright",
+   "start_sample": 4197438,
+   "n_samples": 352800,
+   "sample_rate": 44100,
+   "track_length_samples": 13992103,
+   "files": {
+    "mixture": {
+     "name": "clip03_mixture.wav",
+     "sha256": "6eea4311204bb4fe1e3258db8d1795c005adc6019b5a8c1008390cdb8d5e4980",
+     "rms": 0.14216472208499908
+    },
+    "vocals": {
+     "name": "clip03_vocals.wav",
+     "sha256": "124d06fbfdc905d0c54a1a32a40ceae31b202c3e29c7df19f96e7792a150005a",
+     "rms": 0.05457375943660736
+    }
+   }
+  },
+  {
+   "index": 4,
+   "track": "The Mountaineering Club - Mallory",
+   "source_path": "musdb18hq/test/The Mountaineering Club - Mallory",
+   "start_sample": 3322053,
+   "n_samples": 352800,
+   "sample_rate": 44100,
+   "track_length_samples": 10780678,
+   "files": {
+    "mixture": {
+     "name": "clip04_mixture.wav",
+     "sha256": "d86a119a242d82e21568bf8416e9cafc237df3534c83ad950ef22badb4ea30ef",
+     "rms": 0.0963440090417862
+    },
+    "vocals": {
+     "name": "clip04_vocals.wav",
+     "sha256": "86ff35109628681085e5e9626f356c650073df504a7b408d1db07a6e4b6efada",
+     "rms": 0.012684032320976257
+    }
+   }
+  },
+  {
+   "index": 5,
+   "track": "Skelpolu - Resurrection",
+   "source_path": "musdb18hq/test/Skelpolu - Resurrection",
+   "start_sample": 12598929,
+   "n_samples": 352800,
+   "sample_rate": 44100,
+   "track_length_samples": 17448735,
+   "files": {
+    "mixture": {
+     "name": "clip05_mixture.wav",
+     "sha256": "b413da8870a2e2691175b724329cc6b5494e10ec8096381d563f8519de0f4e79",
+     "rms": 0.19521434605121613
+    },
+    "vocals": {
+     "name": "clip05_vocals.wav",
+     "sha256": "c2db8c14ff2ebbdfc196f00887d6c7f14f95a49424ac0cf94869092148b07f0f",
+     "rms": 0.027051983401179314
+    }
+   }
+  },
+  {
+   "index": 6,
+   "track": "James Elder & Mark M Thompson - The English Actor",
+   "source_path": "musdb18hq/test/James Elder & Mark M Thompson - The English Actor",
+   "start_sample": 2718324,
+   "n_samples": 352800,
+   "sample_rate": 44100,
+   "track_length_samples": 9061369,
+   "files": {
+    "mixture": {
+     "name": "clip06_mixture.wav",
+     "sha256": "e9c5cd5457df42b64035fea97e0673e722dd6d1a07f193a8c9d7d45fb763716e",
+     "rms": 0.14922617375850677
+    },
+    "vocals": {
+     "name": "clip06_vocals.wav",
+     "sha256": "62756c29b8372e4efa0787a7d5f102dea014b19115b28ef10580a44b87b45824",
+     "rms": 0.08550532907247543
+    }
+   }
+  },
+  {
+   "index": 7,
+   "track": "Motor Tapes - Shore",
+   "source_path": "musdb18hq/test/Motor Tapes - Shore",
+   "start_sample": 3263841,
+   "n_samples": 352800,
+   "sample_rate": 44100,
+   "track_length_samples": 10880494,
+   "files": {
+    "mixture": {
+     "name": "clip07_mixture.wav",
+     "sha256": "5797bdaa03615375bcf8cd97f1a37d6283283cfe6206b65d9c120221103ba78f",
+     "rms": 0.14277110993862152
+    },
+    "vocals": {
+     "name": "clip07_vocals.wav",
+     "sha256": "4aa4125659c2719809b819a503eb840139e7c5bf4f6e0cbcbff1da2181f51ba2",
+     "rms": 0.08830299228429794
+    }
+   }
+  }
+ ]
+}
