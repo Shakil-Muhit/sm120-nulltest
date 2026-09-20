@@ -81,7 +81,7 @@ case "$CMD" in
     NOW=$($SSH "cd /root/sm120-nulltest && find evidence -type f ! -name .terminating -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1") || { echo "FATAL: cannot hash remote evidence"; exit 1; }
     [ -n "$R" ] && [ "$NOW" = "$R" ] || { $SSH "rm -f /root/sm120-nulltest/evidence/.terminating"; echo "FATAL: remote evidence changed since the last extraction (extract again)"; exit 1; }
     echo "terminating pod $POD_ID (melband_profiling) — production pods untouched; evidence at $D"
-    runpodctl pod terminate "$POD_ID"
+    runpodctl pod delete "$POD_ID"
     ;;
   *) echo "usage: $0 ship|session1|session2|tail [name]|status|extract|terminate"; exit 2 ;;
 esac
