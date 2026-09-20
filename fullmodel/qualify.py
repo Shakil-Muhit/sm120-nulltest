@@ -36,16 +36,18 @@ def _blocks_ok(timing, iters, repeats):
     return None
 
 
-def reference_hashes(rec):
-    """Checked reference hashes persisted by the run (validation refs and,
-    when the SDR gate ran, eager-A clip outputs)."""
+def reference_hashes(rec, include_clips=False):
+    """Checked reference hashes persisted by the run: the validation
+    references every restart checks (the cross-restart join key) and, only
+    when asked, the eager-A clip outputs the r1 SDR gate checked."""
     out = {}
     for p in (rec.get('validation') or {}).get('passes') or []:
         if p.get('ref_sha256'):
             out[f"seed{p.get('seed')}"] = p['ref_sha256']
-    for row in (rec.get('sdr_gate') or {}).get('clips') or []:
-        if row.get('a_output_sha256'):
-            out[f"clip{row.get('index')}"] = row['a_output_sha256']
+    if include_clips:
+        for row in (rec.get('sdr_gate') or {}).get('clips') or []:
+            if row.get('a_output_sha256'):
+                out[f"clip{row.get('index')}"] = row['a_output_sha256']
     return out
 
 

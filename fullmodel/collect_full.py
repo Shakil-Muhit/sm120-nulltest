@@ -90,6 +90,7 @@ def cell(tag_runs):
     if len(ref_hashes) != 1 or ref_hashes == ['{}']:
         c['reasons'].append('restarts were not validated against one lineage-hashed reference set')
     c['reference_hashes'] = json.loads(ref_hashes[0]) if len(ref_hashes) == 1 else None
+    c['clip_output_hashes'] = qualify.reference_hashes(tag_runs['r1'], include_clips=True) if tag_runs.get('r1') else None
     if sdr != 'PASS':
         c['reasons'].append(f'SDR qualification (r1) at this operating point: {sdr}' + (f' ({sdr_note})' if sdr_note else ''))
     if not c['reasons']:
