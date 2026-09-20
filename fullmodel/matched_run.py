@@ -45,17 +45,18 @@ def build_one(arm, chunk, streams, gen_dir, paths, settle_max):
     info = {'capture_scope': None, 'capture_adapter': None, 'capture_attempts': [],
             'stream_count': None, 'compile_mode': None, 'notes': []}
     step = arms_mod.build_arm_step(arm, model, x, ctx_nocache, streams, info, gen_dir)
-    settle = gate = None
+    settle = gate = gate_snapshot = None
     if arm in arms_mod.COMPILE_ARMS:
         settle = tm.settle_compile(step, x, ctx, settle_max, 5)
         gate = tm.graph_gate(arm in arms_mod.REQUIRE_ZERO_BREAKS)
+        gate_snapshot = tm.recording_state()      # reconciliation reference for this arm's gate (gate-06 f83)
     else:
         with torch.no_grad(), ctx():
             for _ in range(10):
                 step(x)
         torch.cuda.synchronize()
     return {'model': model, 'step': step, 'ctx': ctx, 'x': x, 'info': info,
-            'settle': settle, 'gate': gate, 'use_amp': use_amp}
+            'settle': settle, 'gate': gate, 'gate_snapshot': gate_snapshot, 'use_amp': use_amp}
 
 
 def joint_settle(built, arms, rounds=2, passes=3):
@@ -105,7 +106,7 @@ def main():
               'error': None, 'env': tm.env_fingerprint(), 'arms': {}, 'blocks': [],
               'iters': args.iters, 'repeats': args.repeats,
               'torch_logs_env': os.environ.get('TORCH_LOGS'), 'manifest_id': None,
-              'pair_eligible': False, 'ineligibility_reasons': []}
+              'pair_eligible': None, 'ineligibility_reasons': []}
     reasons = result['ineligibility_reasons']
     try:
         paths = loader.paths_from_env()
@@ -125,6 +126,7 @@ def main():
                 built[arm] = build_one(arm, args.chunk, args.streams, gen_dir, paths, args.settle_max)
                 bi = built[arm]
                 result['arms'][arm] = {'build_status': 'OK', 'settle': bi['settle'], 'graph_gate': bi['gate'],
+                                       'gate_snapshot': bi.get('gate_snapshot'),
                                        'capture_scope': bi['info'].get('capture_scope'),
                                        'capture_adapter_active': bi['info'].get('capture_adapter_active'),
                                        'compile_mode': bi['info'].get('compile_mode'),

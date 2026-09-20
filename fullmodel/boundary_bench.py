@@ -220,9 +220,14 @@ def analyze_trace(base, out, traced_json=None):
         # the proof DATA decides, not the label (gate-05 f72): trivial chains carry the
         # exact dependency counter; PDL modes additionally need the PTX qualification
         if nm.startswith('trivial/'):
-            if not (case.get('dependency_proof') is True and case.get('counter_delta') is not None
-                    and case.get('counter_delta') == case.get('counter_expected')):
-                res[nm] = {'kernels': len(ks), 'status': 'UNRESOLVED: dependency proof data missing or failed'}
+            # the expected counter is DERIVED here from N, mode, warmup and repeats
+            # (gate-06 f93): 25N for stream modes, 27N for graph modes (capture adds 2)
+            mode = nm.split('/')[1]
+            derived = n * (WARMUP + REPEATS + (2 if 'graph' in mode else 0)) if n else None
+            if not (case.get('dependency_proof') is True and derived is not None
+                    and case.get('counter_delta') == derived and case.get('counter_expected') == derived):
+                res[nm] = {'kernels': len(ks), 'expected_counter': derived,
+                           'status': 'UNRESOLVED: dependency proof data missing, failed, or not the derived count'}
                 continue
         if '/pdl_' in nm and pdl_ptx is not True:
             res[nm] = {'kernels': len(ks), 'status': f'UNRESOLVED: PDL PTX qualification {pdl_ptx}'}

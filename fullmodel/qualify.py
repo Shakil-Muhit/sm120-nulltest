@@ -5,7 +5,7 @@ eligibility from the RECORD ITSELF (protocol, validation, lineage,
 recording stability, gate, manifest) — never from stored booleans.
 """
 
-QUALIFY_VERSION = 3
+QUALIFY_VERSION = 4
 REGISTERED_ITERS = 50
 REGISTERED_REPEATS = 5
 COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H')
@@ -34,15 +34,29 @@ def compile_stable(before, after):
     return b_ind == a_ind
 
 
+def snapshot_complete(x):
+    """A recording snapshot must carry complete counters and observer fields."""
+    if not isinstance(x, dict):
+        return False
+    c, t = x.get('counters'), x.get('tree')
+    if not isinstance(c, dict) or not isinstance(t, dict):
+        return False
+    # dynamo counters only carry keys that occurred: graph_break / unimplemented
+    # are absent when zero; stats and inductor are always present
+    if not (isinstance(c.get('stats'), dict) and isinstance(c.get('inductor'), dict)):
+        return False
+    if not t.get('available') or t.get('identity_mode') != 'registry':
+        return False
+    return (isinstance(t.get('node_ids'), list) and isinstance(t.get('manager_id'), int)
+            and isinstance(t.get('roots'), int) and t.get('function_ids') is not None)
+
+
 def recording_stable(a, b):
-    """None when the observer is missing (unresolved); else identity-set equality."""
-    if not a or not b:
+    """None when the observer is missing or a snapshot is incomplete
+    (unresolved); else identity-set equality."""
+    if not (snapshot_complete(a) and snapshot_complete(b)):
         return None
-    ta, tb = a.get('tree') or {}, b.get('tree') or {}
-    if not (ta.get('available') and tb.get('available')):
-        return None
-    if ta.get('identity_mode') != 'registry' or tb.get('identity_mode') != 'registry':
-        return None                      # address-based identities are not lifetime-safe
+    ta, tb = a['tree'], b['tree']
     return (compile_stable(a.get('counters'), b.get('counters')) and
             ta.get('manager_id') == tb.get('manager_id') and
             ta.get('node_ids') == tb.get('node_ids') and
@@ -66,9 +80,12 @@ def _median(xs):
 
 def recomputed_timing(timing, iters, repeats):
     """Statistics recomputed from the recorded samples (gate-05 f64); None if
-    the samples are not a complete, finite, positive registered payload."""
+    the samples are not a complete, finite, positive registered payload or if
+    any NESTED stored summary contradicts its own samples (gate-06 f88)."""
     blocks = (timing or {}).get('blocks') or []
     if len(blocks) != repeats:
+        return None
+    if [b.get('repeat') for b in blocks] != list(range(repeats)):
         return None
     meds, thr = [], []
     for b in blocks:
@@ -77,10 +94,25 @@ def recomputed_timing(timing, iters, repeats):
             return None
         if not (_finite(b.get('throughput_ms_per_pass')) and b['throughput_ms_per_pass'] > 0):
             return None
+        srt = sorted(lat)
+        if not (_close(b.get('latency_median_ms'), _median(lat), 1e-9, 1e-9)
+                and _close(b.get('latency_min_ms'), srt[0], 1e-9, 1e-9)
+                and _close(b.get('latency_max_ms'), srt[-1], 1e-9, 1e-9)):
+            return None
+        if not (_finite(b.get('unix_start')) and _finite(b.get('unix_end')) and b['unix_end'] >= b['unix_start']):
+            return None
         meds.append(_median(lat))
         thr.append(b['throughput_ms_per_pass'])
-    return {'block_medians_ms': meds, 'min_of_medians_ms': min(meds),
-            'median_spread_ms': max(meds) - min(meds), 'throughput_best_ms': min(thr)}
+    t = timing
+    rt = {'block_medians_ms': meds, 'min_of_medians_ms': min(meds),
+          'median_spread_ms': max(meds) - min(meds), 'throughput_best_ms': min(thr)}
+    for k_t, k_rt in (('min_of_medians_ms', 'min_of_medians_ms'), ('median_spread_ms', 'median_spread_ms'),
+                      ('throughput_ms_per_pass_best', 'throughput_best_ms')):
+        if k_t in t and not _close(t.get(k_t), rt[k_rt], 1e-9, 1e-9):
+            return None
+    if t.get('repeats') != repeats or t.get('iters_per_block') != iters:
+        return None
+    return rt
 
 
 def variant(rec):
@@ -128,6 +160,8 @@ def validation_problems(rec):
     recomputed one."""
     out = []
     v = rec.get('validation') or {}
+    if v.get('status') == 'REFERENCE_SAVED':
+        return ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)']
     arm = rec.get('arm')
     tier = TIER_OF.get(arm)
     if rec.get('forced_tier'):
@@ -140,9 +174,21 @@ def validation_problems(rec):
         out.append(f"validation tier {v.get('tier')} is not the registered {tier}")
     if tier and (v.get('rtol'), v.get('atol')) != TIERS[tier]:
         out.append('validation tolerances are not the registered tier values')
+    if rec.get('forced_tier') and rec.get('planted_fault_const') is None:
+        out.append('tier override on a non-planted record')
     ok_all = bool(passes)
     for p in passes:
-        if not (p.get('ok') is True and _finite(p.get('max_abs_diff')) and p.get('ref_sha256')):
+        # every per-pass invariant (gate-06 f80): shapes equal, both operands finite,
+        # the pass's own tolerances equal the registered tier, zero violating
+        # elements, and the stored ok flag consistent with all of that
+        good = (p.get('ok') is True and _finite(p.get('max_abs_diff')) and p.get('ref_sha256')
+                and p.get('shape_out') == p.get('shape_ref') and p.get('shape_out')
+                and p.get('finite_out') is True and p.get('finite_ref') is True
+                and (tier is None or (p.get('rtol'), p.get('atol')) == TIERS[tier])
+                and p.get('violations') == 0 and isinstance(p.get('n_elements'), int) and p['n_elements'] > 0
+                and _finite(p.get('max_abs_ref'))
+                and p['max_abs_diff'] <= p['atol'] + p['rtol'] * p['max_abs_ref'] + 1e-12)
+        if not good:
             ok_all = False
     recomputed = 'PASS' if ok_all else 'FAIL'
     if v.get('status') != 'PASS' or recomputed != 'PASS':
@@ -155,11 +201,20 @@ def sdr_recomputed(gate):
     every delta finite, mean vs the registered threshold."""
     rows = (gate or {}).get('clips') or []
     idx = sorted(r.get('index') for r in rows)
-    if len(rows) != SDR_CLIPS or len(set(idx)) != SDR_CLIPS:
-        return None, f'{len(rows)} clip rows ({len(set(idx))} distinct); registered {SDR_CLIPS}'
-    deltas = [r.get('delta_sdr_ref_db') for r in rows]
-    if not all(_finite(d) for d in deltas):
-        return None, 'a clip delta is missing or non-finite'
+    if idx != list(range(SDR_CLIPS)):
+        return None, f'clip indices {idx} are not the registered 0..{SDR_CLIPS - 1}'
+    if gate.get('n_clips') != SDR_CLIPS:
+        return None, 'stored n_clips differs from the registered clip count'
+    # paired terms recomputed (gate-06 f81): both SDR_ref terms finite, the
+    # stored delta equal to their difference
+    deltas = []
+    for r in rows:
+        a, b = r.get('sdr_ref_db'), r.get('sdr_ref_A_db')
+        if not (_finite(a) and _finite(b)):
+            return None, 'a paired SDR_ref term is missing or non-finite'
+        if not _close(r.get('delta_sdr_ref_db'), a - b, 1e-9, 1e-9):
+            return None, 'a stored clip delta differs from its paired terms'
+        deltas.append(a - b)
     if not all(r.get('a_output_sha256') for r in rows):
         return None, 'eager-A clip outputs not lineage-hashed'
     mean = sum(deltas) / len(deltas)
@@ -171,17 +226,53 @@ def sdr_recomputed(gate):
     return status, None
 
 
+def required_phases(rec):
+    """The exact snapshot schema of a compiled run (gate-06 f82)."""
+    phases = ['after_settle', 'after_validation']
+    if rec.get('timing'):
+        phases += ['before_timing', 'after_timing']
+    if rec.get('sdr_gate'):
+        phases.append('after_sdr')
+    return phases
+
+
 def stability_recomputed(rec):
-    """Recording stability recomputed from the stored phase snapshots."""
+    """Recording stability recomputed from the stored phase snapshots; every
+    required phase must be present and complete, else None (unresolved)."""
     snaps = rec.get('counter_snapshots') or {}
-    seq = [snaps.get(k) for k in ('after_settle', 'after_validation', 'before_timing', 'after_timing', 'after_sdr')]
-    seq = [x for x in seq if x]
-    if len(seq) < 3:
+    seq = [snaps.get(k) for k in required_phases(rec)]
+    if any(not snapshot_complete(x) for x in seq) or len(seq) < 2:
         return None
     verdicts = [recording_stable(a, b) for a, b in zip(seq, seq[1:])]
     if any(v is None for v in verdicts):
         return None
     return all(verdicts)
+
+
+def gate_problems(arm, gate, snapshot_after_settle):
+    """The complete graph-gate predicate, shared by every consumer (gate-06 f83):
+    counters, suppress_errors, zero-break rule for C3/H, and reconciliation with
+    the after-settle snapshot's counters."""
+    out = []
+    g = gate or {}
+    if g.get('status') != 'PASS':
+        out.append(f"graph gate {g.get('status', 'NONE')}")
+    if g.get('suppress_errors') is not False:
+        out.append('graph gate: suppress_errors not affirmatively False')
+    if not isinstance(g.get('graph_break_count'), int) or not isinstance(g.get('unimplemented_count'), int):
+        out.append('graph gate counters missing')
+        return out
+    if arm in ZERO_BREAK_ARMS and (g['graph_break_count'] != 0 or g['unimplemented_count'] != 0
+                                  or g.get('require_zero_breaks') is not True):
+        out.append('zero-break gate: graph breaks / unimplemented ops not 0 (or rule not applied)')
+    c = (snapshot_after_settle or {}).get('counters') if isinstance(snapshot_after_settle, dict) else None
+    if not isinstance(c, dict):
+        out.append('graph gate: no after-settle snapshot to reconcile against')
+    else:
+        if sum(c.get('graph_break', {}).values()) != g['graph_break_count'] or \
+                sum(c.get('unimplemented', {}).values()) != g['unimplemented_count']:
+            out.append('graph gate counters disagree with the after-settle snapshot')
+    return out
 
 
 def run_problems(rec, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS,
@@ -214,11 +305,8 @@ def run_problems(rec, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS,
         s = rec.get('settle') or {}
         if s.get('settle_capped') or s.get('stable') is False:
             problems.append('compile settle capped or unstable')
-        g = rec.get('graph_gate') or {}
-        if g.get('status') != 'PASS':
-            problems.append(f"graph gate {g.get('status', 'NONE')}")
-        if rec.get('arm') in ZERO_BREAK_ARMS and g.get('graph_break_count') not in (0,):
-            problems.append('zero-break gate: graph_break_count is not 0')
+        problems += gate_problems(rec.get('arm'), rec.get('graph_gate'),
+                                  (rec.get('counter_snapshots') or {}).get('after_settle'))
     if require_timing and rec.get('timing'):
         rt = recomputed_timing(rec['timing'], iters, repeats)
         if rt is None:
@@ -235,6 +323,35 @@ def run_problems(rec, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS,
     # stored-flag contradictions in BOTH directions (gate-05 f62)
     if rec.get('headline_eligible') is False and not problems:
         problems.append(f"stored eligibility flag says ineligible: {rec.get('ineligibility_reasons')}")
+    return problems
+
+
+def trace_problems(rec, iters=REGISTERED_ITERS):
+    """A one-block traced or perturbation run (never a headline): everything a
+    measurement needs except the multi-block protocol; nvtx is allowed."""
+    if rec is None:
+        return ['record missing']
+    problems = []
+    if rec.get('status') != 'VALID':
+        problems.append(f"status {rec.get('status')}")
+    if rec.get('planted_fault') or rec.get('planted_fault_const') is not None:
+        problems.append('planted fault run')
+    if rec.get('arm') != 'ANVTX':
+        problems += validation_problems(rec)
+    if not rec.get('manifest_id'):
+        problems.append('not bound to a session manifest')
+    if recomputed_timing(rec.get('timing'), iters, 1) is None:
+        problems.append('one-block timing samples incomplete, non-finite, or contradicting stored summaries')
+    if not rec.get('effective_variant'):
+        problems.append('effective variant not recorded')
+    if rec.get('arm') in COMPILE_ARMS:
+        st = stability_recomputed(rec)
+        if rec.get('counters_stable') is not True or st is not True:
+            problems.append('recording stability not affirmatively established from the stored snapshots')
+        if (rec.get('settle') or {}).get('settle_capped'):
+            problems.append('compile settle capped')
+        problems += gate_problems(rec.get('arm'), rec.get('graph_gate'),
+                                  (rec.get('counter_snapshots') or {}).get('after_settle'))
     return problems
 
 
@@ -276,10 +393,14 @@ def pair_problems(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
         problems.append('new graph breaks during the joint settle')
     # every required phase transition recomputed from the stored snapshots (gate-05 f62)
     sn = m.get('snapshots') or {}
-    chain = list(sn.get('joint_settle') or []) + [sn.get('before_validation'), sn.get('after_validation')] + list(sn.get('blocks') or [])
-    chain = [x for x in chain if x]
-    if len(chain) < 4 + repeats * 2:
-        problems.append('matched recording snapshots incomplete')
+    rounds = int(js.get('rounds') or 0)
+    jsn = list(sn.get('joint_settle') or [])
+    chain = jsn + [sn.get('before_validation'), sn.get('after_validation')] + list(sn.get('blocks') or [])
+    # exact schema (gate-06 f82): rounds+2 joint-settle snapshots, the two validation
+    # snapshots, and one snapshot per timed block — every one complete
+    if rounds < 1 or len(jsn) != rounds + 2 or len(list(sn.get('blocks') or [])) != repeats * 2 \
+            or any(not snapshot_complete(x) for x in chain):
+        problems.append('matched recording snapshots incomplete or malformed')
     else:
         verdicts = [recording_stable(a, b) for a, b in zip(chain, chain[1:])]
         if any(v is None for v in verdicts) or not all(verdicts):
@@ -295,13 +416,17 @@ def pair_problems(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
             problems.append(f"{arm}: validation {v.get('status', 'NONE')}")
         elif not all(p.get('ref_sha256') for p in v.get('passes') or []):
             problems.append(f'{arm}: references not lineage-checked')
-        if (a.get('graph_gate') or {}).get('status') != 'PASS':
-            problems.append(f'{arm}: graph gate not PASS')
+        # each arm reconciles its gate against the snapshot taken right after its own
+        # gate (the next arm's build clears the global counters)
+        problems += [f'{arm}: {x}' for x in gate_problems(arm, a.get('graph_gate'), a.get('gate_snapshot'))]
         if (a.get('settle') or {}).get('settle_capped'):
             problems.append(f'{arm}: settle capped')
-        blocks = [b for b in (m.get('blocks') or []) if b.get('arm') == arm]
-        if len(blocks) != repeats or any(len(b.get('latency_ms_per_iter') or []) != iters for b in blocks):
-            problems.append(f'{arm}: blocks do not hold the registered {repeats}x{iters}')
+        blocks = sorted((b for b in (m.get('blocks') or []) if b.get('arm') == arm), key=lambda b: b.get('repeat', -1))
+        if len(blocks) != repeats or any(len(b.get('latency_ms_per_iter') or []) != iters for b in blocks) \
+                or [b.get('repeat') for b in blocks] != list(range(repeats)):
+            problems.append(f'{arm}: blocks do not hold the registered {repeats}x{iters} with unique repeat ids')
+        elif not all(_finite(b.get('throughput_ms_per_pass')) and b['throughput_ms_per_pass'] > 0 for b in blocks):
+            problems.append(f'{arm}: a block throughput is non-finite')
         elif not all(all(_finite(x) and x > 0 for x in b['latency_ms_per_iter']) for b in blocks):
             problems.append(f'{arm}: a latency sample is non-finite or non-positive')
         elif not all(_close(b.get('latency_median_ms'), _median(b['latency_ms_per_iter']), 1e-9, 1e-9) for b in blocks):
@@ -318,11 +443,12 @@ def recomputed_matched_delta(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEA
     per = {}
     for arm in (a, b):
         blocks = sorted((x for x in (m.get('blocks') or []) if x.get('arm') == arm), key=lambda x: x.get('repeat', 0))
-        if len(blocks) != repeats:
+        if len(blocks) != repeats or [x.get('repeat') for x in blocks] != list(range(repeats)):
             return None
-        per[arm] = [_median(x['latency_ms_per_iter']) for x in blocks if len(x.get('latency_ms_per_iter') or []) == iters]
-        if len(per[arm]) != repeats:
+        if any(len(x.get('latency_ms_per_iter') or []) != iters or
+               not all(_finite(v) and v > 0 for v in x['latency_ms_per_iter']) for x in blocks):
             return None
+        per[arm] = [_median(x['latency_ms_per_iter']) for x in blocks]
     diffs = [pa - pb for pa, pb in zip(per[a], per[b])]
     return {'a_minus_b_per_block': diffs, 'median': _median(diffs), 'min': min(diffs), 'max': max(diffs),
             'median_pct_of_a': _median(diffs) / _median(per[a]) * 100.0}

@@ -124,7 +124,9 @@ def cudagraph_tree_state():
             try:
                 nid = _NODE_REGISTRY.get(node)
                 if nid is None:
-                    nid = len(_NODE_REGISTRY) + _REGISTRY_BASE[0]
+                    # monotonic counter only (gate-06 f84): never derived from the
+                    # registry's length, which shrinks when weak references expire
+                    nid = _REGISTRY_BASE[0]
                     _NODE_REGISTRY[node] = nid
                     _REGISTRY_BASE[0] += 1
             except TypeError:                # not weak-referenceable
@@ -254,8 +256,17 @@ def compare_outputs(out, ref, tier):
     if not (fin_out and fin_ref):
         rec['reason'] = 'non-finite values present'
         return rec
+    # the tolerance verdict is persisted in a form a validator can re-derive:
+    # the number of elements violating |out-ref| <= atol + rtol*|ref| (gate-06 f80)
+    viol = int(((out - ref).abs() > (atol + rtol * ref.abs())).sum().item())
+    rec['violations'] = viol
+    rec['n_elements'] = int(out.numel())
+    rec['max_abs_ref'] = float(ref.abs().max().item())
     rec['ok'] = bool(torch.allclose(out, ref, rtol=rtol, atol=atol))
-    if not rec['ok']:
+    if rec['ok'] != (viol == 0):
+        rec['ok'] = False
+        rec['reason'] = 'allclose and element count disagree'
+    elif not rec['ok']:
         rec['reason'] = 'tolerance exceeded'
     return rec
 

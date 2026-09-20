@@ -45,6 +45,10 @@ case "$CMD" in
     TS=$(date +%Y%m%d_%H%M)
     DEST="$HOME/ms/evidence_pod/${POD_ID}_$TS"
     mkdir -p "$DEST"
+    # writers must be stopped and the content must not move during extraction (gate-06 f95)
+    $SSH "tmux has-session -t run 2>/dev/null" && { echo "FATAL: a session is still running on the pod"; exit 1; }
+    HASH_CMD="cd /root/sm120-nulltest && find evidence -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1"
+    PRE_SHA=$($SSH "$HASH_CMD") || { echo "FATAL: remote content hash failed"; exit 1; }
     REMOTE_N=$($SSH "cd /root/sm120-nulltest && find evidence -type f | wc -l") || { echo "FATAL: cannot count remote files"; exit 1; }
     $SSH "cd /root/sm120-nulltest && tar czf - evidence" > "$DEST/evidence.tgz" || { echo "FATAL: transfer failed"; exit 1; }
     tar tzf "$DEST/evidence.tgz" > /dev/null || { echo "FATAL: archive invalid"; exit 1; }
@@ -54,7 +58,10 @@ case "$CMD" in
     SHA=$(sha256sum "$DEST/evidence.tgz" | cut -d" " -f1)
     # content hash of the REMOTE evidence at extraction time: the receipt is
     # invalid once any later measurement changes the pod's evidence (gate-05 f77)
-    REMOTE_SHA=$($SSH "cd /root/sm120-nulltest && find evidence -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1") || { echo "FATAL: remote content hash failed"; exit 1; }
+    REMOTE_SHA=$($SSH "$HASH_CMD") || { echo "FATAL: remote content hash failed"; exit 1; }
+    [ "$REMOTE_SHA" = "$PRE_SHA" ] || { echo "FATAL: remote evidence changed during extraction (before $PRE_SHA, after $REMOTE_SHA)"; exit 1; }
+    LOCAL_SHA=$(cd "$DEST" && find evidence -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+    [ "$LOCAL_SHA" = "$REMOTE_SHA" ] || { echo "FATAL: extracted content manifest differs from the remote one"; exit 1; }
     echo "POD_ID=$POD_ID DEST=$DEST FILES=$LOCAL_N SHA256=$SHA REMOTE=$REMOTE_SHA TS=$TS" >> "$REPO_DIR/pod.env.extracted"
     du -sh "$DEST"; ls "$DEST/evidence" | head -20
     echo "EXTRACTED -> $DEST ($LOCAL_N files, sha256 $SHA)"

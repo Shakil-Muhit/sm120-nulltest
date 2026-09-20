@@ -79,7 +79,8 @@ sys.exit(0 if ok_all else 1)
 PYEOF
 
 echo "=== [3] C3 operator qualification per registered frame count ==="
-run_aux c3_operator_qualification 600 -- python - "$EVID/c3_operator_qualification.json" <<'PYEOF' || { echo "FATAL: C3 operator qualification failed"; exit 1; }
+C3_QUAL_OK=1
+run_aux c3_operator_qualification 600 -- python - "$EVID/c3_operator_qualification.json" <<'PYEOF' || { echo "C3 operator qualification FAILED/UNTESTED -> C3 and H work is UNTESTED; other work continues (session INCOMPLETE)"; C3_QUAL_OK=0; }
 import json, os, sys
 sys.path.insert(0, os.path.join(os.getcwd(), 'fullmodel'))
 import fullarms
@@ -88,14 +89,28 @@ json.dump(rec, open(sys.argv[1], 'w'), indent=1)
 assert all(v.get('status') == 'PASS' for v in rec.values()), rec
 print('C3 operator qualification PASS for frames', sorted(rec))
 PYEOF
-python3 -c "import json,sys; r=json.load(open('$EVID/c3_operator_qualification.json')); assert set(r)=={'11','51','201','801'} and all(v['status']=='PASS' for v in r.values())" \
-    || { echo "FATAL: C3 qualification JSON invalid"; exit 1; }
+python3 -c "import json,sys; r=json.load(open('$EVID/c3_operator_qualification.json')); assert set(r)=={'11','51','201','801'} and all(v['status']=='PASS' for v in r.values())" 2>/dev/null \
+    || { echo "C3 qualification JSON invalid -> C3 and H work is UNTESTED"; C3_QUAL_OK=0; }
+# arms whose operator qualification failed are recorded as UNTESTED, never run
+needs_c3() { case "$1" in C3|H) return 0;; *) return 1;; esac; }
+run_one_q() {   # ARM CHUNK TAG [extra]: run_one unless the arm depends on the failed qualification
+    if [ "$C3_QUAL_OK" != "1" ] && needs_c3 "$1"; then
+        terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "C3 operator qualification failed"; return
+    fi
+    run_one "$@"
+}
+run_matched_q() {   # A B CHUNK TAG
+    if [ "$C3_QUAL_OK" != "1" ] && { needs_c3 "$1" || needs_c3 "$2"; }; then
+        python3 -c "import json;json.dump({'pair':['$1','$2'],'chunk':$3,'tag':'$4','status':'UNTESTED','error':'C3 operator qualification failed','pair_eligible':False},open('$EVID/matched_$1_$2_c$3_$4.json','w'),indent=1)"; return
+    fi
+    run_matched "$@"
+}
 
 echo "=== [4] matched block-alternation pairs @352800 (plan 1.2) ==="
-[ "${SMOKE:-0}" = "1" ] || run_matched C1 C1A 352800 m1
+[ "${SMOKE:-0}" = "1" ] || run_matched_q C1 C1A 352800 m1
 for r in $(seq 1 "$RESTARTS"); do
     for pr in $PAIRS; do
-        run_matched "${pr%%:*}" "${pr##*:}" 352800 "m$r"
+        run_matched_q "${pr%%:*}" "${pr##*:}" 352800 "m$r"
     done
 done
 
@@ -105,7 +120,7 @@ for r in $(seq 1 "$RESTARTS"); do
         for arm in $ARMS; do
             [ "$chunk" != "352800" ] && [ "$arm" = "C1D" ] && continue
             extra=""; [ "$r" = "1" ] && extra="--sdr"
-            run_one "$arm" "$chunk" "r$r" $extra
+            run_one_q "$arm" "$chunk" "r$r" $extra
         done
     done
 done

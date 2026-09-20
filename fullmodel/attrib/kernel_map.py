@@ -82,7 +82,8 @@ EXTERN_CALL_RE = re.compile(
     r'^\s*(?:(\w+)\s*=\s*)?extern_kernels\.(\w+)\((.*)\)', re.M)
 # every torch.ops namespace, custom operators included (gate-05 f68)
 FALLBACK_RE = re.compile(
-    r'^\s*(\w+)\s*=\s*torch\.ops\.(\w+)\.(\w+)[\.\w]*\((.*)\)', re.M)
+    r'^\s*(?:(\w+)\s*=\s*)?torch\.ops\.(\w+)\.(\w+)[\.\w]*\((.*)\)', re.M)
+EXECUTABLE_HINT_RE = re.compile(r'torch\.ops\.|extern_kernels\.|\.run\(')
 ARG_TOKEN_RE = re.compile(
     r'reinterpret_tensor\((\w+),\s*\(([^)]*)\),\s*\(([^)]*)\)(?:,\s*\d+)?\)'
     r'|(?<![\w.])(buf\d+|arg\d+_\d+|primals_\d+)(?![\w])')
@@ -224,9 +225,14 @@ def parse_output_code(dump_dir):
             body = src.split('def call(')[1]
         except IndexError:
             continue
-        allocs, aliases, calls = {}, {}, []
+        allocs, aliases, calls, unparsed = {}, {}, [], []
         body_start = src[:src.index('def call(')].count('\n') + 1
         for body_line, line in enumerate(body.splitlines(), body_start):
+            stripped = line.strip()
+            if stripped.startswith('return ') or stripped.startswith('def ') or stripped.startswith('#'):
+                if stripped.startswith('return '):
+                    break
+                continue
             am = ALLOC_RE.match(line)
             if am:
                 allocs[am.group(1)] = {'shape': _ints(am.group(2)),
@@ -258,6 +264,10 @@ def parse_output_code(dump_dir):
             em = EXTERN_CALL_RE.match(line)
             fm = FALLBACK_RE.match(line)
             if not (tm or em or fm):
+                # an executable call the parser does not recognise is recorded
+                # verbatim (gate-06 f91); it prevents equivalence downstream
+                if EXECUTABLE_HINT_RE.search(line) and 'async_compile' not in line:
+                    unparsed.append(' '.join(line.split()))
                 continue
             if tm:
                 kind, name, argstr, assigned = 'triton', tm.group(1), tm.group(2), None
@@ -326,7 +336,7 @@ def parse_output_code(dump_dir):
                               'line': line.strip()})
             calls[-1]['source_line'] = body_line
         graphs.append({'path': path, 'calls': calls, 'allocs': allocs,
-                       'aliases': aliases, 'kernels': kernels})
+                       'aliases': aliases, 'kernels': kernels, 'unparsed': unparsed})
     return graphs
 
 

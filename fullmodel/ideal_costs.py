@@ -37,6 +37,7 @@ from classify import classify                      # noqa: E402
 from kernel_map import (TRITON_ITEMSIZE, accessed_elems, parse_output_code, arg_meta, refined_access, nbytes,   # noqa: E402
                         read_gpu_trace, nvtx_pass_windows, split_passes)
 
+REGISTERED_PASSES = 50
 P_FP16_TFLOPS = 209.5
 P_FP32_TFLOPS = 104.8
 BW_HBM_TBPS = 1.79
@@ -114,6 +115,9 @@ def graph_signature(g):
                     tuple(sorted((k.get('store_sites') or {}).items())),
                     tuple(c.get('numeric_literals') or ()),
                     ' '.join((c.get('line') or '').split())))
+    # unparsed executable lines (gate-06 f91) are part of the identity: two
+    # graphs differing in an unparsed call are never interchangeable
+    sig.append(('unparsed', tuple(g.get('unparsed') or ())))
     return tuple(sig)
 
 
@@ -253,6 +257,15 @@ def main():
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
     n_pass = max(1, args.passes)
+    if n_pass != REGISTERED_PASSES:
+        # unregistered shakedown (gate-06 f90): an explicit ineligible record, no rows
+        with open(args.out, 'w') as f:
+            json.dump({'arm': args.arm, 'chunk': args.chunk, 'passes': n_pass, 'rows': [], 'gemm_sites': [],
+                       'measurement_status': 'UNREGISTERED_PROTOCOL',
+                       'measurement_note': f'{n_pass} passes requested; registered {REGISTERED_PASSES}',
+                       'variant_selection': {'status': 'UNREGISTERED_PROTOCOL'}}, f, indent=1)
+        print(f'[ideal] {args.arm}@{args.chunk}: UNREGISTERED_PROTOCOL ({n_pass} passes) -> no rows')
+        return
     out = {'arm': args.arm, 'chunk': args.chunk, 'passes': n_pass,
            'constants': {'P_fp16_tflops': P_FP16_TFLOPS, 'P_fp32_tflops': P_FP32_TFLOPS,
                          'BW_hbm_tbps': BW_HBM_TBPS, 'BW_l2_tbps': args.bw_l2_tbps, 'l2_bytes': args.l2_bytes},
@@ -282,12 +295,19 @@ def main():
         elif agg.get('instances') != v['instances'] or abs(agg.get('total_ns', 0) - v['total_ns']) > 0.01 * max(1, v['total_ns']):
             mismatches.append({'kernel': name[:100], 'window_instances': v['instances'], 'aggregate_instances': agg.get('instances'),
                                'window_ns': v['total_ns'], 'aggregate_ns': agg.get('total_ns'), 'kind': 'count/duration'})
+    # the numerical discrepancy is always reported (gate-06 f92), tolerance or not
+    rel = []
+    for name, v in ks.items():
+        agg = ks_agg.get(name)
+        if agg is not None and v['total_ns']:
+            rel.append(abs(agg.get('total_ns', 0) - v['total_ns']) / v['total_ns'])
     out['measurement_status'] = 'ok'
-    out['measurement_note'] = (f'{observed["passes"]} validated windows; aggregate summary '
-                               + ('agrees' if not mismatches else
-                                  f'differs for {len(mismatches)} kernels (outside-window launches or duration drift; windowed values used)'))
+    out['measurement_note'] = (f'{observed["passes"]} validated windows; aggregate summary: '
+                               f'{len(mismatches)} kernels outside the 1% count/duration tolerance, '
+                               f'max relative duration discrepancy {max(rel) if rel else 0.0:.4%} (windowed values used)')
     out['aggregate_reconciliation'] = {'mismatches': mismatches[:50], 'n_mismatches': len(mismatches),
-                                       'aggregate_available': bool(ks_agg)}
+                                       'max_rel_duration_discrepancy': max(rel) if rel else None,
+                                       'tolerance': 0.01, 'aggregate_available': bool(ks_agg)}
 
     fused_bytes, gemm_sites = {}, []
     if args.dump_dir and os.path.isdir(args.dump_dir):

@@ -42,6 +42,7 @@ run_one() {
     local arm="$1" chunk="$2" tag="$3"; shift 3
     local path="$EVID/full_${arm}_c${chunk}_${tag}.json"
     local cap; cap=$(cap_for "$(tmo_for "$arm")")
+    rm -f "$path"                       # no stale artifact survives a new attempt (gate-05 f75 / gate-06 f94)
     if [ "$cap" -lt "$T_MIN" ]; then
         echo "--- arm=$arm chunk=$chunk tag=$tag: DEADLINE (usable $cap s) -> UNTESTED ---"
         terminal_json "$path" "$arm" "$chunk" "$tag" UNTESTED "session deadline: not started"
@@ -49,7 +50,6 @@ run_one() {
     fi
     local envv=() logs; logs="$(logs_for "$arm")"
     [ -n "$logs" ] && envv+=("TORCH_LOGS=$logs")
-    rm -f "$path"                       # no stale artifact survives a new attempt (gate-05 f75)
     echo "--- arm=$arm chunk=$chunk tag=$tag $(date -Is) cap=${cap}s remaining=$(remaining)s ---"
     env "${envv[@]}" timeout -k 30 "$cap" python "$RUN" --arm "$arm" --chunk "$chunk" \
         --tag "$tag" --iters "$ITERS" --repeats "$REPEATS" --clips-dir "$CLIPS_DIR" \
@@ -69,12 +69,12 @@ run_matched() {
     local a="$1" b="$2" chunk="$3" tag="$4"
     local path="$EVID/matched_${a}_${b}_c${chunk}_${tag}.json"
     local cap; cap=$(cap_for "$T_COMPILE")
+    rm -f "$path"
     if [ "$cap" -lt "$T_MIN" ]; then
         echo "--- matched $a/$b $tag: DEADLINE -> UNTESTED ---"
         python3 -c "import json;json.dump({'pair':['$a','$b'],'chunk':$chunk,'tag':'$tag','status':'UNTESTED','error':'session deadline','pair_eligible':False},open('$path','w'),indent=1)"
         return
     fi
-    rm -f "$path"
     echo "--- matched pair $a vs $b chunk=$chunk tag=$tag $(date -Is) cap=${cap}s ---"
     env TORCH_LOGS="graph_breaks,recompiles,cudagraphs" timeout -k 30 "$cap" python "$MATCHED" \
         --pair "$a" "$b" --chunk "$chunk" --tag "$tag" --iters "$ITERS" --repeats "$REPEATS" \
@@ -91,6 +91,16 @@ run_traced() {
     local path="$EVID/full_${arm}_c${chunk}_${tag}.json"
     local cap; cap=$(cap_for "$(tmo_for "$arm")")
     mkdir -p "$EVID/traces"
+    # every artifact of THIS attempt is invalidated before anything else (gate-06 f94):
+    # its run JSON, report, exports — and, only for the main 'trace' tag, the
+    # reductions derived from it (perturbation traces own no reductions; f79)
+    rm -f "$path" "$base.nsys-rep" "$base.sqlite" "${base}"_*.csv "${base}_exports.json"
+    if [ "$tag" = "trace" ]; then
+        rm -f "$EVID/traces/graph_verify_${arm}_${chunk}.json" "$EVID/traces/timing_views_${arm}_${chunk}.json" \
+              "$EVID/traces/ideal_costs_${arm}_${chunk}.json" "$EVID/traces/ideal_costs_${arm}_${chunk}.csv" \
+              "$EVID/aux_graph_verify_${arm}_${chunk}.json" "$EVID/aux_timing_views_${arm}_${chunk}.json" \
+              "$EVID/aux_ideal_costs_${arm}_${chunk}.json"
+    fi
     if [ "$cap" -lt "$T_MIN" ]; then
         echo "--- TRACE $arm/$chunk/$tag: DEADLINE -> UNTESTED ---"
         terminal_json "$path" "$arm" "$chunk" "$tag" UNTESTED "session deadline: not started"
@@ -102,11 +112,6 @@ run_traced() {
         local dump="$EVID/traces/dump_${arm}_${chunk}_${tag}"; rm -rf "$dump"; mkdir -p "$dump"
         envv+=("TORCH_COMPILE_DEBUG=1" "TORCH_COMPILE_DEBUG_DIR=$dump" "TORCHINDUCTOR_FORCE_DISABLE_CACHES=1")
     fi
-    # every artifact of this trace attempt is invalidated up front: run JSON, the
-    # nsys report, exports, and the reductions derived from them (gate-05 f75)
-    rm -f "$path" "$base.nsys-rep" "$base.sqlite" "${base}"_*.csv "${base}_exports.json" \
-          "$EVID/traces/graph_verify_${arm}_${chunk}.json" "$EVID/traces/timing_views_${arm}_${chunk}.json" \
-          "$EVID/traces/ideal_costs_${arm}_${chunk}.json" "$EVID/traces/ideal_costs_${arm}_${chunk}.csv"
     echo "--- TRACE arm=$arm chunk=$chunk tag=$tag graph-trace=$gmode $(date -Is) cap=${cap}s ---"
     env "${envv[@]}" timeout -k 30 "$cap" nsys profile --capture-range=cudaProfilerApi \
         --capture-range-end=stop --cuda-graph-trace="$gmode" --force-overwrite=true \

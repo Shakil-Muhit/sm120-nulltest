@@ -22,6 +22,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'attrib'))
 from classify import classify                      # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import qualify                                     # noqa: E402
 from kernel_map import parse_output_code           # noqa: E402
 
 
@@ -30,38 +32,16 @@ def j(path):
         return json.load(f)
 
 
-def block_median(run):
-    t = run.get('timing') or {}
-    blocks = t.get('blocks') or []
-    return blocks[0]['latency_median_ms'] if blocks else None
-
-
-COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H')
+def block_median(run, iters=50):
+    """The one block's median recomputed from its samples via the shared validator."""
+    rt = qualify.recomputed_timing((run or {}).get('timing'), iters, 1)
+    return rt['block_medians_ms'][0] if rt else None
 
 
 def _qualified(run, iters=50):
-    """One-block perturbation protocol: VALID, validation PASS, exactly one
-    block holding exactly `iters` recorded passes, manifest-bound, effective
-    variant recorded, compile arms affirmatively recording-stable."""
-    if not run or run.get('status') != 'VALID':
-        return 'run missing or not VALID'
-    if (run.get('validation') or {}).get('status') != 'PASS':
-        return 'validation not PASS'
-    t = run.get('timing') or {}
-    blocks = t.get('blocks') or []
-    if len(blocks) != 1 or t.get('iters_per_block') != iters:
-        return f'not a one-block x {iters} run'
-    if len(blocks[0].get('latency_ms_per_iter') or []) != iters:
-        return 'the block does not hold the registered pass count'
-    if run.get('manifest_id') is None:
-        return 'not manifest-bound'
-    if not run.get('effective_variant'):
-        return 'effective variant not recorded'
-    if run.get('settle') and run['settle'].get('settle_capped'):
-        return 'settle capped'
-    if run.get('arm') in COMPILE_ARMS and run.get('counters_stable') is not True:
-        return 'recording stability not affirmatively established'
-    return None
+    """One-block perturbation protocol through the SHARED validator (gate-06 f89)."""
+    probs = qualify.trace_problems(run, iters)
+    return '; '.join(probs) if probs else None
 
 
 def perturbation(evidence, iters=50):
@@ -69,7 +49,7 @@ def perturbation(evidence, iters=50):
     for path in glob.glob(os.path.join(evidence, 'full_*_pert_unprofiled.json')):
         base = j(path)
         arm, chunk = base['arm'], base['chunk']
-        rec = {'unprofiled_block_ms': block_median(base), 'status': 'ok', 'problems': []}
+        rec = {'unprofiled_block_ms': block_median(base, iters), 'status': 'ok', 'problems': []}
         q = _qualified(base, iters)
         if q:
             rec['problems'].append(f'unprofiled: {q}')
@@ -77,7 +57,7 @@ def perturbation(evidence, iters=50):
             p = os.path.join(evidence, f'full_{arm}_c{chunk}_pert_{mode}.json')
             r = j(p) if os.path.exists(p) else None
             q = _qualified(r, iters)
-            rec[f'{mode}_block_ms'] = block_median(r) if r else None
+            rec[f'{mode}_block_ms'] = block_median(r, iters) if r else None
             rec[f'{mode}_over_unprofiled'] = None
             if q:
                 rec['problems'].append(f'{mode}: {q}')
@@ -85,7 +65,7 @@ def perturbation(evidence, iters=50):
             if r.get('manifest_id') != base.get('manifest_id') or r.get('effective_variant') != base.get('effective_variant'):
                 rec['problems'].append(f'{mode}: manifest/variant differs from the unprofiled run')
                 continue
-            m = block_median(r)
+            m = block_median(r, iters)
             rec[f'{mode}_over_unprofiled'] = m / rec['unprofiled_block_ms'] if (m and rec['unprofiled_block_ms']) else None
         if rec['problems'] or rec.get('node_over_unprofiled') is None or rec.get('graph_over_unprofiled') is None:
             # every prerequisite failure clears ALL derived ratios (gate-04 f55)

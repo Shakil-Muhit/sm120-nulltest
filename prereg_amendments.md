@@ -319,10 +319,23 @@ unavailable mode is recorded `UNTESTED(reason)`.
   Each run persists the sha256 of every reference artifact its lineage
   check saw; the three restarts of a cell must have been validated against
   the same hashed validation references (r1 alone additionally checks the
-  eager-A clip outputs). The completeness audit re-derives every cell and
-  pair from the run records through the same validator (never from the
-  collector's summary), re-hashes every reference sidecar, and requires the
-  clock log to span every timing block.
+  eager-A clip outputs). Validation passes persist a re-derivable tolerance
+  verdict (violating-element count, operand shapes and finiteness, the
+  pass's own tolerances); the SDR gate is recomputed from the paired
+  SDR_ref terms of the registered clip indices 0–7; recording snapshots
+  must match the run's exact phase schema with complete observer fields;
+  the graph gate is re-checked from its counters, suppress_errors and the
+  after-settle snapshot; a tier override disqualifies any non-planted
+  record; every nested stored summary (block medians, extrema, timing
+  summaries, matched deltas) must equal its samples. One-block traced and
+  perturbation runs are qualified by the same validator (`trace_problems`).
+  The completeness audit re-derives every cell and pair from the run
+  records through the same validator (never from the collector's summary),
+  enumerates the required reference artifacts per operating point, seed and
+  clip, re-hashes them and joins every hash a run recorded to its artifact,
+  validates the manifest's identity fields, and requires this session's
+  clock log (well-formed samples) to cover every timing block of this
+  session, matched blocks included.
   **Runtime pins and manifest scope:** every process checks torch ==
   2.8.0+cu128 and triton == 3.4.0 before building; the manifest binds the
   complete measuring set (fullmodel/**, arms/*, scripts/*, configs/*,
@@ -380,12 +393,17 @@ unavailable mode is recorded `UNTESTED(reason)`.
   failed attempt. Every on-pod reduction (nsys
   exports, graph verification, timing views, ideal costs, perturbation) is
   bounded by the session deadline, invalidates its stale outputs before the
-  attempt, and leaves a terminal `aux_<name>.json` (OK / FAILED /
-  UNTESTED); supervisor messages go to stderr. Pod setup (image boot,
+  attempt (the main-trace reductions belong to the `trace` attempt only;
+  perturbation traces invalidate their own products), even when the attempt
+  is then skipped for the deadline, and leaves a terminal `aux_<name>.json`
+  (OK / FAILED / UNTESTED); supervisor messages go to stderr. A failed or
+  timed-out C3 operator qualification records C3 and H work as UNTESTED and
+  the session continues with the unaffected arms (finalised INCOMPLETE). Pod setup (image boot,
   `setup.sh`) precedes the session clock. Evidence extraction (validated
   archive, receipt bound to the pod id AND to the content hash of the pod's
-  evidence at extraction time; termination refuses if the pod's evidence
-  changed since) before terminate.
+  evidence, taken before and after the transfer with no session running and
+  required to equal the extracted archive's own content manifest;
+  termination refuses if the pod's evidence changed since) before terminate.
 - **Session 2 (≤ 3 h):** eager-A references + SDR at the sweep points; chunk
   sweep (A, C3, G, H × {22050, 88200}, 3 restarts, SDR gate in r1);
   node-level traces (ONE captured 50-pass block per traced run, outer NVTX
@@ -448,8 +466,14 @@ unavailable mode is recorded `UNTESTED(reason)`.
   extent from the base allocation's own shape, stride and dtype, unknown →
   no L2 ideal); every measured value comes from exactly 50 non-empty
   validated per-pass windows (the aggregate kernel summary is reconciled
-  against them by name set, count and duration, differences reported), and
-  an arm whose windows are not the registered 50 passes publishes no rows;
+  against them by name set, count and duration, and the numerical
+  discrepancy is always reported), and an ideal-cost run whose requested or
+  observed pass count is not the registered 50 publishes an explicit
+  UNREGISTERED_PROTOCOL record with no rows; wrapper calls the parser does
+  not recognise (assigned or not, any `torch.ops` namespace) are recorded
+  verbatim and make graphs non-interchangeable; boundary calibration
+  derives the expected dependency counter from N, mode, warm-up and
+  repeats and requires both recorded counters to equal it;
   boundary calibration accepts a segment only when its case carries a passed
   dependency-proof counter (trivial chains) and, for PDL modes, the PTX
   qualification — labels alone never qualify; source-map coverage credits
