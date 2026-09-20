@@ -5,7 +5,7 @@ eligibility from the RECORD ITSELF (protocol, validation, lineage,
 recording stability, gate, manifest) — never from stored booleans.
 """
 
-QUALIFY_VERSION = 4
+QUALIFY_VERSION = 5
 REGISTERED_ITERS = 50
 REGISTERED_REPEATS = 5
 COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H')
@@ -45,10 +45,24 @@ def snapshot_complete(x):
     # are absent when zero; stats and inductor are always present
     if not (isinstance(c.get('stats'), dict) and isinstance(c.get('inductor'), dict)):
         return False
+    ug = c['stats'].get('unique_graphs')
+    if not (isinstance(ug, int) and not isinstance(ug, bool) and ug >= 0):
+        return False
+    for k in ('graph_break', 'unimplemented'):
+        if k in c and not isinstance(c[k], dict):
+            return False
     if not t.get('available') or t.get('identity_mode') != 'registry':
         return False
-    return (isinstance(t.get('node_ids'), list) and isinstance(t.get('manager_id'), int)
-            and isinstance(t.get('roots'), int) and t.get('function_ids') is not None)
+    ids, fids = t.get('node_ids'), t.get('function_ids')
+    if not (isinstance(ids, list) and all(isinstance(i, int) and not isinstance(i, bool) for i in ids)
+            and len(set(ids)) == len(ids)):
+        return False
+    if not (isinstance(t.get('nodes'), int) and isinstance(t.get('roots'), int)
+            and t['nodes'] == len(ids) and 0 <= t['roots'] <= t['nodes']):
+        return False
+    if not (isinstance(fids, list) and all(isinstance(f, str) for f in fids)):
+        return False
+    return isinstance(t.get('manager_id'), int) and not isinstance(t.get('manager_id'), bool)
 
 
 def recording_stable(a, b):
@@ -106,6 +120,13 @@ def recomputed_timing(timing, iters, repeats):
     t = timing
     rt = {'block_medians_ms': meds, 'min_of_medians_ms': min(meds),
           'median_spread_ms': max(meds) - min(meds), 'throughput_best_ms': min(thr)}
+    lm = t.get('latency_medians_ms')
+    if lm is not None and not (isinstance(lm, list) and len(lm) == repeats
+                               and all(_close(a, b, 1e-9, 1e-9) for a, b in zip(lm, meds))):
+        return None
+    sd = t.get('serialization_delta_pct')
+    if sd is not None and not (isinstance(sd, list) and len(sd) == repeats and all(_finite(x) for x in sd)):
+        return None
     for k_t, k_rt in (('min_of_medians_ms', 'min_of_medians_ms'), ('median_spread_ms', 'median_spread_ms'),
                       ('throughput_ms_per_pass_best', 'throughput_best_ms')):
         if k_t in t and not _close(t.get(k_t), rt[k_rt], 1e-9, 1e-9):
@@ -181,12 +202,17 @@ def validation_problems(rec):
         # every per-pass invariant (gate-06 f80): shapes equal, both operands finite,
         # the pass's own tolerances equal the registered tier, zero violating
         # elements, and the stored ok flag consistent with all of that
-        good = (p.get('ok') is True and _finite(p.get('max_abs_diff')) and p.get('ref_sha256')
-                and p.get('shape_out') == p.get('shape_ref') and p.get('shape_out')
+        shape = p.get('shape_out')
+        shape_ok = (isinstance(shape, list) and shape and all(isinstance(d, int) and not isinstance(d, bool) and d > 0 for d in shape))
+        numel = 1
+        for d in (shape or []):
+            numel *= d if isinstance(d, int) else 0
+        good = (p.get('ok') is True and _finite(p.get('max_abs_diff')) and p['max_abs_diff'] >= 0
+                and p.get('ref_sha256') and shape_ok and p.get('shape_ref') == shape
+                and p.get('n_elements') == numel and _finite(p.get('max_abs_ref')) and p['max_abs_ref'] >= 0
                 and p.get('finite_out') is True and p.get('finite_ref') is True
                 and (tier is None or (p.get('rtol'), p.get('atol')) == TIERS[tier])
-                and p.get('violations') == 0 and isinstance(p.get('n_elements'), int) and p['n_elements'] > 0
-                and _finite(p.get('max_abs_ref'))
+                and p.get('violations') == 0
                 and p['max_abs_diff'] <= p['atol'] + p['rtol'] * p['max_abs_ref'] + 1e-12)
         if not good:
             ok_all = False
@@ -336,8 +362,7 @@ def trace_problems(rec, iters=REGISTERED_ITERS):
         problems.append(f"status {rec.get('status')}")
     if rec.get('planted_fault') or rec.get('planted_fault_const') is not None:
         problems.append('planted fault run')
-    if rec.get('arm') != 'ANVTX':
-        problems += validation_problems(rec)
+    problems += validation_problems(rec)
     if not rec.get('manifest_id'):
         problems.append('not bound to a session manifest')
     if recomputed_timing(rec.get('timing'), iters, 1) is None:
@@ -427,6 +452,39 @@ def pair_problems(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
             problems.append(f'{arm}: blocks do not hold the registered {repeats}x{iters} with unique repeat ids')
         elif not all(_finite(b.get('throughput_ms_per_pass')) and b['throughput_ms_per_pass'] > 0 for b in blocks):
             problems.append(f'{arm}: a block throughput is non-finite')
+        else:
+            meds = [_median(b['latency_ms_per_iter']) for b in blocks]
+            if not (all(_close(b.get('latency_median_ms'), mm, 1e-9, 1e-9) for b, mm in zip(blocks, meds))
+                    and isinstance(a.get('latency_medians_ms'), list) and len(a['latency_medians_ms']) == repeats
+                    and all(_close(x, y, 1e-9, 1e-9) for x, y in zip(a['latency_medians_ms'], meds))
+                    and _close(a.get('min_of_medians_ms'), min(meds), 1e-9, 1e-9)
+                    and _close(a.get('median_spread_ms'), max(meds) - min(meds), 1e-9, 1e-9)):
+                problems.append(f'{arm}: a stored matched summary differs from its samples')
+    # chronological alternation (gate-07 f103): finite, strictly increasing block
+    # timestamps whose (repeat, arm) order is exactly (0,a),(0,b),(1,a),(1,b),...
+    a_, b_ = (m.get('pair') or [None, None])[:2]
+    allb = list(m.get('blocks') or [])
+    if allb and all(_finite(x.get('unix_start')) and _finite(x.get('unix_end')) and x['unix_end'] >= x['unix_start'] for x in allb):
+        order = sorted(allb, key=lambda x: x['unix_start'])
+        starts = [x['unix_start'] for x in order]
+        ends = [x['unix_end'] for x in order]
+        expected = [(r, arm) for r in range(repeats) for arm in (a_, b_)]
+        if [(x.get('repeat'), x.get('arm')) for x in order] != expected:
+            problems.append('matched blocks are not in the registered alternating order')
+        if any(starts[i + 1] < ends[i] for i in range(len(order) - 1)):
+            problems.append('matched block timestamps overlap')
+    elif allb:
+        problems.append('a matched block lacks finite timestamps')
+    d = m.get('matched_delta_ms') or {}
+    rd = recomputed_matched_delta(m, iters, repeats)
+    if rd is None:
+        problems.append('matched delta cannot be recomputed from samples')
+    else:
+        ok = (isinstance(d.get('a_minus_b_per_block'), list) and len(d['a_minus_b_per_block']) == repeats
+              and all(_close(x, y, 1e-9, 1e-9) for x, y in zip(d['a_minus_b_per_block'], rd['a_minus_b_per_block']))
+              and all(_close(d.get(k), rd[k], 1e-9, 1e-9) for k in ('median', 'min', 'max', 'median_pct_of_a')))
+        if not ok:
+            problems.append('a stored matched delta summary differs from the value recomputed from samples')
         elif not all(all(_finite(x) and x > 0 for x in b['latency_ms_per_iter']) for b in blocks):
             problems.append(f'{arm}: a latency sample is non-finite or non-positive')
         elif not all(_close(b.get('latency_median_ms'), _median(b['latency_ms_per_iter']), 1e-9, 1e-9) for b in blocks):

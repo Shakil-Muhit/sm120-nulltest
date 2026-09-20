@@ -69,6 +69,11 @@ def per_pass_sequence(base, expected_passes):
     windows, err = nvtx_pass_windows(base + '_nvtx_gpu_proj_trace.csv')
     if err or not windows:
         return None, f'nvtx windows unavailable: {err}'
+    # memops (memcpy/memset rows) are not kernels: excluded from inventories,
+    # sequences and class totals, consistently with graph_verify / timing_views
+    # (gate-07 f110)
+    n_memops = sum(1 for r in rows if r['name'].startswith('[CUDA mem'))
+    rows = [r for r in rows if not r['name'].startswith('[CUDA mem')]
     passes, _ = split_passes(rows, windows, classify)
     # exactly the expected number of windows, every one non-empty (gate-05 f70)
     if len(windows) != expected_passes or any(not p for p in passes):
@@ -87,7 +92,7 @@ def per_pass_sequence(base, expected_passes):
             d['instances'] += 1
             d['total_ns'] += r['dur']
     return {'triton_seq': seqs[0], 'class_counts': counts[0], 'by_name': by_name,
-            'passes': len(passes)}, None
+            'passes': len(passes), 'memop_rows_excluded': n_memops, 'windows': len(windows)}, None
 
 
 def graph_signature(g):
@@ -277,9 +282,13 @@ def main():
     ks_path = args.base + '_cuda_gpu_kern_sum.csv'
     ks_agg = read_kern_sum(ks_path) if os.path.exists(ks_path) else {}
     if observed is None:
-        out['measurement_status'] = 'UNRESOLVED'
+        # an observed pass count that is not the registered one is the registered
+        # UNREGISTERED_PROTOCOL status (gate-07 f111); other window defects are UNRESOLVED
+        out['measurement_status'] = 'UNREGISTERED_PROTOCOL' if 'windows' in err else 'UNRESOLVED'
+        out['passes_requested'] = n_pass
+        out['passes_observed'] = None
         out['measurement_note'] = f'pass windows not validated: {err}'
-        out['variant_selection'] = {'status': 'UNRESOLVED', 'reason': out['measurement_note']}
+        out['variant_selection'] = {'status': out['measurement_status'], 'reason': out['measurement_note']}
         with open(args.out, 'w') as f:
             json.dump(out, f, indent=1)
         print(f"[ideal] {args.arm}@{args.chunk}: UNRESOLVED ({out['measurement_note']}) -> no rows published")
@@ -302,6 +311,9 @@ def main():
         if agg is not None and v['total_ns']:
             rel.append(abs(agg.get('total_ns', 0) - v['total_ns']) / v['total_ns'])
     out['measurement_status'] = 'ok'
+    out['passes_requested'] = n_pass
+    out['passes_observed'] = observed['passes']
+    out['memop_rows_excluded'] = observed.get('memop_rows_excluded')
     out['measurement_note'] = (f'{observed["passes"]} validated windows; aggregate summary: '
                                f'{len(mismatches)} kernels outside the 1% count/duration tolerance, '
                                f'max relative duration discrepancy {max(rel) if rel else 0.0:.4%} (windowed values used)')

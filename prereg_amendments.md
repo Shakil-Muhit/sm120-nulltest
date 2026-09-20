@@ -333,9 +333,24 @@ unavailable mode is recorded `UNTESTED(reason)`.
   records through the same validator (never from the collector's summary),
   enumerates the required reference artifacts per operating point, seed and
   clip, re-hashes them and joins every hash a run recorded to its artifact,
-  validates the manifest's identity fields, and requires this session's
-  clock log (well-formed samples) to cover every timing block of this
-  session, matched blocks included.
+  verifies the manifest's identity against the tree, the registration and
+  the pins (commit, registration hash, clip manifest hash, measuring-code
+  hashes, runtime pins, msst/checkpoint/config pins re-verified where the
+  pins are present) and every run's recorded pins against it, requires the
+  planted-fault checks and the C3 operator qualification (every registered
+  component: opcheck, bitwise equality, capture/replay, isolated full-graph
+  compile, output shape) bound to the manifest in BOTH sessions (session 2
+  regenerates missing prerequisites under supervision), re-derives every
+  reduction it certifies (graph-verification verdict from the per-pass
+  evidence, timing-view inequalities and medians, ideal-cost row
+  consistency and class totals, perturbation ratios from the run samples,
+  source-map coverage), and requires this session's clock log — samples of
+  this GPU with numeric fields — to cover every timing block attributed to
+  this session by registered tag and operating point (matched blocks
+  included) with sample gaps of at most 5 s. Matched records must show the
+  registered alternation in chronological order with finite, non-overlapping
+  block timestamps, and every stored matched summary must equal its samples.
+  The attribution arm ANVTX is validated at the tight tier like A.
   **Runtime pins and manifest scope:** every process checks torch ==
   2.8.0+cu128 and triton == 3.4.0 before building; the manifest binds the
   complete measuring set (fullmodel/**, arms/*, scripts/*, configs/*,
@@ -403,7 +418,13 @@ unavailable mode is recorded `UNTESTED(reason)`.
   archive, receipt bound to the pod id AND to the content hash of the pod's
   evidence, taken before and after the transfer with no session running and
   required to equal the extracted archive's own content manifest;
-  termination refuses if the pod's evidence changed since) before terminate.
+  termination takes a lock on the pod that refuses any new session launch,
+  refuses while a session runs, and re-checks the content hash under the
+  lock) before terminate. A missing reference or a failed planted-fault
+  check never aborts a session: dependent measurements are recorded
+  UNTESTED and the session is finalised INCOMPLETE. Ideal-cost inventories
+  exclude memops; an observed pass count other than 50 is
+  UNREGISTERED_PROTOCOL.
 - **Session 2 (≤ 3 h):** eager-A references + SDR at the sweep points; chunk
   sweep (A, C3, G, H × {22050, 88200}, 3 restarts, SDR gate in r1);
   node-level traces (ONE captured 50-pass block per traced run, outer NVTX

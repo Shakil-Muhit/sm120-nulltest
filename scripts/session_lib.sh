@@ -20,6 +20,7 @@ EXTRACT_RESERVE_S="${EXTRACT_RESERVE_S:-900}"
 RUN="$REPO_DIR/fullmodel/run_full_arm.py"
 MATCHED="$REPO_DIR/fullmodel/matched_run.py"
 T0=$(date +%s)
+[ -e "$EVID/.terminating" ] && { echo "FATAL: termination lock present in $EVID — no session may start"; exit 1; }
 
 remaining() { echo $(( SESSION_BUDGET_S - EXTRACT_RESERVE_S - ($(date +%s) - T0) )); }
 cap_for()   { local want="$1" rem; rem=$(remaining); [ "$rem" -lt "$want" ] && echo "$rem" || echo "$want"; }

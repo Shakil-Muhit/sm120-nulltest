@@ -28,7 +28,7 @@ case "$CMD" in
           set -e; cd /root/sm120-nulltest && git fetch -q /root/sm120.bundle HEAD && git checkout -q $COMMIT && git status --porcelain --untracked-files=no | wc -l && git rev-parse HEAD"
     ;;
   session1|session2)
-    $SSH "cd /root/sm120-nulltest && mkdir -p evidence && tmux has-session -t run 2>/dev/null && { echo 'FATAL: a tmux session named run already exists'; exit 1; }
+    $SSH "cd /root/sm120-nulltest && mkdir -p evidence && { [ -e evidence/.terminating ] && { echo 'FATAL: termination lock present'; exit 1; }; tmux has-session -t run 2>/dev/null && { echo 'FATAL: a tmux session named run already exists'; exit 1; }; }
           export MSST_DIR=/root/work/msst CLIPS_DIR=/root/work/sdr_clips PYTHONDONTWRITEBYTECODE=1
           tmux new -d -s run \"bash scripts/$CMD.sh > evidence/${CMD}.log 2>&1; echo EXIT=\\\$? >> evidence/${CMD}.log\"
           sleep 3; tail -n 5 evidence/${CMD}.log"
@@ -69,13 +69,17 @@ case "$CMD" in
   terminate)
     grep -q "^POD_ID=$POD_ID " "$REPO_DIR/pod.env.extracted" 2>/dev/null \
         || { echo "FATAL: no validated extraction receipt for pod $POD_ID — extract first"; exit 1; }
+    # exclusion held through the decision (gate-07 f109): the lock refuses any new
+    # session launch; a running session refuses termination
+    $SSH "cd /root/sm120-nulltest && touch evidence/.terminating && { tmux has-session -t run 2>/dev/null && { rm -f evidence/.terminating; echo 'FATAL: a session is running'; exit 1; }; exit 0; }" \
+        || { echo "FATAL: could not take the termination lock"; exit 1; }
     LAST=$(grep "^POD_ID=$POD_ID " "$REPO_DIR/pod.env.extracted" | tail -1)
     D=$(echo "$LAST" | sed -n "s/.*DEST=\([^ ]*\).*/\1/p"); H=$(echo "$LAST" | sed -n "s/.*SHA256=\([^ ]*\).*/\1/p")
     R=$(echo "$LAST" | sed -n "s/.*REMOTE=\([^ ]*\).*/\1/p")
     [ -f "$D/evidence.tgz" ] && [ "$(sha256sum "$D/evidence.tgz" | cut -d" " -f1)" = "$H" ] \
         || { echo "FATAL: extracted archive missing or changed ($D)"; exit 1; }
-    NOW=$($SSH "cd /root/sm120-nulltest && find evidence -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1") || { echo "FATAL: cannot hash remote evidence"; exit 1; }
-    [ -n "$R" ] && [ "$NOW" = "$R" ] || { echo "FATAL: remote evidence changed since the last extraction (extract again)"; exit 1; }
+    NOW=$($SSH "cd /root/sm120-nulltest && find evidence -type f ! -name .terminating -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1") || { echo "FATAL: cannot hash remote evidence"; exit 1; }
+    [ -n "$R" ] && [ "$NOW" = "$R" ] || { $SSH "rm -f /root/sm120-nulltest/evidence/.terminating"; echo "FATAL: remote evidence changed since the last extraction (extract again)"; exit 1; }
     echo "terminating pod $POD_ID (melband_profiling) — production pods untouched; evidence at $D"
     runpodctl pod terminate "$POD_ID"
     ;;

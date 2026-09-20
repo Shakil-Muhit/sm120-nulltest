@@ -35,6 +35,54 @@ print('manifest ok', provenance.load_manifest(sys.argv[1], loader.paths_from_env
 PYEOF
 fi
 clocks_start "$EVID/clocks_session2.csv"
+# registered prerequisites (gate-07 f99): planted-fault validator checks and the C3
+# operator qualification must exist, bound to THIS manifest, before any C3/H work;
+# missing ones are regenerated under supervision, failures leave dependent work UNTESTED
+PREREQ_OK=1; C3_QUAL_OK=1
+MID=$(python3 -c "import json;print(json.load(open('$EVID/session_manifest.json'))['manifest_id'])")
+check_planted() {
+python3 - "$EVID" "$MID" <<'PYEOF'
+import json, os, sys
+ev, mid = sys.argv[1:]
+for tier, const in (('tight', 0.001), ('loose', 0.05)):
+    r = json.load(open(os.path.join(ev, f'full_A_c4410_planted_{tier}.json'))); v = r['validation']
+    assert r['status'] == 'INVALID' and r.get('manifest_id') == mid and v['status'] == 'FAIL'
+    assert len(v['passes']) == 2 and all((not x['ok']) and abs(x['max_abs_diff'] - const) < 1e-6 for x in v['passes'])
+PYEOF
+}
+if ! check_planted 2>/dev/null; then
+    echo "planted-fault records missing or foreign -> regenerating"
+    run_one A 4410 planted_tight --planted-fault --skip-timing
+    run_one A 4410 planted_loose --planted-fault --planted-const 0.05 --force-tier loose --skip-timing
+    check_planted 2>/dev/null || { echo "planted-fault validator check FAILED -> every validated measurement is UNTESTED"; PREREQ_OK=0; }
+fi
+check_c3q() {
+python3 -c "import json,sys; r=json.load(open('$EVID/c3_operator_qualification.json')); assert set(r)=={'11','51','201','801'} and all(v['status']=='PASS' and v.get('native_bitwise_equal') is True and v.get('cuda_graph_capture_and_replay')=='PASS' and v.get('compiled_fullgraph')=='PASS' for v in r.values())"
+}
+if ! check_c3q 2>/dev/null; then
+    echo "C3 operator qualification missing/invalid -> regenerating"
+    rm -f "$EVID/c3_operator_qualification.json"
+    run_aux c3_operator_qualification 600 -- python - "$EVID/c3_operator_qualification.json" <<'PYEOF' || { echo "C3 operator qualification FAILED -> C3/H work is UNTESTED"; C3_QUAL_OK=0; }
+import json, os, sys
+sys.path.insert(0, os.path.join(os.getcwd(), 'fullmodel'))
+import fullarms
+rec = fullarms.verify_c3_operator()
+json.dump(rec, open(sys.argv[1], 'w'), indent=1)
+assert all(v.get('status') == 'PASS' for v in rec.values()), rec
+PYEOF
+    check_c3q 2>/dev/null || C3_QUAL_OK=0
+fi
+needs_c3() { case "$1" in C3|H) return 0;; *) return 1;; esac; }
+run_one_q() {
+    if [ "$PREREQ_OK" != "1" ]; then terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "planted-fault validator check failed"; return 1; fi
+    if [ "$C3_QUAL_OK" != "1" ] && needs_c3 "$1"; then terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "C3 operator qualification failed"; return 1; fi
+    run_one "$@"
+}
+run_traced_q() {
+    if [ "$PREREQ_OK" != "1" ]; then terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "planted-fault validator check failed"; return 1; fi
+    if [ "$C3_QUAL_OK" != "1" ] && needs_c3 "$1"; then terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "C3 operator qualification failed"; return 1; fi
+    run_traced "$@"
+}
 for chunk in 352800 4410 22050 88200; do
     if [ ! -s "$REF/ref_A_c${chunk}_s2002.pt" ] || [ ! -s "$REF/sdr_A_c${chunk}_clip07.pt" ]; then
         run_one A "$chunk" ref --save-reference --sdr --skip-timing
@@ -46,7 +94,7 @@ for r in $(seq 1 "$RESTARTS"); do
     for chunk in 22050 88200; do
         for arm in $SWEEP_ARMS; do
             extra=""; [ "$r" = "1" ] && extra="--sdr"
-            run_one "$arm" "$chunk" "r$r" $extra
+            run_one_q "$arm" "$chunk" "r$r" $extra
         done
     done
 done
@@ -54,7 +102,7 @@ done
 echo "=== [2] node-level traces (+ graph verification, timing views) ==="
 for chunk in 352800 4410; do
     for arm in $TRACE_ARMS; do
-        run_traced "$arm" "$chunk" trace node || continue
+        run_traced_q "$arm" "$chunk" trace node || continue
         base="$EVID/traces/trace_${arm}_${chunk}_trace"
         [ -s "${base}_cuda_gpu_trace.csv" ] || continue
         rm -f "$EVID/traces/graph_verify_${arm}_${chunk}.json" "$EVID/traces/timing_views_${arm}_${chunk}.json"
@@ -65,7 +113,7 @@ for chunk in 352800 4410; do
     done
 done
 # C2 replay verification at 4410 only (registered: the §6 comparator point)
-if run_traced C2 4410 trace node; then
+if run_traced_q C2 4410 trace node; then
     base="$EVID/traces/trace_C2_4410_trace"
     rm -f "$EVID/traces/graph_verify_C2_4410.json" "$EVID/traces/timing_views_C2_4410.json"
     run_aux graph_verify_C2_4410 300 -- python "$REPO_DIR/fullmodel/graph_verify.py" --base "$base" --arm C2 \
@@ -77,9 +125,9 @@ fi
 echo "=== [3] profiling perturbation: A, C3, G — unprofiled vs graph-level vs node-level (one block each) ==="
 for chunk in 352800 4410; do
     for arm in A C3 G; do
-        run_one "$arm" "$chunk" pert_unprofiled --repeats 1
-        run_traced "$arm" "$chunk" pert_graph graph
-        run_traced "$arm" "$chunk" pert_node node
+        run_one_q "$arm" "$chunk" pert_unprofiled --repeats 1
+        run_traced_q "$arm" "$chunk" pert_graph graph
+        run_traced_q "$arm" "$chunk" pert_node node
     done
 done
 

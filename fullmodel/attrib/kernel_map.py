@@ -83,7 +83,7 @@ EXTERN_CALL_RE = re.compile(
 # every torch.ops namespace, custom operators included (gate-05 f68)
 FALLBACK_RE = re.compile(
     r'^\s*(?:(\w+)\s*=\s*)?torch\.ops\.(\w+)\.(\w+)[\.\w]*\((.*)\)', re.M)
-EXECUTABLE_HINT_RE = re.compile(r'torch\.ops\.|extern_kernels\.|\.run\(')
+EXECUTABLE_HINT_RE = re.compile(r'torch\.ops\.|extern_kernels\.|\.run\(|\b\w+\.\w+_\(')
 ARG_TOKEN_RE = re.compile(
     r'reinterpret_tensor\((\w+),\s*\(([^)]*)\),\s*\(([^)]*)\)(?:,\s*\d+)?\)'
     r'|(?<![\w.])(buf\d+|arg\d+_\d+|primals_\d+)(?![\w])')
@@ -227,7 +227,21 @@ def parse_output_code(dump_dir):
             continue
         allocs, aliases, calls, unparsed = {}, {}, [], []
         body_start = src[:src.index('def call(')].count('\n') + 1
-        for body_line, line in enumerate(body.splitlines(), body_start):
+        # logical statements: physical lines are joined until their brackets
+        # balance, so a multiline call is parsed (or recorded unparsed) whole
+        # (gate-07 f107)
+        logical, buf, depth, start_line = [], '', 0, None
+        for phys_no, phys in enumerate(body.splitlines(), body_start):
+            if start_line is None:
+                start_line = phys_no
+            buf = (buf + ' ' + phys.strip()) if buf else phys
+            depth += phys.count('(') + phys.count('[') - phys.count(')') - phys.count(']')
+            if depth <= 0:
+                logical.append((start_line, buf))
+                buf, depth, start_line = '', 0, None
+        if buf:
+            logical.append((start_line, buf))
+        for body_line, line in logical:
             stripped = line.strip()
             if stripped.startswith('return ') or stripped.startswith('def ') or stripped.startswith('#'):
                 if stripped.startswith('return '):

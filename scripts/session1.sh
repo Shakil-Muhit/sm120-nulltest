@@ -57,15 +57,16 @@ clocks_start "$EVID/clocks_session1.csv"
 echo "=== [1] eager-A reference outputs (both operating points) ==="
 run_one A 352800 ref --save-reference --sdr --skip-timing
 run_one A 4410 ref --save-reference --sdr --skip-timing
+PREREQ_OK=1; PREREQ_REASON=""
 for f in ref_A_c352800_s1001.pt ref_A_c352800_s2002.pt ref_A_c4410_s1001.pt ref_A_c4410_s2002.pt \
          sdr_A_c352800_clip00.pt sdr_A_c352800_clip07.pt sdr_A_c4410_clip00.pt sdr_A_c4410_clip07.pt manifest_id.txt; do
-    [ -s "$REF/$f" ] || { echo "FATAL: reference $f missing"; exit 1; }
+    [ -s "$REF/$f" ] || { echo "reference $f missing -> every validated measurement is UNTESTED (session INCOMPLETE)"; PREREQ_OK=0; PREREQ_REASON="references unavailable"; }
 done
 
 echo "=== [2] planted-fault validator checks (both must FAIL) ==="
 run_one A 4410 planted_tight --planted-fault --skip-timing
 run_one A 4410 planted_loose --planted-fault --planted-const 0.05 --force-tier loose --skip-timing
-python3 - "$EVID/full_A_c4410_planted_tight.json" 0.001 "$EVID/full_A_c4410_planted_loose.json" 0.05 <<'PYEOF' || { echo "FATAL: a validator did not catch its planted fault"; exit 1; }
+python3 - "$EVID/full_A_c4410_planted_tight.json" 0.001 "$EVID/full_A_c4410_planted_loose.json" 0.05 <<'PYEOF' || { echo "a validator did not catch its planted fault -> every validated measurement is UNTESTED (session INCOMPLETE)"; PREREQ_OK=0; PREREQ_REASON="planted-fault validator check failed"; }
 import json, sys
 ok_all = True
 for path, const in ((sys.argv[1], float(sys.argv[2])), (sys.argv[3], float(sys.argv[4]))):
@@ -93,15 +94,19 @@ python3 -c "import json,sys; r=json.load(open('$EVID/c3_operator_qualification.j
     || { echo "C3 qualification JSON invalid -> C3 and H work is UNTESTED"; C3_QUAL_OK=0; }
 # arms whose operator qualification failed are recorded as UNTESTED, never run
 needs_c3() { case "$1" in C3|H) return 0;; *) return 1;; esac; }
-run_one_q() {   # ARM CHUNK TAG [extra]: run_one unless the arm depends on the failed qualification
+run_one_q() {   # ARM CHUNK TAG [extra]: run_one unless a prerequisite the arm depends on failed
+    if [ "$PREREQ_OK" != "1" ]; then
+        terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "$PREREQ_REASON"; return
+    fi
     if [ "$C3_QUAL_OK" != "1" ] && needs_c3 "$1"; then
         terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "C3 operator qualification failed"; return
     fi
     run_one "$@"
 }
 run_matched_q() {   # A B CHUNK TAG
-    if [ "$C3_QUAL_OK" != "1" ] && { needs_c3 "$1" || needs_c3 "$2"; }; then
-        python3 -c "import json;json.dump({'pair':['$1','$2'],'chunk':$3,'tag':'$4','status':'UNTESTED','error':'C3 operator qualification failed','pair_eligible':False},open('$EVID/matched_$1_$2_c$3_$4.json','w'),indent=1)"; return
+    if [ "$PREREQ_OK" != "1" ] || { [ "$C3_QUAL_OK" != "1" ] && { needs_c3 "$1" || needs_c3 "$2"; }; }; then
+        local why="C3 operator qualification failed"; [ "$PREREQ_OK" = "1" ] || why="$PREREQ_REASON"
+        python3 -c "import json;json.dump({'pair':['$1','$2'],'chunk':$3,'tag':'$4','status':'UNTESTED','error':'$why','pair_eligible':False},open('$EVID/matched_$1_$2_c$3_$4.json','w'),indent=1)"; return
     fi
     run_matched "$@"
 }
@@ -141,7 +146,7 @@ for chunk in 352800 4410; do
         fi
         extra=""; [ "$r" = "1" ] && extra="--sdr"
         T_COMPILE_SAVED="$T_COMPILE"; T_COMPILE=$(( left < T_COMPILE ? left : T_COMPILE ))
-        run_one C2 "$chunk" "r$r" $extra
+        run_one_q C2 "$chunk" "r$r" $extra
         T_COMPILE="$T_COMPILE_SAVED"
         grep -q '"status": "UNTESTED"' "$path" 2>/dev/null && [ "$r" = "1" ] && cold_timed_out=1
     done

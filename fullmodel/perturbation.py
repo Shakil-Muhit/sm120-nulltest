@@ -62,8 +62,23 @@ def perturbation(evidence, iters=50):
             if q:
                 rec['problems'].append(f'{mode}: {q}')
                 continue
-            if r.get('manifest_id') != base.get('manifest_id') or r.get('effective_variant') != base.get('effective_variant'):
-                rec['problems'].append(f'{mode}: manifest/variant differs from the unprofiled run')
+            # joins on checked identities (gate-07 f106): arm, operating point, manifest,
+            # canonical variant recomputed from the record (must equal the stored string),
+            # and the validation reference hashes
+            if (r.get('arm'), r.get('chunk')) != (arm, chunk):
+                rec['problems'].append(f'{mode}: record is for another arm/operating point')
+                continue
+            if r.get('manifest_id') != base.get('manifest_id'):
+                rec['problems'].append(f'{mode}: manifest differs from the unprofiled run')
+                continue
+            if qualify.variant(r) != r.get('effective_variant') or qualify.variant(base) != base.get('effective_variant'):
+                rec['problems'].append(f'{mode}: stored effective variant contradicts the record')
+                continue
+            if qualify.variant(r) != qualify.variant(base):
+                rec['problems'].append(f'{mode}: effective variant differs from the unprofiled run')
+                continue
+            if qualify.reference_hashes(r) != qualify.reference_hashes(base) or not qualify.reference_hashes(base):
+                rec['problems'].append(f'{mode}: validation reference hashes differ from the unprofiled run')
                 continue
             m = block_median(r, iters)
             rec[f'{mode}_over_unprofiled'] = m / rec['unprofiled_block_ms'] if (m and rec['unprofiled_block_ms']) else None
