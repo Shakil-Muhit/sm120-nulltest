@@ -50,3 +50,11 @@ scope/adapter, graph gate, settle, notes); `ref/` (eager-A references); `generat
 ## Shakedown (engineering only, never evidence)
 ml-beast GPU 4: `rsync -a --exclude .git --exclude evidence sm120-nulltest/ ml-beast:~/axial/sm120-nulltest/`,
 env in `~/axial/fullmodel_smoke/env.sh`, outputs in `~/axial/fullmodel_smoke/`.
+
+## Phase 2 (off-pod, no GPU)
+```bash
+python fullmodel/session_result.py --evidence-dir <extracted evidence> --out SESSION_RESULT.md
+python fullmodel/ledger.py         --evidence-dir <extracted evidence> --out LEDGER.md   # + LEDGER.json
+```
+Both generators compute every number from the cited evidence files (docs/ledger_spec.md); missing
+inputs print UNRESOLVED and are never proxied.
