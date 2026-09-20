@@ -15,7 +15,7 @@ CLIPS="${CLIPS_SRC:-$HOME/ms/data/sdr_clips}"
 KEY="$HOME/.runpod/ssh/RunPod-Key-Go"
 export PATH="$HOME/.local/bin:$PATH"
 cd "$REPO_DIR"
-[ -z "$(git status --porcelain)" ] || { echo "FATAL: commit the tree first (session runs the audited commit)"; exit 1; }
+[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "FATAL: commit the tree first (session runs the audited commit; untracked review logs are allowed — they never enter the bundle)"; exit 1; }
 COMMIT=$(git rev-parse HEAD)
 POD_ID=""
 for DC in $DCS; do
