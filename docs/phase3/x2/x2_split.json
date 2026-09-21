@@ -1,0 +1,100 @@
+{
+ "352800": {
+  "norm_residual": {
+   "kernels": [
+    "triton_red_fused__to_copy_add_div_linalg_vector_norm_mul_88",
+    "triton_red_fused__to_copy_add_div_linalg_vector_norm_mul_90",
+    "triton_red_fused__to_copy_add_div_linalg_vector_norm_mul_94",
+    "triton_red_fused__to_copy_add_div_linalg_vector_norm_mul_95",
+    "triton_red_fused__to_copy_add_div_linalg_vector_norm_mul_96",
+    "triton_red_fused__to_copy_add_div_linalg_vector_norm_mul_97",
+    "triton_red_fused_add_linalg_vector_norm_98"
+   ],
+   "n_rows": 7,
+   "launches_per_pass": 24.0,
+   "time_ms_per_pass": 2.7783093799999996,
+   "bytes_read_per_pass": 3026697216,
+   "bytes_write_per_pass": 2067156720,
+   "f_modelled": 0.4058138976837753,
+   "Y_ms": 1.127476558469193,
+   "upper_bound_ms": 2.7783093799999996
+  },
+  "rope_qkv": {
+   "kernels": [
+    "triton_poi_fused__scaled_dot_product_flash_attention__to_copy_add_cos_mul_sin_83",
+    "triton_poi_fused__scaled_dot_product_flash_attention__to_copy_add_cos_mul_sin_91"
+   ],
+   "n_rows": 2,
+   "launches_per_pass": 12.0,
+   "time_ms_per_pass": 1.35369936,
+   "bytes_read_per_pass": 1796849664,
+   "bytes_write_per_pass": 1181122560,
+   "f_modelled": 0.3966197369072573,
+   "Y_ms": 0.5369038840147227,
+   "upper_bound_ms": 1.35369936
+  },
+  "other_epilogue": {
+   "kernels": [
+    "triton_poi_fused_mul_sigmoid_85",
+    "triton_poi_fused_mul_sigmoid_92"
+   ],
+   "n_rows": 2,
+   "launches_per_pass": 12.0,
+   "time_ms_per_pass": 0.34860294,
+   "bytes_read_per_pass": 599789184,
+   "bytes_write_per_pass": 590561280,
+   "f_modelled": 0.4961238709610819,
+   "Y_ms": 0.17295024002121376,
+   "upper_bound_ms": 0.34860294
+  }
+ },
+ "4410": {
+  "norm_residual": {
+   "kernels": [
+    "triton_per_fused__to_copy_add_div_linalg_vector_norm_mul_88",
+    "triton_per_fused__to_copy_add_div_linalg_vector_norm_mul_90",
+    "triton_per_fused__to_copy_add_div_linalg_vector_norm_mul_94",
+    "triton_per_fused__to_copy_add_div_linalg_vector_norm_mul_95",
+    "triton_per_fused__to_copy_add_div_linalg_vector_norm_mul_96",
+    "triton_per_fused__to_copy_add_div_linalg_vector_norm_mul_97",
+    "triton_per_fused_add_linalg_vector_norm_98"
+   ],
+   "n_rows": 7,
+   "launches_per_pass": 24.0,
+   "time_ms_per_pass": 0.0379234,
+   "bytes_read_per_pass": 41634816,
+   "bytes_write_per_pass": 28387920,
+   "f_modelled": 0.40541003710566237,
+   "Y_ms": 0.015374527001172877,
+   "upper_bound_ms": 0.0379234
+  },
+  "rope_qkv": {
+   "kernels": [
+    "triton_poi_fused__scaled_dot_product_flash_attention__to_copy_add_cos_mul_sin_83",
+    "triton_poi_fused__scaled_dot_product_flash_attention__to_copy_add_cos_mul_sin_91"
+   ],
+   "n_rows": 2,
+   "launches_per_pass": 12.0,
+   "time_ms_per_pass": 0.016088079999999998,
+   "bytes_read_per_pass": 40550400,
+   "bytes_write_per_pass": 16220160,
+   "f_modelled": 0.2857142857142857,
+   "Y_ms": 0.0045965942857142846,
+   "upper_bound_ms": 0.016088079999999998
+  },
+  "other_epilogue": {
+   "kernels": [
+    "triton_poi_fused_mul_sigmoid_85",
+    "triton_poi_fused_mul_sigmoid_92"
+   ],
+   "n_rows": 2,
+   "launches_per_pass": 12.0,
+   "time_ms_per_pass": 0.010603439999999999,
+   "bytes_read_per_pass": 8237184,
+   "bytes_write_per_pass": 8110080,
+   "f_modelled": 0.49611237697023797,
+   "Y_ms": 0.0052604978224613,
+   "upper_bound_ms": 0.010603439999999999
+  }
+ }
+}

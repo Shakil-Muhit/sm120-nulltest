@@ -1,0 +1,9 @@
+part,ms_per_pass,C1_value,C3_value
+input staging copies,2.502228,"63 kernels, 25.8 MB memcpy, 2.516 ms","1 kernels, 0.013 ms"
+lost fusion (fused + unfused elementwise classes),3.4467795,"fused 904 kernels 9.703 ms + other/copy 2.370 ms; eager kernels between segments: 68, 5.814 ms (context)",fused 791 kernels 8.516 ms + other/copy 0.111 ms; attention-neighbourhood fused 12 kernels 1.353 ms
+GPU idle gaps inside the pass (launch gaps),0.7354335000000002,"66 graph launch CorrIds with kernels (96 cudaGraphLaunch calls/pass), host launch median 3.2 us, gaps 1.477 ms","1 launch (host 222 us), gaps 0.742 ms"
+GEMM + SDPA kernel-selection delta,-0.4838984999999987,GEMM 15.772 SDPA 3.439,GEMM 16.114 SDPA 3.580
+SUM of parts,6.200542500000002,,
+"trace span delta (C1 - C3, per pass)",6.202716000000002,35.293,29.090
+matched-pair delta (unprofiled),6.7412,,
+residual (matched - sum),0.5406574999999982,,

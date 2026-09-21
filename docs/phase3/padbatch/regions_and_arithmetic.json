@@ -1,0 +1,170 @@
+{
+ "regions": {
+  "C3_352800": {
+   "front": {
+    "GEMM": 0.5188735,
+    "SDPA": 0.0,
+    "INDUCTOR_FUSED": 0.399006,
+    "COPY": 0.013408,
+    "FFT": 0.008096,
+    "OTHER": 0.004256,
+    "n": 292.0,
+    "total_ms": 0.9436395
+   },
+   "middle": {
+    "GEMM": 12.6177935,
+    "SDPA": 3.5796390000000002,
+    "INDUCTOR_FUSED": 6.5357994999999995,
+    "COPY": 0.0,
+    "FFT": 0.0,
+    "OTHER": 0.0,
+    "n": 188.0,
+    "total_ms": 22.733232
+   },
+   "tail": {
+    "GEMM": 2.977229,
+    "SDPA": 0.0,
+    "INDUCTOR_FUSED": 1.581086,
+    "COPY": 0.028128,
+    "FFT": 0.00832,
+    "OTHER": 0.049536,
+    "n": 663.0,
+    "total_ms": 4.644299
+   }
+  },
+  "C3_4410": {
+   "front": {
+    "GEMM": 0.1229745,
+    "SDPA": 0.0,
+    "INDUCTOR_FUSED": 0.1715985,
+    "COPY": 0.002752,
+    "FFT": 0.002336,
+    "OTHER": 0.0048795,
+    "n": 292.0,
+    "total_ms": 0.3045405
+   },
+   "middle": {
+    "GEMM": 0.42399549999999997,
+    "SDPA": 0.102271,
+    "INDUCTOR_FUSED": 0.185341,
+    "COPY": 0.0,
+    "FFT": 0.0,
+    "OTHER": 0.0,
+    "n": 188.0,
+    "total_ms": 0.7116075
+   },
+   "tail": {
+    "GEMM": 0.684634,
+    "SDPA": 0.0,
+    "INDUCTOR_FUSED": 0.7951395,
+    "COPY": 0.00432,
+    "FFT": 0.00256,
+    "OTHER": 0.0115995,
+    "n": 671.0,
+    "total_ms": 1.498253
+   }
+  },
+  "H_352800": {
+   "front": {
+    "GEMM": 0.42732349999999997,
+    "SDPA": 0.0,
+    "INDUCTOR_FUSED": 0.411947,
+    "COPY": 0.0340795,
+    "FFT": 0.008047499999999999,
+    "OTHER": 0.004528000000000001,
+    "n": 17.0,
+    "total_ms": 0.8859254999999999
+   },
+   "middle": {
+    "GEMM": 12.774454,
+    "SDPA": 3.6177520000000003,
+    "INDUCTOR_FUSED": 6.501495500000001,
+    "COPY": 0.0,
+    "FFT": 0.0,
+    "OTHER": 0.0,
+    "n": 188.0,
+    "total_ms": 22.893701500000002
+   },
+   "tail": {
+    "GEMM": 3.451305,
+    "SDPA": 0.0,
+    "INDUCTOR_FUSED": 1.870331,
+    "COPY": 0.315757,
+    "FFT": 0.008255499999999999,
+    "OTHER": 0.050816,
+    "n": 44.0,
+    "total_ms": 5.6964645
+   }
+  },
+  "H_4410": {
+   "front": {
+    "GEMM": 0.01488,
+    "SDPA": 0.0,
+    "INDUCTOR_FUSED": 0.0412795,
+    "COPY": 0.004256,
+    "FFT": 0.002016,
+    "OTHER": 0.004512,
+    "n": 17.0,
+    "total_ms": 0.0669435
+   },
+   "middle": {
+    "GEMM": 0.4242025,
+    "SDPA": 0.1021905,
+    "INDUCTOR_FUSED": 0.18730999999999998,
+    "COPY": 0.0,
+    "FFT": 0.0,
+    "OTHER": 0.0,
+    "n": 188.0,
+    "total_ms": 0.713703
+   },
+   "tail": {
+    "GEMM": 0.3703795,
+    "SDPA": 0.0,
+    "INDUCTOR_FUSED": 0.961845,
+    "COPY": 0.00864,
+    "FFT": 0.002528,
+    "OTHER": 0.011808,
+    "n": 44.0,
+    "total_ms": 1.3552005
+   }
+  }
+ },
+ "arithmetic": {
+  "352800": {
+   "frames": 801,
+   "band_split": {
+    "true_flops": 4869669888,
+    "padded_flops": 19193241600,
+    "waste_frac": 0.7462820512820513,
+    "K_max": 520,
+    "K_sum": 7916
+   },
+   "mask_last_layer": {
+    "true_flops": 38957359104,
+    "padded_flops": 153545932800,
+    "waste_frac": 0.7462820512820513,
+    "N_max": 1040,
+    "N_sum": 15832
+   },
+   "note": "H pads band_split to K_max=520 (one (60,520,384) stack) and the mask last layer to N_max=1040 (one (60,1536,1040) stack): a single bucket, not per-bucket (wrapper parameter shapes)"
+  },
+  "4410": {
+   "frames": 11,
+   "band_split": {
+    "true_flops": 66874368,
+    "padded_flops": 263577600,
+    "waste_frac": 0.7462820512820513,
+    "K_max": 520,
+    "K_sum": 7916
+   },
+   "mask_last_layer": {
+    "true_flops": 534994944,
+    "padded_flops": 2108620800,
+    "waste_frac": 0.7462820512820513,
+    "N_max": 1040,
+    "N_sum": 15832
+   },
+   "note": "H pads band_split to K_max=520 (one (60,520,384) stack) and the mask last layer to N_max=1040 (one (60,1536,1040) stack): a single bucket, not per-bucket (wrapper parameter shapes)"
+  }
+ }
+}

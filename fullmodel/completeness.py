@@ -37,7 +37,8 @@ ATTN_CASES = [f'c{c}_{ax}_{lay}' for c in (352800, 4410) for ax in ('time', 'fre
 BOUNDARY_CHAINS = [f'trivial/{m}/N{n}' for m in ('stream', 'graph', 'pdl_stream', 'pdl_graph') for n in (10, 100, 1000, 2000)] + \
                   [f'{ch}/{m}/N{n}' for ch in ('elem37', 'gemm') for m in ('stream', 'graph') for n in (10, 100)]
 OPS = {'session1': (352800, 4410), 'session2': (352800, 4410, 22050, 88200)}
-ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py')
+ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py',
+                  'ideal_costs.py', 'graph_verify.py', 'timing_views.py', 'perturbation.py', 'kernel_map.py', 'classify.py')
 MANIFEST_FIELDS = ('manifest_id', 'session', 'created_utc', 'repo_commit', 'registration_sha256',
                    'clips_manifest_sha256', 'code', 'provenance', 'runtime', 'env')
 STATIC_AUX = {
@@ -229,7 +230,10 @@ def audit_clock(ev, items, session, runs, matched, gpu_uuid):
             ts = None
             for fmt in ('%Y/%m/%d %H:%M:%S.%f', '%Y/%m/%d %H:%M:%S'):
                 try:
-                    ts = _dt.datetime.strptime(parts[0], fmt).timestamp()
+                    # the clock log carries the measuring host's local time; the pod runs UTC. CLOCK_TZ=local keeps
+                    # the old behaviour for logs written by a host in this machine's zone (ml-beast smokes)
+                    d = _dt.datetime.strptime(parts[0], fmt)
+                    ts = d.timestamp() if os.environ.get('CLOCK_TZ', 'utc') == 'local' else d.replace(tzinfo=_dt.timezone.utc).timestamp()
                     break
                 except ValueError:
                     continue

@@ -1,0 +1,63 @@
+{
+ "operating_point": 352800,
+ "matched_delta_ms": 6.7412,
+ "trace_span_delta_ms": 6.202716000000002,
+ "per_pass_medians": {
+  "C1": {
+   "n_graph_launches": 66.0,
+   "staging_n": 63.0,
+   "staging_ms": 2.515636,
+   "staging_bytes_mb": 25.817,
+   "eager_n": 68.0,
+   "eager_ms": 5.814208,
+   "graphed_n": 1264.0,
+   "graphed_ms": 25.4875095,
+   "gap_ms": 1.4774725000000002,
+   "span_ms": 35.292614,
+   "fused_n": 904.0,
+   "fused_ms": 9.7031075,
+   "gemm_ms": 15.771550000000001,
+   "sdpa_ms": 3.438586,
+   "fused_attn_n": 0.0,
+   "fused_attn_ms": 0.0,
+   "copy_class_ms": 0.013344,
+   "other_ms": 2.3569995,
+   "kernel_sum_ms": 33.7856245,
+   "host_launch_us_median": 3.156,
+   "host_launch_total_ms_per_pass": 1.01062624
+  },
+  "C3": {
+   "n_graph_launches": 1.0,
+   "staging_n": 1.0,
+   "staging_ms": 0.013408,
+   "staging_bytes_mb": 0.0,
+   "eager_n": 0.0,
+   "eager_ms": 0.0,
+   "graphed_n": 1180.0,
+   "graphed_ms": 28.338721,
+   "gap_ms": 0.742039,
+   "span_ms": 29.089897999999998,
+   "fused_n": 791.0,
+   "fused_ms": 8.515648500000001,
+   "gemm_ms": 16.1143955,
+   "sdpa_ms": 3.5796390000000002,
+   "fused_attn_n": 12.0,
+   "fused_attn_ms": 1.3532175,
+   "copy_class_ms": 0.057215,
+   "other_ms": 0.053807999999999995,
+   "kernel_sum_ms": 28.3229295,
+   "host_launch_us_median": 222.3575,
+   "host_launch_total_ms_per_pass": 0.23219462
+  }
+ },
+ "parts_ms": {
+  "input_staging_copies_ms": 2.502228,
+  "lost_fusion_ms": 3.4467795,
+  "gpu_idle_gaps_ms": 0.7354335000000002,
+  "gemm_sdpa_selection_delta_ms": -0.4838984999999987
+ },
+ "parts_sum_ms": 6.200542500000002,
+ "residual_vs_span_delta_ms": 0.0021735000000004945,
+ "residual_vs_matched_ms": 0.5406574999999982,
+ "note": "trace-derived (node-level, C1 perturbation not separately measured; C3 x1.013 at 8 s); the matched delta is unprofiled"
+}

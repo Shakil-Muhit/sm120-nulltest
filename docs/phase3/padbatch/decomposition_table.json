@@ -1,0 +1,42 @@
+[
+ {
+  "O": 352800,
+  "wall_delta_C3_minus_H_ms (unprofiled)": -0.4953803727403283,
+  "trace_span_delta_ms": -0.6067369999999973,
+  "batching_benefit_ms (gap/launch floor removed)": 0.5519615000000049,
+  "padding_cost_ms (extra FLOPs at H rate)": 1.0959949756553398,
+  "kernel_efficiency_change_ms (true work at H rate vs C3 rate; + = H slower)": -0.7134689756553397,
+  "non_GEMM_front_tail_delta_ms (H - C3)": 0.6119254999999999,
+  "transformer_middle_delta_ms (H - C3)": 0.16046950000000137,
+  "accounted_ms": -0.6029594999999964,
+  "residual_vs_trace_span_ms": -0.0037775000000008774,
+  "residual_vs_wall_ms": 0.10757912725966812,
+  "extra_padded_GFLOP": 128.912145408,
+  "H_fronttail_GEMM_rate_TFLOPS": 117.62110983302473,
+  "C3_fronttail_GEMM_rate_TFLOPS": 93.61751933531697,
+  "C3_kernels": 1143,
+  "H_kernels": 249,
+  "gaps_C3_ms": 0.7669685000000027,
+  "gaps_H_ms": 0.21500699999999778
+ },
+ {
+  "O": 4410,
+  "wall_delta_C3_minus_H_ms (unprofiled)": 0.936683383770287,
+  "trace_span_delta_ms": 0.9596375000000003,
+  "batching_benefit_ms (gap/launch floor removed)": 0.5816390000000001,
+  "padding_cost_ms (extra FLOPs at H rate)": 0.10886386162621359,
+  "kernel_efficiency_change_ms (true work at H rate vs C3 rate; + = H slower)": -0.5312128616262136,
+  "non_GEMM_front_tail_delta_ms (H - C3)": 0.04169949999999989,
+  "transformer_middle_delta_ms (H - C3)": 0.002095500000000028,
+  "accounted_ms": 0.9601930000000002,
+  "residual_vs_trace_span_ms": -0.000555499999999931,
+  "residual_vs_wall_ms": -0.02350961622971315,
+  "extra_padded_GFLOP": 1.770329088,
+  "H_fronttail_GEMM_rate_TFLOPS": 16.2618619398094,
+  "C3_fronttail_GEMM_rate_TFLOPS": 5.5654536969336,
+  "C3_kernels": 1151,
+  "H_kernels": 249,
+  "gaps_C3_ms": 0.7467404999999999,
+  "gaps_H_ms": 0.16510149999999976
+ }
+]

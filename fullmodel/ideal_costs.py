@@ -390,7 +390,8 @@ def main():
                             fp = (None if (unresolved or any(v is None for v in footprints.values()))
                                   else sum(footprints.values()))
                             fused_bytes.setdefault(c['name'], []).append(
-                                None if unresolved else {'bytes': b_read + b_write, 'footprint': fp})
+                                None if unresolved else {'bytes': b_read + b_write, 'footprint': fp,
+                                                         'bytes_read': b_read, 'bytes_write': b_write})
                         elif c['kind'] == 'extern' and any(t in c['name'] for t in ('mm', 'bmm', 'addmm')):
                             gs = gemm_site(c, g)
                             if gs is None:
@@ -426,6 +427,8 @@ def main():
                                args.l2_bytes if v['footprint'] is not None else None,
                                footprint=v['footprint']).get('ideal_us_l2') for v in vals]
                 row.update(flops_per_pass=0.0, bytes_per_pass=by, ideal_us_hbm=hbm,
+                           bytes_read_per_pass=sum(v['bytes_read'] for v in vals),
+                           bytes_write_per_pass=sum(v['bytes_write'] for v in vals),
                            ideal_us_l2=(sum(l2) if all(x is not None for x in l2) else None),
                            resolution='wrapper access bytes, per-call ideals summed '
                                       '(zero-FLOP pricing: registered deviation for fused pointwise/reduction kernels)')

@@ -1,0 +1,6 @@
+params 674 requires_grad True: 672 fp32 leaves: 674 views: 0 use_amp True grad_enabled True
+requires_grad=False cache_enabled=True: copy/cast-like kernels per pass = 1173; float16_copy_kernel 1392/2 passes
+requires_grad=False cache_enabled=False: copy/cast-like kernels per pass = 1173; float16_copy_kernel 1392/2 passes
+requires_grad=True cache_enabled=True: copy/cast-like kernels per pass = 597; float16_copy_kernel 240/2 passes
+requires_grad=True cache_enabled=False: copy/cast-like kernels per pass = 1173; float16_copy_kernel 1392/2 passes
+(ml-beast GPU 4, RTX 5090, torch 2.8.0+cu128; engineering data, shared node; 2026-09-21)

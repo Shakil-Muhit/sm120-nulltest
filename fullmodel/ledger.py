@@ -29,6 +29,40 @@ EPILOGUE_OPS = ('gelu', 'add', 'layer_norm', 'linalg_vector_norm', 'rsqrt', 'sil
 PURE_COPY_OPS = ('aten.clone', 'aten._to_copy', 'aten.copy', 'aten.copy_', 'aten.contiguous', 'prims.convert_element_type')
 FFT_OPS = ('unfold', 'view_as_real', 'view_as_complex', 'constant_pad', 'stft', 'hann', 'fft')
 THRESH = {'offline_AB': 5.0, 'offline_C': 10.0, 'streaming_factor': 2.0}
+# RTX Blackwell (GB202) whitepaper dense rates used for the X8/X9 per-shape bounds (registered 2026-09-21):
+RATE_FP16_ACC_FP16_TFLOPS = 419.0   # fp16 inputs, fp16 accumulate (GeForce full rate)
+RATE_FP16_ACC_FP32_TFLOPS = 209.5   # fp16 inputs, fp32 accumulate (the deployed path)
+RATE_FP8_TFLOPS = 419.0             # FP8 via cuBLASLt requires CUBLAS_COMPUTE_32F on GeForce: shares the 419 ceiling
+BW_GBPS = 1792.0
+# f is the fraction of T_attributable REMOVED: a class speed-up s gives f = 1 - 1/s (s = 2 -> 0.5; s = 1.6 -> 0.375)
+
+
+def f_from_speedup(s):
+    return max(0.0, 1.0 - 1.0 / s) if s and s > 0 else None
+
+
+def gemm_precision_bounds(sites, gemm_class_ms):
+    """Per-shape roofline bounds for the GEMM class (X8/X9). Each extern site (M, N, K, fp16) gets
+    t32 = max(2MNK / 209.5 TFLOPS, bytes / BW) and t16 = max(2MNK / 419 TFLOPS, bytes / BW); the class time
+    is apportioned to sites by their t32 share; f_site = 1 - t16/t32. FP8: compute term at 419 (COMPUTE_32F
+    ceiling) and traffic halved (weights + activations in 1 byte) -> f_fp8_site = 1 - t8/t32."""
+    tot32 = sum(max(2 * g['M'] * g['N'] * g['K'] * g.get('batch', 1) / (RATE_FP16_ACC_FP32_TFLOPS * 1e12), g['bytes'] / (BW_GBPS * 1e9)) for g in sites)
+    if not tot32 or not gemm_class_ms:
+        return None
+    y16 = y8 = 0.0
+    shapes = {}
+    for g in sites:
+        fl = 2 * g['M'] * g['N'] * g['K'] * g.get('batch', 1)
+        t32 = max(fl / (RATE_FP16_ACC_FP32_TFLOPS * 1e12), g['bytes'] / (BW_GBPS * 1e9))
+        t16 = max(fl / (RATE_FP16_ACC_FP16_TFLOPS * 1e12), g['bytes'] / (BW_GBPS * 1e9))
+        t8 = max(fl / (RATE_FP8_TFLOPS * 1e12), 0.5 * g['bytes'] / (BW_GBPS * 1e9))
+        share = t32 / tot32
+        y16 += gemm_class_ms * share * (1 - t16 / t32)
+        y8 += gemm_class_ms * share * (1 - t8 / t32)
+        key = (g['M'], g['N'], g['K'])
+        d = shapes.setdefault(key, {'sites': 0, 'f16': 1 - t16 / t32, 'f8': 1 - t8 / t32, 'compute_bound_fp32acc': fl / (RATE_FP16_ACC_FP32_TFLOPS * 1e12) >= g['bytes'] / (BW_GBPS * 1e9)})
+        d['sites'] += 1
+    return {'Y16_ms': y16, 'f16_eff': y16 / gemm_class_ms, 'Y8_ms': y8, 'f8_eff': y8 / gemm_class_ms, 'shapes': shapes}
 
 
 def load(path):
@@ -237,8 +271,19 @@ def build(ev):
         def tsum(d):
             return sum((r.get('time_us_per_pass') or 0.0) for r in d.values()) / 1e3
 
-        # ---- X2 epilogue fusion
-        if sets['X2']:
+        # ---- X2 epilogue fusion: the Phase-3 split (E4a norm/residual, E4b RoPE, gating) when available
+        x2s = (load(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', 'phase3', 'x2', 'x2_split.json')) or {}).get(str(O))
+        if x2s:
+            for key, label, effort, lane in (('norm_residual', 'X2a norm-scale + residual folding into the following GEMM epilogues (E4a)', 'wrapper', 'agent'),
+                                             ('rope_qkv', 'X2b RoPE folded into the QKV GEMM epilogue (E4b)', 'kernel', 'owner lane'),
+                                             ('other_epilogue', 'X2c GLU gating epilogue (not scheduled)', 'config→kernel', '—')):
+                v = x2s.get(key) or {}
+                rows.append(row(label, O, v.get('time_ms_per_pass'), v.get('f_modelled'), 'B', effort,
+                                'numerical: rounding points move; task-level SDR gate required per stem', 'G1',
+                                f"docs/phase3/x2/x2_split.json ({v.get('n_rows')} kernel rows, {v.get('launches_per_pass', 0):.0f} launches/pass, read {v.get('bytes_read_per_pass')} B, write {v.get('bytes_write_per_pass')} B); ideal_costs v2 rows",
+                                'NonGEMM Bench prior: non-GEMM operators remain 15–48 % of latency after fusion; the epilogue-fused GEMM may run slower than the bare GEMM; ' + lane, wall,
+                                caveats=cav, note=f"f = write/(read+write): the GEMM-output round trip disappears; upper bound (whole time) = {v.get('upper_bound_ms', 0):.4f} ms"))
+        elif sets['X2']:
             T = tsum(sets['X2'])
             rw = [(r.get('bytes_write_per_pass'), r.get('bytes_per_pass')) for r in sets['X2'].values()]
             if all(fin(w) and fin(b) and b > 0 for w, b in rw):
@@ -250,7 +295,7 @@ def build(ev):
                             f'traces/ideal_costs_C3_{O}.json rows + dump wrapper order: {len(sets["X2"])} kernels',
                             'the epilogue kernels are already partly overlapped or the fused GEMM slows down', wall,
                             caveats=cav, note=note))
-        else:
+        elif not x2s:
             rows.append(unresolved('X2 epilogue fusion into GEMMs', O, 'no C3 unique variant / wrapper order available', group='G1'))
 
         # ---- X3 attention backend per axis
@@ -280,8 +325,15 @@ def build(ev):
         else:
             h3, hh = E.headline('C3', O), E.headline('H', O)
             d = (h3 - hh) if (h3 is not None and hh is not None) else None
-        rows.append(row('X5 band-split + mask-estimator restructuring (H)', O, d, 1.0, 'A', 'wrapper', 'none (validated)', '—',
-                        'matched_C3_H / headline C3 − H', 'the grouped alternative pads more than measured', wall, modelled=False))
+        pbt = {r_['O']: r_ for r_ in (load(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', 'phase3', 'padbatch', 'decomposition_table.json')) or [])}
+        pb = pbt.get(O) or {}
+        attr = (f"attribution (docs/phase3/padbatch/decomposition_table.json): batching benefit {pb.get('batching_benefit_ms (gap/launch floor removed)', float('nan')):+.3f} ms, "
+                f"padding cost {-pb.get('padding_cost_ms (extra FLOPs at H rate)', float('nan')):+.3f} ms, kernel-efficiency change {-pb.get('kernel_efficiency_change_ms (true work at H rate vs C3 rate; + = H slower)', float('nan')):+.3f} ms, "
+                f"non-GEMM front/tail {-pb.get('non_GEMM_front_tail_delta_ms (H - C3)', float('nan')):+.3f} ms, transformer {-pb.get('transformer_middle_delta_ms (H - C3)', float('nan')):+.3f} ms, residual vs wall {pb.get('residual_vs_wall_ms', float('nan')):+.3f} ms") if pb else 'attribution pending 2.4'
+        rows.append(row('X5 band-split + mask-estimator restructuring (H): NET difference C3 − H', O, d, 1.0, 'A', 'wrapper', 'none (validated)', '—',
+                        'matched_C3_H / headline C3 − H (net difference, never "padding waste")',
+                        'varying-K grouped-GEMM kernels exist (CUTLASS grouped GEMM, cuBLAS grouped API, Triton grouped-GEMM tutorial, torch._grouped_mm 2D×2D); any ragged-K row rests on a measured comparison in this shape regime, not on their absence', wall, modelled=False,
+                        note=attr))
         if sets['front'] or sets['tail']:
             rows.append({'X': 'X5 residual pool (front + tail fused kernels)', 'O': O, 'status': 'ok', 'T_attributable_ms': tsum(sets['front']) + tsum(sets['tail']),
                          'f_recoverable': None, 'Y_ms': None, 'Z_pct': None, 'T_wall_ms': wall, 'conf': 'C', 'effort': 'kernel',
@@ -327,10 +379,18 @@ def build(ev):
 
         # ---- X8 / X9 GEMM precision (G2 alternatives)
         gemm_t = ((ic.get('class_totals_us_per_pass') or {}).get('GEMM') or 0.0) / 1e3 if ideal_ok else None
-        for X, f, why in (('X8 FP8 GEMMs (offline)', 0.5, 'fp8 needs scaling kernels and the SDR pre-check fails'),
-                          ('X9 fp16-accumulate GEMMs', 0.5, 'GeForce fp16-accumulate rate is not fully realised')):
-            rows.append(row(X, O, gemm_t, f, 'C', 'kernel/config', 'TASK-LEVEL (SDR pre-check required)', 'G2',
-                            f'ideal_costs_C3_{O}.json class_totals GEMM; f = registered constant 0.5 (not measured)', why, wall, caveats=cav))
+        gb = gemm_precision_bounds([g for g in (ic.get('gemm_sites') or []) if g.get('M')], gemm_t) if gemm_t else None
+        if gb:
+            sh = '; '.join(f"({m},{n},{k})×{v['sites']}: f16 {v['f16']:.3f}, f8 {v['f8']:.3f}, {'compute' if v['compute_bound_fp32acc'] else 'traffic'}-bound at fp32-acc" for (m, n, k), v in sorted(gb['shapes'].items(), key=lambda kv: -kv[1]['sites'])[:6])
+            rows.append(row('X9 fp16-accumulate GEMMs (per-shape roofline bound)', O, gemm_t, gb['f16_eff'], 'C', 'kernel/config', 'TASK-LEVEL (SDR pre-check required; fp16 range at K = 1536)', 'G2',
+                            f'ideal_costs_C3_{O}.json class GEMM time apportioned to {sum(v["sites"] for v in gb["shapes"].values())} extern sites by fp32-acc roofline share; rates 419 / 209.5 TFLOPS, 1792 GB/s (RTX Blackwell whitepaper); f_site = 1 − t16/t32 (s → f = 1 − 1/s); {sh}',
+                            'the fp16-accumulate MMA rate is not reached at these tile shapes (Luo et al.: ratios vary by shape and generation); traffic-bound sites gain nothing; exists only because the path runs fp16 autocast (BF16 has no fp16-accumulate MMA)', wall, caveats=cav))
+            rows.append(row('X8 FP8 GEMMs — memory-traffic lever, quality-gated (downgraded)', O, gemm_t, gb['f8_eff'], 'C', 'kernel/config', 'TASK-LEVEL (SDR pre-check required; per-tensor scaling)', 'G2',
+                            f'same sites; FP8 shares the 419 TFLOPS ceiling on GeForce (cuBLASLt needs CUBLAS_COMPUTE_32F), traffic halved; cannot compound with X9', 
+                            'scaling/quantisation kernels are added (vLLM measured FP8 17 % slower than BF16 on a 5090 with torch 2.8, issue #28234); only traffic-bound sites gain', wall, caveats=cav))
+        else:
+            for X in ('X9 fp16-accumulate GEMMs (per-shape roofline bound)', 'X8 FP8 GEMMs — memory-traffic lever, quality-gated (downgraded)'):
+                rows.append(unresolved(X, O, 'GEMM class time or extern site shapes unavailable', group='G2'))
 
         # ---- X10 / X11 / X12 (G3, 4410 regime)
         gap_key = 'trivial/graph/N1000'
@@ -383,11 +443,12 @@ def build(ev):
             vb = E.views(best_arm, O).get('median_us') or {}
             cp = vb.get('critical_path_observed_order_ns')
             if fin(cp) and fin(c_boundary) and wall:
-                rows.append(row('X12 persistent megakernel (upper bound)', O, max(0.0, wall - cp / 1e3 - c_boundary / 1e3), 1.0, 'C', 'architecture',
-                                'numerical', 'G3', f'wall(best={best_arm}) − critical path (timing_views_{best_arm}_{O}) − one graph-mode gap',
-                                'the megakernel cannot reach the observed-order critical path (realistic 1.5–3× over graphs per Hazy/Mirage)', wall))
+                rows.append(row('X12 boundary-removal figure (persistent execution; NOT a bound until removable costs are justified and the microbenchmark coefficient is shown to transfer)', O,
+                                max(0.0, wall - cp / 1e3 - c_boundary / 1e3), 1.0, 'C', 'architecture', 'numerical', 'G3',
+                                f'wall(best={best_arm}) − observed-order critical path (timing_views_{best_arm}_{O}) − one graph-mode gap ({c_boundary:.3f} µs, boundary_bench_trace_analysis)',
+                                'excluded mechanisms, sized from the literature: cross-task pipelining 1.2–1.3× per task (MPK, Qwen3-8B on B200); achieved-bandwidth lift 39 % → 62 % of speed-of-light (Cohere, weight-floored decode on H100); a megakernel\'s own ~120 µs sync + setup (Hazy, Llama-3.2-1B on B200) as the counterweight', wall))
             else:
-                rows.append(unresolved('X12 persistent megakernel (upper bound)', O, 'critical path of the best arm or the boundary gap missing', group='G3'))
+                rows.append(unresolved('X12 boundary-removal figure', O, 'critical path of the best arm or the boundary gap missing', group='G3'))
 
         # ---- X13 mask-estimator chain
         gsites = ic.get('gemm_sites') or []
@@ -433,6 +494,10 @@ def build(ev):
     return E, rows
 
 
+def fmt_r(v):
+    return f'{v:.4f}' if fin(v) else ''
+
+
 def render(E, rows, out):
     L = []
     m = E.manifest
@@ -450,19 +515,21 @@ def render(E, rows, out):
                  f"T_wall = {best[1]:.4f} ms" if best else f"## O = {O} — best arm UNRESOLVED")
         L.append(f"session verdicts: session1 {st['session1']}, session2 {st['session2']} (an INCOMPLETE session keeps every row that cites a missing item UNRESOLVED)")
         L.append('')
-        L.append('| X | T_attr (ms) | f | Y (ms) | Z (%) | conf | effort | quality risk | group | label | evidence | would be lower if | caveats |')
-        L.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+        L.append('| X | T_attr (ms) | f | Y (ms) | Z (%) | conf | effort | quality risk | group | label | evidence | would be lower if | caveats | realized (ms) | realized / ceiling |')
+        L.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
         for r in rows:
             if r['O'] != O:
                 continue
             if r['status'] != 'ok':
-                L.append(f"| {r['X']} | UNRESOLVED | — | — | — | {r.get('conf', '—')} | — | — | {r.get('group', '—')} | — | {r.get('evidence', '—')} | {r['why']} | — |")
+                L.append(f"| {r['X']} | UNRESOLVED | — | — | — | {r.get('conf', '—')} | — | — | {r.get('group', '—')} | — | {r.get('evidence', '—')} | {r['why']} | — | | |")
                 continue
             f = f"{r['f_recoverable']:.3f}" if fin(r.get('f_recoverable')) else '—'
             Y = f"{r['Y_ms']:.4f}" if fin(r.get('Y_ms')) else '—'
             Z = f"{r['Z_pct']:.2f}" if fin(r.get('Z_pct')) else '—'
+            rz = r.get('realized_ms')
+            rc = f"{rz / r['Y_ms']:.2f}" if (fin(rz) and fin(r.get('Y_ms')) and r['Y_ms']) else ''
             L.append(f"| {r['X']} | {r['T_attributable_ms']:.4f} | {f} | {Y} | {Z} | {r['conf']} | {r['effort']} | {r['quality_risk']} | {r['group']} | {r['label']} | "
-                     f"{r['evidence']} | {r['would_be_lower_if']} | {'; '.join(r['caveats']) or '—'}{(' · ' + r['note']) if r.get('note') else ''} |")
+                     f"{r['evidence']} | {r['would_be_lower_if']} | {'; '.join(r['caveats']) or '—'}{(' · ' + r['note']) if r.get('note') else ''} | {fmt_r(rz)} | {rc} |")
         L.append('')
         # thresholds
         L.append('**Thresholds (plan 3.2, mechanical):**')
@@ -478,6 +545,17 @@ def render(E, rows, out):
                 verdict = 'meets 2× on wall' if r['Y_ms'] >= need_ms else 'below 2× on wall (reported only)'
                 L.append(f"- {r['X']}: Y = {r['Y_ms']:.4f} ms vs {need_ms:.4f} ms needed for 2× → {verdict}")
         L.append('')
+    L.append('## Coverage check and tightness (Phase 3 §2.6 iv)')
+    real = [r for r in rows if r['status'] == 'ok' and fin(r.get('realized_ms'))]
+    over = [r for r in real if r['realized_ms'] > r['Y_ms'] + 1e-9]
+    L.append(f"- realized values filled: {len(real)}; rows whose realized value EXCEEDS its ceiling (falsified attribution): {[(r['X'], r['O']) for r in over] or 'none'}")
+    for g in ('A', 'B', 'C'):
+        rs = [r for r in rows if r['status'] == 'ok' and r['conf'] == g and fin(r.get('Y_ms'))]
+        scored = [r for r in rs if fin(r.get('realized_ms'))]
+        tight = [r['realized_ms'] / r['Y_ms'] for r in scored if r['Y_ms'] > 0]
+        L.append(f"- confidence {g}: {len(rs)} rows, {len(scored)} scored; realized/ceiling median {statistics.median(tight):.2f} (min {min(tight):.2f}, max {max(tight):.2f})" if tight else f"- confidence {g}: {len(rs)} rows, none scored yet")
+    L.append('- notation: f_recoverable is the fraction of T_attributable removed; a class speed-up s gives f = 1 − 1/s; the remaining-time fraction is never written in the f column.')
+    L.append('')
     L.append('## Stacking note (mandatory)')
     L.append('- G1 (X2, X6, X6a, X13) share kernels: sum at most the "G1 union of attributable time" row of each O, never the arithmetic sum.')
     L.append('- G2 (X8, X9) are alternatives: never summed; both require an SDR pre-check before any kernel work.')
