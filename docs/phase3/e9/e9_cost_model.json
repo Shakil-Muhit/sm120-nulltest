@@ -1,4 +1,6 @@
 {
+ "tolerance_ms": 0.4,
+ "pass_rule": "sign correct at both held-out lengths and |observed - predicted| <= tolerance_ms at both (prereg v0.2 E9)",
  "inputs": {
   "B": 0.5668002500000024,
   "NF": [

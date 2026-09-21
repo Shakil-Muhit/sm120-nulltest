@@ -105,7 +105,8 @@ def crossover(v):
     sign_changes = np.where(np.diff(np.sign(Ds)) != 0)[0]
     return [int(Ls[i]) for i in sign_changes], Ls, Ds
 best_name = min(variants, key=lambda k: variants[k]['max_abs_res'])
-out = {'inputs': dict(B=B, NF=NF, MID=MID, pad_gflop_per_frame=pad_gflop_per_frame, true_gflop_per_frame=true_gflop_per_frame,
+out = {'tolerance_ms': 0.4, 'pass_rule': 'sign correct at both held-out lengths and |observed - predicted| <= tolerance_ms at both (prereg v0.2 E9)',
+       'inputs': dict(B=B, NF=NF, MID=MID, pad_gflop_per_frame=pad_gflop_per_frame, true_gflop_per_frame=true_gflop_per_frame,
                       trace_rates=dict(rH1=rH1, rH8=rH8, rC1=rC1, rC8=rC8), sweep_obs_C3_minus_H=obs, matched=matched, hop=HOP),
        'variants': variants, 'registered_variant': best_name, 'held_out': {}}
 for name in [best_name, 'traces_only_THNone_TCNone']:
