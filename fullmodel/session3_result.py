@@ -70,7 +70,7 @@ def sdr_of(ev, arm, O):
 def gv_of(ev, arm, O, sfx=''):
     g = load(os.path.join(ev, 'traces', f'graph_verify_{arm}_{O}{sfx}.json')) or {}
     m = g.get('median') or {}
-    return g.get('verdict', 'UNRESOLVED'), m.get('graph_launch_calls'), m.get('captured_model_kernels'), m.get('staging_copies', m.get('staging'))
+    return g.get('verdict', 'UNRESOLVED'), m.get('graph_launch_calls'), m.get('captured_model_kernels'), m.get('input_staging_kernels')
 
 
 def cc_of(ev, arm, O):
