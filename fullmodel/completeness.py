@@ -39,7 +39,7 @@ BOUNDARY_CHAINS = [f'trivial/{m}/N{n}' for m in ('stream', 'graph', 'pdl_stream'
                   [f'{ch}/{m}/N{n}' for ch in ('elem37', 'gemm') for m in ('stream', 'graph') for n in (10, 100)]
 OPS = {'session1': (352800, 4410), 'session2': (352800, 4410, 22050, 88200), 'session3': (352800, 4410)}
 HELD_OUT_S3 = (176400, 264600)
-ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py', 'e_tools.py', 'session_result_v2.py',
+ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py', 'e_tools.py', 'session_result_v2.py', 'session3_result.py', 'figures.py',
                   'ideal_costs.py', 'graph_verify.py', 'timing_views.py', 'perturbation.py', 'kernel_map.py', 'classify.py')
 MANIFEST_FIELDS = ('manifest_id', 'session', 'created_utc', 'repo_commit', 'registration_sha256',
                    'clips_manifest_sha256', 'code', 'provenance', 'runtime', 'env')
@@ -263,6 +263,7 @@ def clock_series(ev, session, gpu_uuid):
 
 
 def block_sm_median(series, a, b, window=3.0):
+    # with the 5 Hz session-3 sampler most 100 ms blocks hold their own samples; the window is the fallback
     """Median SM clock over the samples inside [a, b]; a block shorter than the 1 Hz
     sampling interval (50 passes at 100 ms take 0.15 s) uses the nearest samples within
     `window` seconds on either side instead."""

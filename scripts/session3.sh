@@ -53,6 +53,7 @@ import loader, provenance, timing
 print('manifest ok', provenance.load_manifest(sys.argv[1], loader.paths_from_env(), timing.env_fingerprint())['manifest_id'])
 PYEOF
 fi
+export CLOCK_LMS="${CLOCK_LMS:-200}"          # 5 Hz clock samples: 100 ms timing blocks (0.15 s) get their own samples for the drift rule
 clocks_start "$EVID/clocks_session3.csv"
 MID=$(python3 -c "import json;print(json.load(open('$EVID/session_manifest.json'))['manifest_id'])")
 

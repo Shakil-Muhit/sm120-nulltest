@@ -189,9 +189,14 @@ run_aux() {
     return $rc
 }
 
-clocks_start() {   # file
-    nvidia-smi --query-gpu=timestamp,uuid,clocks.sm,clocks.mem,power.draw,temperature.gpu,utilization.gpu \
-        --format=csv,noheader -l 1 > "$1" 2>/dev/null &
+clocks_start() {   # file; CLOCK_LMS (ms) selects a sub-second sampler (session 3: 100 ms blocks need it), else 1 Hz
+    if [ -n "${CLOCK_LMS:-}" ]; then
+        nvidia-smi --query-gpu=timestamp,uuid,clocks.sm,clocks.mem,power.draw,temperature.gpu,utilization.gpu \
+            --format=csv,noheader -lms "$CLOCK_LMS" > "$1" 2>/dev/null &
+    else
+        nvidia-smi --query-gpu=timestamp,uuid,clocks.sm,clocks.mem,power.draw,temperature.gpu,utilization.gpu \
+            --format=csv,noheader -l 1 > "$1" 2>/dev/null &
+    fi
     CLK_PID=$!
     trap 'kill $CLK_PID 2>/dev/null' EXIT
 }
