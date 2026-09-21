@@ -29,14 +29,29 @@ import streams                                # noqa: E402  sm120 arms/streams.p
 import capture as capture_mod                 # noqa: E402
 import padbatch                               # noqa: E402
 
-ARMS = ('A', 'ANVTX', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H')
-COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H')
+ARMS = ('A', 'ANVTX', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H',
+        'C3F', 'C3P', 'C3M', 'C1P', 'C3N')          # Phase 3: E1a, E1b, E2, E3, E4a
+COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H', 'C3F', 'C3P', 'C3M', 'C1P', 'C3N')
 CAPTURE_ARMS = ('B', 'E', 'G')
-REQUIRE_ZERO_BREAKS = ('C3', 'H')             # gate: zero graph breaks or INVALID
+REQUIRE_ZERO_BREAKS = ('C3', 'H', 'C3F', 'C3P', 'C3M', 'C3N')   # gate: zero graph breaks or INVALID
 # classification rule (sm120 VAL_TOL rationale): compiler-regenerated kernels
 # present -> loose; else tight.
 TIER = {a: ('loose' if a in COMPILE_ARMS else 'tight') for a in ARMS}
-CHUNKS = (352800, 4410, 22050, 88200)         # registered operating points + sweep
+CHUNKS = (352800, 4410, 22050, 88200, 176400, 264600)   # registered operating points + sweep + E9 held-out
+HELD_OUT_CHUNKS = (176400, 264600)            # E9: run ONLY inside the registered pod session (SESSION_POD=1)
+
+
+def held_out_guard(chunk):
+    """E9 rule (Phase 3 handoff R10/§4): the two held-out chunk lengths are never
+    run on the shakedown host or in any ad-hoc process; only the pod session
+    exports SESSION_POD=1."""
+    if int(chunk) in HELD_OUT_CHUNKS and os.environ.get('SESSION_POD') != '1':
+        raise RuntimeError(f'chunk {chunk} is an E9 held-out length: it runs only inside the registered pod session')
+
+
+def base_arm(label):
+    """'C3#2' (second instance of an A/A pair) -> 'C3'."""
+    return str(label).split('#')[0]
 DEFAULT_STREAMS = 4
 PLANTED_FAULT_CONST = 1e-3                    # §1.2 registered planted fault
 
@@ -64,6 +79,7 @@ def _compile(model, mode, info):
 
 
 def build_arm_step(arm, model, x_example, ctx_nocache, num_streams, info, out_dir):
+    arm = base_arm(arm)
     """info: caller's dict, mutated in place (capture_scope, capture_adapter,
     capture_attempts, stream_count, compile_mode, c3_fixes, padbatch,
     nvtx_boundary_mode, notes)."""
@@ -121,6 +137,39 @@ def build_arm_step(arm, model, x_example, ctx_nocache, num_streams, info, out_di
         info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
         info['padbatch'] = padbatch.install(model)
         return _compile(model, 'reduce-overhead', info)
+
+    # ---- Phase 3 arms (prereg_amendments.md v0.2) ----
+    if arm == 'C3F':                                  # E1(a): C3 + Inductor freezing
+        import torch._inductor.config as icfg
+        icfg.freezing = True
+        info['inductor_config'] = {'freezing': True}
+        info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
+        return _compile(model, 'reduce-overhead', info)
+
+    if arm == 'C3P':                                  # E1(b): C3 + pre-cast band/mask Linear weights
+        import precast
+        info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
+        info['precast'] = precast.install(model)
+        return _compile(model, 'reduce-overhead', info)
+
+    if arm == 'C3M':                                  # E2: repair x max-autotune (with cudagraphs)
+        info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
+        return _compile(model, 'max-autotune', info)
+
+    if arm == 'C1P':                                  # E3: C1 + Inductor graph partition
+        import torch._inductor.config as icfg
+        icfg.graph_partition = True
+        info['inductor_config'] = {'graph_partition': True}
+        return _compile(model, 'reduce-overhead', info)
+
+    if arm == 'C3N':                                  # E4a: C3 + norm-scale folding wrapper
+        import foldnorm
+        mode = os.environ.get('E4A_MODE', 'reduce-overhead')
+        assert mode in ('reduce-overhead', 'max-autotune'), mode
+        info['inductor_config'] = {'e4a_mode': mode}
+        info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
+        info['foldnorm'] = foldnorm.install(model)
+        return _compile(model, mode, info)
 
     raise ValueError(f'unknown arm {arm!r}')
 

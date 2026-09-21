@@ -8,12 +8,18 @@ recording stability, gate, manifest) — never from stored booleans.
 QUALIFY_VERSION = 5
 REGISTERED_ITERS = 50
 REGISTERED_REPEATS = 5
-COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H')
-ZERO_BREAK_ARMS = ('C3', 'H')
+COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H', 'C3F', 'C3P', 'C3M', 'C1P', 'C3N')
+ZERO_BREAK_ARMS = ('C3', 'H', 'C3F', 'C3P', 'C3M', 'C3N')
 VARIANT_FIELDS = ('capture_scope', 'capture_adapter_active', 'compile_mode', 'stream_count')
 TIERS = {'loose': (1e-2, 1e-3), 'tight': (1e-4, 1e-5)}
 TIER_OF = {a: ('loose' if a in COMPILE_ARMS else 'tight')
-           for a in ('A', 'ANVTX', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H')}
+           for a in ('A', 'ANVTX', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H',
+                     'C3F', 'C3P', 'C3M', 'C1P', 'C3N')}
+
+
+def base(arm):
+    """'C3#2' (second instance in an A/A pair) -> 'C3'."""
+    return str(arm).split('#')[0]
 VALIDATION_SEEDS = (1001, 2002)
 SDR_CLIPS = 8
 SDR_THRESHOLD_DB = -0.1
@@ -184,7 +190,7 @@ def validation_problems(rec):
     if v.get('status') == 'REFERENCE_SAVED':
         return ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)']
     arm = rec.get('arm')
-    tier = TIER_OF.get(arm)
+    tier = TIER_OF.get(base(arm))
     if rec.get('forced_tier'):
         tier = rec['forced_tier']
     passes = v.get('passes') or []
@@ -288,7 +294,7 @@ def gate_problems(arm, gate, snapshot_after_settle):
     if not isinstance(g.get('graph_break_count'), int) or not isinstance(g.get('unimplemented_count'), int):
         out.append('graph gate counters missing')
         return out
-    if arm in ZERO_BREAK_ARMS and (g['graph_break_count'] != 0 or g['unimplemented_count'] != 0
+    if base(arm) in ZERO_BREAK_ARMS and (g['graph_break_count'] != 0 or g['unimplemented_count'] != 0
                                   or g.get('require_zero_breaks') is not True):
         out.append('zero-break gate: graph breaks / unimplemented ops not 0 (or rule not applied)')
     c = (snapshot_after_settle or {}).get('counters') if isinstance(snapshot_after_settle, dict) else None
@@ -324,7 +330,7 @@ def run_problems(rec, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS,
             problems.append(b)
     if not rec.get('effective_variant') and any(k in rec for k in VARIANT_FIELDS):
         problems.append('effective variant not recorded')
-    if rec.get('arm') in COMPILE_ARMS:
+    if base(rec.get('arm')) in COMPILE_ARMS:
         st = stability_recomputed(rec)
         if rec.get('counters_stable') is not True or st is not True:
             problems.append('recording stability not affirmatively established from the stored snapshots')
@@ -369,7 +375,7 @@ def trace_problems(rec, iters=REGISTERED_ITERS):
         problems.append('one-block timing samples incomplete, non-finite, or contradicting stored summaries')
     if not rec.get('effective_variant'):
         problems.append('effective variant not recorded')
-    if rec.get('arm') in COMPILE_ARMS:
+    if base(rec.get('arm')) in COMPILE_ARMS:
         st = stability_recomputed(rec)
         if rec.get('counters_stable') is not True or st is not True:
             problems.append('recording stability not affirmatively established from the stored snapshots')

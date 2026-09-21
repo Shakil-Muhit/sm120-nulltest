@@ -90,9 +90,108 @@ if HAVE_GDC:
 else:
     add_one_pdl = None
 
+PROLOGUE_ITERS = 4096      # dependent fp32 FMA loop (~2 us of register work with no memory dependency)
+
+
+@triton.jit
+def add_one_prologue(x_ptr, acc_ptr, ITERS: tl.constexpr):
+    a = tl.zeros([1], dtype=tl.float32) + 1.0
+    for _ in range(ITERS):
+        a = a * 0.999 + 0.5
+    tl.store(acc_ptr, a)                     # keep the loop alive (independent buffer)
+    v = tl.load(x_ptr)
+    tl.store(x_ptr, v + 1)
+
+
+if HAVE_GDC:
+    @triton.jit
+    def add_one_prologue_pdl(x_ptr, acc_ptr, ITERS: tl.constexpr):
+        a = tl.zeros([1], dtype=tl.float32) + 1.0
+        for _ in range(ITERS):
+            a = a * 0.999 + 0.5
+        tl.store(acc_ptr, a)
+        gdc_wait()                           # the dependent load waits; the loop above may overlap the primary's tail
+        v = tl.load(x_ptr)
+        tl.store(x_ptr, v + 1)
+        gdc_launch_dependents()
+else:
+    add_one_prologue_pdl = None
+
 
 def _trivial_kernels():
     return add_one, add_one_pdl
+
+
+def compiled_kernels(kernel):
+    """Compiled kernel objects of a Triton JIT function (after at least one launch)."""
+    out = []
+    caches = getattr(kernel, 'device_caches', None) or {}
+    for dev, entry in caches.items():
+        cache = entry[0] if isinstance(entry, (tuple, list)) else entry
+        out.extend(list(cache.values()))
+    return out
+
+
+def pdl_sass_check(kernel):
+    """E7: disassemble the compiled cubin (Triton's bundled cuobjdump / nvdisasm) and
+    record which SASS lines carry grid-dependency control. Reports data only: the
+    mnemonics found; no claim beyond presence/absence."""
+    import subprocess, tempfile
+    try:
+        cks = compiled_kernels(kernel)
+        if not cks:
+            return {'status': 'UNRESOLVED: no compiled kernel in device cache'}
+        asm = getattr(cks[0], 'asm', None) or {}
+        sass = None
+        try:
+            sass = asm.get('sass') if hasattr(asm, 'get') else None
+        except Exception:
+            sass = None
+        tool = None
+        if not sass:
+            cubin = asm['cubin'] if 'cubin' in asm else None
+            if cubin is None:
+                return {'status': 'UNRESOLVED: no cubin in asm'}
+            tri_bin = os.path.join(os.path.dirname(triton.__file__), 'backends', 'nvidia', 'bin')
+            for cand in (os.path.join(tri_bin, 'cuobjdump'), 'cuobjdump', os.path.join(tri_bin, 'nvdisasm'), 'nvdisasm'):
+                try:
+                    with tempfile.NamedTemporaryFile(suffix='.cubin', delete=False) as f:
+                        f.write(cubin); path = f.name
+                    args = [cand, '-sass', path] if 'cuobjdump' in cand else [cand, path]
+                    sass = subprocess.run(args, capture_output=True, text=True, timeout=120).stdout
+                    os.unlink(path)
+                    if sass and len(sass) > 100:
+                        tool = cand
+                        break
+                except Exception:
+                    continue
+        if not sass:
+            return {'status': 'UNRESOLVED: no disassembler produced SASS'}
+        lines = [l.strip() for l in sass.splitlines()]
+        dep = [l for l in lines if re.search(r'ACQBULK|PREEXIT|DEPBAR|GRIDDEP|CGAERRBAR|ENDCOLLECTIVE', l)]
+        mnems = sorted({m for l in dep for m in re.findall(r'\b(ACQBULK|PREEXIT|GRIDDEP\w*)\b', l)})
+        return {'status': 'ok', 'tool': tool or 'triton asm[sass]', 'sass_lines': len(lines),
+                'griddep_mnemonics_found': mnems, 'matching_lines': dep[:20],
+                'note': 'ACQBULK/PREEXIT are the SASS forms of griddepcontrol.wait/launch_dependents on recent '
+                        'architectures as documented by third parties; recorded as data, not as a claim'}
+    except Exception as e:
+        return {'status': f'UNRESOLVED: {type(e).__name__}: {e}'[:300]}
+
+
+def launch_attributes_record():
+    """What `launch_pdl=True` sets (Triton 3.4 driver launcher): the CUDA launch attribute
+    cudaLaunchAttributeProgrammaticStreamSerialization on the kernel launch."""
+    try:
+        import inspect
+        from triton.backends.nvidia import driver as drv
+        src = inspect.getsource(drv)
+        attr = 'CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION' in src or 'ProgrammaticStreamSerialization' in src
+        return {'triton': triton.__version__, 'launch_pdl_flag': True,
+                'driver_source_mentions_programmatic_stream_serialization': bool(attr),
+                'attribute': 'cudaLaunchAttributeProgrammaticStreamSerialization (value 1) when launch_pdl=True',
+                'ptx': 'griddepcontrol.wait / griddepcontrol.launch_dependents (checked in pdl_ptx)'}
+    except Exception as e:
+        return {'triton': triton.__version__, 'launch_pdl_flag': True, 'status': f'UNRESOLVED: {type(e).__name__}'}
 
 
 def pdl_ptx_has_griddepcontrol(kernel):
@@ -219,7 +318,7 @@ def analyze_trace(base, out, traced_json=None):
             continue
         # the proof DATA decides, not the label (gate-05 f72): trivial chains carry the
         # exact dependency counter; PDL modes additionally need the PTX qualification
-        if nm.startswith('trivial/'):
+        if nm.startswith('trivial/') or nm.startswith('prologue/'):
             # the expected counter is DERIVED here from N, mode, warmup and repeats
             # (gate-06 f93): 25N for stream modes, 27N for graph modes (capture adds 2)
             mode = nm.split('/')[1]
@@ -247,6 +346,9 @@ def analyze_trace(base, out, traced_json=None):
                    'gap_us_median': statistics.median(gaps) / 1e3,
                    'gap_us_min': min(gaps) / 1e3, 'gap_us_max': max(gaps) / 1e3,
                    'negative_gap_fraction': sum(1 for g in gaps if g < 0) / len(gaps),
+                   'overlap_count': sum(1 for g in gaps if g < 0),
+                   'overlap_us_median': (statistics.median([-g for g in gaps if g < 0]) / 1e3) if any(g < 0 for g in gaps) else 0.0,
+                   'overlap_observed': any(g < 0 for g in gaps),
                    'note': ('overlapping kernels (PDL): gap is not a boundary estimate'
                             if 'pdl' in nm else 'serial gap = boundary estimate for this mode')}
     res['_qualification'] = {'traced_json': traced_json, 'cases': len(cases), 'note': qual_note,
@@ -295,6 +397,18 @@ def main():
                     k[(1,)](x)
         return go
 
+    acc = torch.zeros(1, device=dev, dtype=torch.float32)
+
+    def launch_prologue(n, pdl):
+        k = add_one_prologue_pdl if pdl else add_one_prologue
+        def go():
+            for _ in range(n):
+                if pdl:
+                    k[(1,)](x, acc, PROLOGUE_ITERS, launch_pdl=True)
+                else:
+                    k[(1,)](x, acc, PROLOGUE_ITERS)
+        return go
+
     def launch_elem(n):
         def go():
             for _ in range(n):
@@ -317,6 +431,11 @@ def main():
         specs.append(('trivial', 'graph', n, launch_trivial(n, False), True))
         specs.append(('trivial', 'pdl_stream', n, launch_trivial(n, True), False))
         specs.append(('trivial', 'pdl_graph', n, launch_trivial(n, True), True))
+    for n in (100, 1000):                      # E7: kernels WITH a prologue to hide (FlashInfer-style)
+        specs.append(('prologue', 'stream', n, launch_prologue(n, False), False))
+        specs.append(('prologue', 'graph', n, launch_prologue(n, False), True))
+        specs.append(('prologue', 'pdl_stream', n, launch_prologue(n, True), False))
+        specs.append(('prologue', 'pdl_graph', n, launch_prologue(n, True), True))
     for n in (10, 100):
         specs.append(('elem37', 'stream', n, launch_elem(n), False))
         specs.append(('elem37', 'graph', n, launch_elem(n), True))
@@ -326,15 +445,15 @@ def main():
     launches_expected = 0
     for chain, mode, n, launch, capture in specs:
         key = f'{chain}/{mode}/N{n}'
-        if mode.startswith('pdl') and add_one_pdl is None:
+        if mode.startswith('pdl') and (add_one_pdl is None or add_one_prologue_pdl is None):
             result['chains'][key] = {'status': 'UNTESTED', 'reason': 'triton gdc intrinsics unavailable'}
             print(f'[boundary] {key}: UNTESTED (no gdc)')
             continue
         try:
-            before = int(x.item()) if chain == 'trivial' else None
+            before = int(x.item()) if chain in ('trivial', 'prologue') else None
             rec = time_chain(launch, n, capture, key)
             rec['status'] = 'ok'
-            if chain == 'trivial':
+            if chain in ('trivial', 'prologue'):
                 torch.cuda.synchronize()
                 after = int(x.item())
                 # executed chains: WARMUP eager + [capture mode: 1 side-stream
@@ -348,7 +467,7 @@ def main():
                     rec['status'] = 'FAILED_PROOF'      # excluded from fits/derived values
             print(f"[boundary] {key}: {rec['per_launch_us']:.3f} us/launch (chain {rec['chain_us_median']:.1f} us, "
                   f"min {rec['chain_us_min']:.1f}, max {rec['chain_us_max']:.1f})"
-                  + (f" counter {rec['counter_delta']}/{rec['counter_expected']}" if chain == 'trivial' else ''))
+                  + (f" counter {rec['counter_delta']}/{rec['counter_expected']}" if chain in ('trivial', 'prologue') else ''))
         except Exception as e:
             rec = {'status': 'UNTESTED', 'reason': f'{type(e).__name__}: {e}'[:400],
                    'traceback': traceback.format_exc()[-2000:]}
@@ -359,14 +478,18 @@ def main():
     # instructions; otherwise every PDL case is UNRESOLVED and excluded
     if add_one_pdl is not None:
         result['pdl_ptx'] = pdl_ptx_has_griddepcontrol(add_one_pdl)
+        result['pdl_ptx_prologue'] = pdl_ptx_has_griddepcontrol(add_one_prologue_pdl)
+        result['pdl_sass'] = pdl_sass_check(add_one_pdl)                    # E7 evidence
+        result['pdl_sass_prologue'] = pdl_sass_check(add_one_prologue_pdl)
+        result['pdl_launch_attributes'] = launch_attributes_record()
     else:
         result['pdl_ptx'] = 'UNTESTED: gdc intrinsics unavailable'
-    pdl_ok = result['pdl_ptx'] is True
+    pdl_ok = result['pdl_ptx'] is True and result.get('pdl_ptx_prologue', True) is True
     for key, rec in result['chains'].items():
         if '/pdl_' in key and rec.get('status') == 'ok' and not pdl_ok:
             rec['status'] = 'UNRESOLVED'
             rec['reason'] = f"PDL PTX qualification failed: {result['pdl_ptx']}"
-    for chain in ('trivial', 'elem37', 'gemm'):
+    for chain in ('trivial', 'prologue', 'elem37', 'gemm'):
         for mode in ('stream', 'graph', 'pdl_stream', 'pdl_graph'):
             pts = [(n, result['chains'][f'{chain}/{mode}/N{n}']['chain_us_median'])
                    for n in NS if f'{chain}/{mode}/N{n}' in result['chains']
@@ -378,6 +501,16 @@ def main():
             if excluded:
                 result.setdefault('excluded_from_fits', []).extend(excluded)
     result['real_kernel_pdl'] = 'UNSUPPORTED: cuBLAS/ATen launches expose no PDL attribute'
+    e7 = {}
+    for chain in ('trivial', 'prologue'):
+        for base_mode, pdl_mode in (('stream', 'pdl_stream'), ('graph', 'pdl_graph')):
+            fb, fp = result['fits'].get(f'{chain}/{base_mode}'), result['fits'].get(f'{chain}/{pdl_mode}')
+            if fb and fp and fb.get('slope_us_per_node') is not None and fp.get('slope_us_per_node') is not None:
+                e7[f'{chain}/{base_mode}->{pdl_mode}'] = {
+                    'slope_us_per_node_base': fb['slope_us_per_node'], 'slope_us_per_node_pdl': fp['slope_us_per_node'],
+                    'pdl_saving_us_per_node': fb['slope_us_per_node'] - fp['slope_us_per_node']}
+    result['e7_pdl_saving'] = e7
+    result['prologue_iters'] = PROLOGUE_ITERS
     # plan 1.4 input: the 37 MB in-place elementwise chain fits the device L2
     # (recorded from device properties), so its graph-mode per-launch time is
     # an L2-resident bandwidth measurement (read + write of 37 MB per launch)

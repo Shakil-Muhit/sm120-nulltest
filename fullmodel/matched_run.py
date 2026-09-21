@@ -36,19 +36,24 @@ import qualify                 # noqa: E402
 import timing as tm               # noqa: E402
 
 
-def build_one(arm, chunk, streams, gen_dir, paths, settle_max):
+def build_one(arm, chunk, streams, gen_dir, paths, settle_max, variant=None):
     from torch._dynamo.utils import counters
     counters.clear()               # this arm's gate reflects only its own compilation
-    model, config, use_amp, ctx, ctx_nocache = loader.load_public_model(
-        paths['msst'], paths['ckpt'], paths['config'])
+    if variant:
+        import variants
+        model, config, use_amp, ctx, ctx_nocache, _vrec = variants.load_variant_model(
+            paths['msst'], paths['config'], variant, gen_dir)
+    else:
+        model, config, use_amp, ctx, ctx_nocache = loader.load_public_model(
+            paths['msst'], paths['ckpt'], paths['config'])
     x = tm.make_input(chunk, tm.TIMING_SEED)
     info = {'capture_scope': None, 'capture_adapter': None, 'capture_attempts': [],
             'stream_count': None, 'compile_mode': None, 'notes': []}
     step = arms_mod.build_arm_step(arm, model, x, ctx_nocache, streams, info, gen_dir)
     settle = gate = gate_snapshot = None
-    if arm in arms_mod.COMPILE_ARMS:
+    if arms_mod.base_arm(arm) in arms_mod.COMPILE_ARMS:
         settle = tm.settle_compile(step, x, ctx, settle_max, 5)
-        gate = tm.graph_gate(arm in arms_mod.REQUIRE_ZERO_BREAKS)
+        gate = tm.graph_gate(arms_mod.base_arm(arm) in arms_mod.REQUIRE_ZERO_BREAKS)
         gate_snapshot = tm.recording_state()      # reconciliation reference for this arm's gate (gate-06 f83)
     else:
         with torch.no_grad(), ctx():
@@ -94,7 +99,9 @@ def main():
                     default=os.path.join(_ROOT, 'evidence'))
     ap.add_argument('--ref-dir', default=None)
     ap.add_argument('--no-manifest', action='store_true')
+    ap.add_argument('--variant', default=None, help='E5 structural variant (both arms); never a headline')
     args = ap.parse_args()
+    arms_mod.held_out_guard(args.chunk)                 # E9: held-out lengths run only in the pod session
     if (args.iters, args.repeats) != (50, 5):
         print('[matched] WARNING: not the registered 5 x 50 protocol — pair ineligible')
     assert torch.cuda.is_available()
@@ -102,7 +109,10 @@ def main():
     ref_dir = args.ref_dir or os.path.join(args.evidence_dir, 'ref')
     a, b = args.pair
     out_path = os.path.join(args.evidence_dir, f'matched_{a}_{b}_c{args.chunk}_{args.tag}.json')
+    if b == a:                                          # E6 A/A: the same arm built twice in one process
+        b = f'{a}#2'
     result = {'pair': [a, b], 'chunk': args.chunk, 'tag': args.tag, 'status': 'VALID',
+              'aa_pair': (arms_mod.base_arm(a) == arms_mod.base_arm(b)), 'variant': args.variant,
               'error': None, 'env': tm.env_fingerprint(), 'arms': {}, 'blocks': [],
               'iters': args.iters, 'repeats': args.repeats,
               'torch_logs_env': os.environ.get('TORCH_LOGS'), 'manifest_id': None,
@@ -119,11 +129,14 @@ def main():
             reasons.append('not bound to a session manifest')
         if (args.iters, args.repeats) != (50, 5):
             reasons.append(f'protocol {args.repeats}x{args.iters} is not the registered 5x50')
+        if args.variant:
+            reasons.append(f'structural variant {args.variant} (E5): never a headline')
+            ref_dir = args.ref_dir or os.path.join(args.evidence_dir, f'ref_variant_{args.variant}')
         built = {}
         for arm in (a, b):
             gen_dir = os.path.join(args.evidence_dir, 'generated', f'matched_{arm}_c{args.chunk}_{args.tag}')
             try:
-                built[arm] = build_one(arm, args.chunk, args.streams, gen_dir, paths, args.settle_max)
+                built[arm] = build_one(arm, args.chunk, args.streams, gen_dir, paths, args.settle_max, args.variant)
                 bi = built[arm]
                 result['arms'][arm] = {'build_status': 'OK', 'settle': bi['settle'], 'graph_gate': bi['gate'],
                                        'gate_snapshot': bi.get('gate_snapshot'),
@@ -156,7 +169,7 @@ def main():
             # per-arm zero-break requalification after the joint settle (global delta)
             before_val = tm.recording_state()
             for arm in (a, b):
-                v = tm.validate(built[arm]['step'], built[arm]['ctx'], arms_mod.TIER[arm],
+                v = tm.validate(built[arm]['step'], built[arm]['ctx'], arms_mod.TIER[arms_mod.base_arm(arm)],
                                 args.chunk, ref_dir, manifest_id=result['manifest_id'])
                 result['arms'][arm]['validation'] = v
                 if v['status'] != 'PASS':

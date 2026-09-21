@@ -26,7 +26,8 @@ import qualify  # noqa: E402
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARMS = ('A', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H', 'ANVTX')
 CHUNKS = (352800, 4410, 22050, 88200)
-REQUIRED_RESTARTS = ('r1', 'r2', 'r3')
+import os as _os
+REQUIRED_RESTARTS = tuple(f'r{i}' for i in range(1, int(_os.environ.get('REQUIRED_RESTARTS', '3')) + 1))
 REQUIRED_MATCHED = ('m1', 'm2', 'm3')
 
 

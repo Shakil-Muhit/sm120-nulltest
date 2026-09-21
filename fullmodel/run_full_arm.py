@@ -74,6 +74,7 @@ def parse_args():
     p.add_argument('--force-tier', choices=['tight', 'loose'], default=None,
                    help='validator-check only: evaluate arm A under the loose comparator')
     p.add_argument('--skip-timing', action='store_true')
+    p.add_argument('--variant', default=None, help='E5 structural variant name (fullmodel/variants.py); timing only, never a headline')
     p.add_argument('--nvtx-pass', action='store_true',
                    help='outer NVTX range per pass (traced runs; use --repeats 1)')
     args = p.parse_args()
@@ -84,7 +85,8 @@ def parse_args():
     if args.force_tier and not args.planted_fault:
         p.error('--force-tier is only for the planted-fault validator check')
     if args.ref_dir is None:
-        args.ref_dir = os.path.join(args.evidence_dir, 'ref')
+        args.ref_dir = os.path.join(args.evidence_dir, 'ref' if not args.variant else f'ref_variant_{args.variant}')
+    arms_mod.held_out_guard(args.chunk)                # E9: held-out lengths run only in the pod session
     return args
 
 
@@ -118,8 +120,17 @@ def main():
         elif not args.save_reference:
             tm.bind_refs(args.ref_dir, manifest_id)
 
-        model, config, use_amp, ctx, ctx_nocache = loader.load_public_model(
-            paths['msst'], paths['ckpt'], paths['config'])
+        if args.variant:
+            import variants
+            model, config, use_amp, ctx, ctx_nocache, vrec = variants.load_variant_model(
+                paths['msst'], paths['config'], args.variant, gen_dir)
+            info['variant'] = vrec
+            info['notes'].append(f'structural variant {args.variant} (E5): random weights, timing only, never a headline')
+        else:
+            model, config, use_amp, ctx, ctx_nocache = loader.load_public_model(
+                paths['msst'], paths['ckpt'], paths['config'])
+        info['param_count'] = sum(p_.numel() for p_ in model.parameters())
+        info['param_bytes_fp16'] = info['param_count'] * 2
         x = tm.make_input(args.chunk, tm.TIMING_SEED)
         step = arms_mod.build_arm_step(args.arm, model, x, ctx_nocache,
                                        args.streams, info, gen_dir)
@@ -227,6 +238,8 @@ def main():
         reasons.append('recording stability UNRESOLVED (observer unavailable)')
     if args.planted_fault:
         reasons.append('planted fault run')
+    if args.variant:
+        reasons.append(f'structural variant {args.variant} (E5): never a headline')
     if validation and validation.get('status') != 'PASS':
         reasons.append(f"validation {validation.get('status')}")
     if sdr is not None and sdr.get('status') != 'PASS':
@@ -264,6 +277,9 @@ def main():
                                               'stream_count': info.get('stream_count')}),
         'qualify_version': qualify.QUALIFY_VERSION,
         'c3_fixes': info.get('c3_fixes'), 'padbatch': info.get('padbatch'),
+        'inductor_config': info.get('inductor_config'), 'precast': info.get('precast'),
+        'foldnorm': info.get('foldnorm'), 'variant': info.get('variant'),
+        'param_count': info.get('param_count'), 'param_bytes_fp16': info.get('param_bytes_fp16'),
         'nvtx_boundary_mode': info.get('nvtx_boundary_mode'),
         'planted_fault_const': info.get('planted_fault_const'),
         'planted_fault': bool(args.planted_fault), 'nvtx_pass': bool(args.nvtx_pass),

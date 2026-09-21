@@ -34,10 +34,12 @@ EAGER_NO_REPLAY = ('A', 'D', 'F')
 PERT_S2 = [(a, c, m) for c in (352800, 4410) for a in ('A', 'C3', 'G') for m in ('unprofiled', 'graph', 'node')]
 C3_FRAMES = {'11', '51', '201', '801'}
 ATTN_CASES = [f'c{c}_{ax}_{lay}' for c in (352800, 4410) for ax in ('time', 'freq') for lay in ('model', 'contiguous')]
+BOUNDARY_CHAINS_S3 = [f'prologue/{m}/N{n}' for m in ('stream', 'graph', 'pdl_stream', 'pdl_graph') for n in (100, 1000)]
 BOUNDARY_CHAINS = [f'trivial/{m}/N{n}' for m in ('stream', 'graph', 'pdl_stream', 'pdl_graph') for n in (10, 100, 1000, 2000)] + \
                   [f'{ch}/{m}/N{n}' for ch in ('elem37', 'gemm') for m in ('stream', 'graph') for n in (10, 100)]
-OPS = {'session1': (352800, 4410), 'session2': (352800, 4410, 22050, 88200)}
-ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py',
+OPS = {'session1': (352800, 4410), 'session2': (352800, 4410, 22050, 88200), 'session3': (352800, 4410)}
+HELD_OUT_S3 = (176400, 264600)
+ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py', 'e_tools.py', 'session_result_v2.py',
                   'ideal_costs.py', 'graph_verify.py', 'timing_views.py', 'perturbation.py', 'kernel_map.py', 'classify.py')
 MANIFEST_FIELDS = ('manifest_id', 'session', 'created_utc', 'repo_commit', 'registration_sha256',
                    'clips_manifest_sha256', 'code', 'provenance', 'runtime', 'env')
@@ -45,7 +47,9 @@ STATIC_AUX = {
     'session1': ['c3_operator_qualification', 'collect'],
     'session2': ['attn_backend_bench', 'boundary_bench', 'boundary_bench_trace', 'boundary_bench_export',
                  'boundary_bench_analysis', 'perturbation', 'collect'],
+    'session3': ['c3_operator_qualification', 'aa_stats', 'collect'],
 }
+OPTIONAL_AUX_S3 = ('boundary_bench', 'boundary_bench_trace', 'boundary_bench_export', 'boundary_bench_analysis', 'e5_summary')
 
 
 def load(path):
@@ -56,8 +60,8 @@ def load(path):
         return None
 
 
-def item(items, name, ok, reason=None, note=None):
-    items.append({'item': name, 'complete': bool(ok), 'reason': None if ok else (reason or ['missing']),
+def item(items, name, ok, reason=None, note=None, optional=False):
+    items.append({'item': name, 'complete': bool(ok), 'optional': bool(optional), 'reason': None if ok else (reason or ['missing']),
                   'note': note})
 
 
@@ -200,7 +204,9 @@ def session_blocks(session, runs, matched):
                 out += [(b.get('unix_start'), b.get('unix_end'), f'{a}@{c}/{t}') for b in blocks]
             if session == 'session2' and ((c in (22050, 88200) and t in ('r1', 'r2', 'r3')) or t == 'trace' or t.startswith('pert_')):
                 out += [(b.get('unix_start'), b.get('unix_end'), f'{a}@{c}/{t}') for b in blocks]
-    if session == 'session1':
+            if session == 'session3' and c in OPS['session3'] + HELD_OUT_S3:
+                out += [(b.get('unix_start'), b.get('unix_end'), f'{a}@{c}/{t}') for b in blocks]
+    if session in ('session1', 'session3'):
         for (pair, c, t), m in matched.items():
             out += [(b.get('unix_start'), b.get('unix_end'), f'matched {pair}/{t}') for b in (m.get('blocks') or [])]
     return out
@@ -291,6 +297,163 @@ def audit_prerequisites(ev, items, manifest_id, run_map):
     item(items, 'C3 operator qualification (every registered component per frame)', not probs, probs)
 
 
+def _pair_ok(m, manifest_id):
+    return bool(m and m.get('status') == 'VALID' and m.get('manifest_id') == manifest_id
+                and m.get('pair_eligible') and not qualify.pair_problems(m))
+
+
+def _untested_reason(m, needle):
+    return bool(m and m.get('status') == 'UNTESTED' and needle in str(m.get('error') or ''))
+
+
+def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux):
+    """Phase-3 registrations (prereg_amendments.md v0.2): mandatory items E6, E3, E2, E1,
+    E9 (pod; UNTESTED-by-rule on a shakedown), E4a; optional E5 and E7 (registered as
+    skippable under the deadline)."""
+    cfg = load(os.path.join(ev, 'session3_config.json')) or {}
+    shakedown = bool(cfg.get('shakedown'))
+    n_restart = int(cfg.get('headline_restarts') or 5)
+    n_pair = int(cfg.get('pair_restarts') or 3)
+    audit_prerequisites(ev, items, manifest_id, run_map)
+    # ---- E6
+    for c in OPS['session3']:
+        m = matched.get((('C3', 'C3#2'), c, 'm1'))
+        item(items, f'E6 A/A matched C3 vs C3 @{c} (m1, block-alternating)', _pair_ok(m, manifest_id),
+             qualify.pair_problems(m) if m else ['no A/A record'])
+    for a in ('C3', 'H', 'A', 'C1'):
+        for c in OPS['session3']:
+            cell = cells.get(f'{a}_{c}')
+            item(items, f'E6 headline {a}@{c} (r1..r{n_restart}, SDR in r1)', bool(cell and cell['headline_status'] == 'HEADLINE'),
+                 (cell or {}).get('reasons', ['no runs']))
+    aa = load(os.path.join(ev, 'aa_stats.json')) or {}
+    n_aa = sum(1 for v in (aa.get('pairs') or {}).values() if 'median_ms' in v)
+    item(items, 'E6 A/A statistics (block-level bootstrap intervals)', n_aa >= len(OPS['session3']), [f'{n_aa} A/A pairs summarised'])
+    # ---- pairs helper
+    def pair_items(label, a, b, c, tags):
+        for t in tags:
+            m = matched.get(((a, b), c, t))
+            item(items, f'{label} matched {a} vs {b} @{c} ({t})', _pair_ok(m, manifest_id), qualify.pair_problems(m) if m else ['record missing'])
+    def trace_items(label, a, c, sfx='', need_graphed=True, optional=False):
+        base = os.path.join(ev, 'traces', f'trace_{a}_{c}_' + (sfx or 'trace'))
+        exp = load(base + '_exports.json') or {}
+        run = (run_map.get((a, c)) or {}).get(sfx or 'trace')
+        probs = [] if exp.get('complete') is True and exp.get('graph_trace_mode') == 'node' else ['node-level exports incomplete']
+        probs += qualify.trace_problems(run)
+        if run and run.get('manifest_id') != manifest_id:
+            probs.append('foreign manifest')
+        item(items, f'{label} trace {a}@{c}' + (f' [{sfx}]' if sfx else ''), not probs, probs, optional=optional)
+        gsfx = f'_{sfx}' if sfx else ''
+        gv = load(os.path.join(ev, 'traces', f'graph_verify_{a}_{c}{gsfx}.json')) or {}
+        ok = gv.get('verdict') in (('FULLY_GRAPHED',) if need_graphed else ('FULLY_GRAPHED', 'NOT_FULLY_GRAPHED', 'NO_REPLAY_EVIDENCE'))
+        item(items, f'{label} graph verification {a}@{c}' + (f' [{sfx}]' if sfx else '') + (' FULLY_GRAPHED' if need_graphed else ' (verdict recorded)'),
+             ok, [f"verdict {gv.get('verdict', 'MISSING')}"], optional=optional)
+        dynamic_aux.extend([f'graph_verify_{a}_{c}{gsfx}', f'timing_views_{a}_{c}{gsfx}', f'cast_count_{a}_{c}{gsfx}'])
+    def sdr_item(label, a, c):
+        r = (run_map.get((a, c)) or {}).get('r1')
+        g = (r or {}).get('sdr_gate') or {}
+        ok = bool(r and r.get('manifest_id') == manifest_id and g.get('status') in ('PASS', 'FAIL'))
+        item(items, f'{label} SDR gate {a}@{c} recorded (r1)', ok, ['no SDR gate record bound to this manifest'],
+             note=(f"SDR {g.get('status')} mean delta {g.get('mean_delta_sdr_ref_db')}" if ok else None))
+    tags = [f'm{i}' for i in range(1, n_pair + 1)]
+    # ---- E3
+    pair_items('E3', 'C1', 'C1P', 352800, tags)
+    trace_items('E3', 'C1P', 352800, need_graphed=False)
+    # ---- E2
+    for c in OPS['session3']:
+        pair_items('E2', 'C3', 'C3M', c, tags)
+        sdr_item('E2', 'C3M', c)
+        trace_items('E2', 'C3M', c, need_graphed=True)
+        for a in ('C3', 'C3M'):
+            tc = load(os.path.join(ev, 'traces', f'template_count_{a}_{c}.json')) or {}
+            item(items, f'E2 template count {a}@{c}', fin(tc.get('triton_template_kernels_per_pass')), ['template count missing'])
+            dynamic_aux.append(f'template_count_{a}_{c}')
+    # ---- E1
+    branch = load(os.path.join(ev, 'e1_branch.json')) or {}
+    item(items, 'E1 branch decision recorded (e1_branch.json)', 'run_C3P' in branch, ['missing'])
+    for c in OPS['session3']:
+        pair_items('E1', 'C3', 'C3F', c, tags)
+        sdr_item('E1', 'C3F', c)
+        trace_items('E1', 'C3', c, need_graphed=True)
+        trace_items('E1', 'C3F', c, need_graphed=True)
+        for a in ('C3', 'C3F'):
+            cc = load(os.path.join(ev, 'traces', f'cast_count_{a}_{c}.json')) or {}
+            item(items, f'E1 cast count {a}@{c}', fin(cc.get('cast_kernels_per_pass')), ['cast count missing'])
+        if branch.get('run_C3P'):
+            pair_items('E1(b)', 'C3', 'C3P', c, tags)
+            sdr_item('E1(b)', 'C3P', c)
+            trace_items('E1(b)', 'C3P', c, need_graphed=True)
+    # ---- E9
+    for c in HELD_OUT_S3:
+        if shakedown or not cfg.get('session_pod'):
+            for t in ['m1'] + tags:
+                pair = ('C3', 'C3') if t == 'm1' else ('C3', 'H')
+                m = matched.get((pair, c, t))
+                item(items, f'E9 held-out @{c} {pair[0]} vs {pair[1]} ({t}): UNTESTED by rule (shakedown, never run off-pod)',
+                     _untested_reason(m, 'held-out'), ['expected an UNTESTED terminal record citing the held-out rule'])
+        else:
+            m = matched.get((('C3', 'C3#2'), c, 'm1'))
+            item(items, f'E9 A/A matched C3 vs C3 @{c} (m1)', _pair_ok(m, manifest_id), qualify.pair_problems(m) if m else ['record missing'])
+            pair_items('E9', 'C3', 'H', c, tags)
+            ref = os.path.join(ev, 'ref')
+            bad = []
+            for seed in qualify.VALIDATION_SEEDS:
+                f = os.path.join(ref, f'ref_A_c{c}_s{seed}.pt'); side = load(f + '.lineage.json')
+                if not os.path.exists(f) or not side or side.get('manifest_id') != manifest_id or side.get('sha256') != provenance.sha256_file(f):
+                    bad.append(os.path.basename(f))
+            item(items, f'E9 validation references @{c} bound and re-hashed', not bad, [f'{bad}'])
+    if not (shakedown or not cfg.get('session_pod')):
+        e9 = load(os.path.join(ev, 'e9_check.json')) or {}
+        item(items, 'E9 registered predictions checked (e9_check.json, verdict recorded)', e9.get('verdict') in ('PASS', 'FAIL'),
+             [f"verdict {e9.get('verdict', 'MISSING')}"], note=f"verdict {e9.get('verdict')}")
+        dynamic_aux.append('e9_check')
+        reg_sha = cfg.get('e9_registration_sha256')
+        item(items, 'E9 registration file hash recorded in session config', bool(reg_sha), ['missing'])
+    # ---- E4a
+    dec = load(os.path.join(ev, 'e4a_decision.json')) or {}
+    item(items, 'E4a control/mode decision recorded (e4a_decision.json)', dec.get('control') in ('C3', 'C3M'), ['missing'])
+    ctrl = dec.get('control') or 'C3'
+    for c in OPS['session3']:
+        pair_items('E4a', ctrl, 'C3N', c, tags)
+        sdr_item('E4a', 'C3N', c)
+        trace_items('E4a', 'C3N', c, need_graphed=True)
+        r = (run_map.get(('C3N', c)) or {}).get('r1') or {}
+        item(items, f'E4a C3N@{c} compile mode matches the decision ({dec.get("mode")})', r.get('compile_mode') == dec.get('mode'),
+             [f"run compile_mode {r.get('compile_mode')} vs decision {dec.get('mode')}"])
+    # ---- E5 (optional)
+    variants_ = cfg.get('e5_variants') or []
+    n_e5 = int(cfg.get('e5_restarts') or 2)
+    for v in variants_:
+        for a in ('C3', 'H'):
+            for c in OPS['session3']:
+                for i in range(1, n_e5 + 1):
+                    r = (run_map.get((a, c)) or {}).get(f'v_{v}_r{i}')
+                    ok = bool(r and ((r.get('status') == 'VALID' and (r.get('validation') or {}).get('status') == 'PASS'
+                                      and r.get('manifest_id') == manifest_id and (r.get('variant') or {}).get('variant') == v)
+                                     or _untested_reason(r, 'allowance') or _untested_reason(r, 'deadline')))
+                    item(items, f'E5 variant {v} {a}@{c} r{i} (VALID+PASS, or UNTESTED under the allowance)', ok,
+                         [f"status {(r or {}).get('status', 'MISSING')}"], optional=True)
+            trace_items('E5', a, 4410, sfx=f'v_{v}_trace', need_graphed=True, optional=True)
+    e5 = load(os.path.join(ev, 'e5_summary.json')) or {}
+    item(items, 'E5 summary present', bool(e5.get('cells')), ['missing'], optional=True)
+    # ---- E7 (optional)
+    bb = load(os.path.join(ev, 'boundary_bench.json')) or {}
+    chains = bb.get('chains') or {}
+    bad = [k for k in BOUNDARY_CHAINS + BOUNDARY_CHAINS_S3 if chains.get(k, {}).get('status') not in ('ok', 'UNTESTED')
+           or (chains.get(k, {}).get('status') == 'ok' and not fin(chains[k].get('per_launch_us')))]
+    item(items, 'E7 boundary chains incl. prologue chains (terminal status per registered chain)', bool(chains) and not bad,
+         [f'non-terminal {bad[:6]}'], optional=True)
+    item(items, 'E7 PDL evidence recorded (launch attributes, PTX, SASS check)',
+         bool(bb.get('pdl_launch_attributes')) and bb.get('pdl_ptx') is True and isinstance(bb.get('pdl_sass'), dict),
+         [f"attrs {bool(bb.get('pdl_launch_attributes'))} ptx {bb.get('pdl_ptx')} sass {type(bb.get('pdl_sass')).__name__}"], optional=True,
+         note=(f"SASS mnemonics {(bb.get('pdl_sass') or {}).get('griddep_mnemonics_found')}; e7 {bb.get('e7_pdl_saving')}" if bb else None))
+    ta = load(os.path.join(ev, 'boundary_bench_trace_analysis.json')) or {}
+    qual = ta.get('_qualification') or {}
+    pdl_segs = {k: v.get('overlap_observed') for k, v in ta.items() if '/pdl_' in k and v.get('status') == 'ok'}
+    item(items, 'E7 boundary trace analysis qualified (overlap recorded per PDL segment)', bool(qual.get('cases')) and qual.get('accepted_segments', 0) > 0,
+         [f'qualification {qual}'], optional=True, note=f'overlap_observed {pdl_segs}' if pdl_segs else None)
+    # ---- references at the held-out lengths are audited above; the standard inventory covers OPS['session3']
+
+
 def csv_rows(path, required_cols):
     """Parse an export: header must contain the required columns; returns row count."""
     import csv
@@ -322,7 +485,7 @@ def audit_aux(ev, items, session, dynamic):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--evidence-dir', required=True)
-    ap.add_argument('--session', choices=['session1', 'session2'], required=True)
+    ap.add_argument('--session', choices=['session1', 'session2', 'session3'], required=True)
     args = ap.parse_args()
     ev = args.evidence_dir
     items = []
@@ -365,7 +528,9 @@ def main():
     audit_references(ev, items, manifest_id, args.session, run_map, matched)
     dynamic_aux = []
 
-    if args.session == 'session1':
+    if args.session == 'session3':
+        audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux)
+    elif args.session == 'session1':
         for a, c in MATRIX_S1:
             cell = cells.get(f'{a}_{c}')
             ok = bool(cell and cell['headline_status'] == 'HEADLINE')
@@ -520,24 +685,33 @@ def main():
              [f"qualification {qual}"])
     audit_clock(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
     audit_aux(ev, items, args.session, dynamic_aux)
-    n_ok = sum(1 for i in items if i['complete'])
+    if args.session == 'session3':                      # registered optional experiments never block the verdict
+        for i in items:
+            if i['item'].startswith('auxiliary step ') and i['item'].split(' ', 2)[2] in OPTIONAL_AUX_S3:
+                i['optional'] = True
+    mandatory = [i for i in items if not i.get('optional')]
+    n_ok = sum(1 for i in mandatory if i['complete'])
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     try:
         analysis_commit = provenance._git(root, 'rev-parse', 'HEAD')
     except Exception:
         analysis_commit = None
+    cfg3 = load(os.path.join(ev, 'session3_config.json')) or {}
     status = {'session': args.session, 'manifest_id': manifest_id, 'items': items,
-              'complete_items': n_ok, 'total_items': len(items),
-              'verdict': 'COMPLETE' if n_ok == len(items) else 'INCOMPLETE',
+              'complete_items': n_ok, 'total_items': len(mandatory),
+              'optional_items': [{'item': i['item'], 'complete': i['complete'], 'reason': i['reason']} for i in items if i.get('optional')],
+              'verdict': 'COMPLETE' if n_ok == len(mandatory) else 'INCOMPLETE',
+              'shakedown': bool(cfg3.get('shakedown')) if args.session == 'session3' else None,
               'qualify_version': qualify.QUALIFY_VERSION,
               'analysis_tools_commit': analysis_commit,
               'analysis_tools_sha256': {k: v for k, v in provenance.code_hashes().items() if os.path.basename(k) in ANALYSIS_TOOLS}}
     with open(os.path.join(ev, 'session_status.json'), 'w') as f:
         json.dump(status, f, indent=1)
-    print(f"[completeness] {args.session}: {status['verdict']} ({n_ok}/{len(items)} mandatory items)")
+    print(f"[completeness] {args.session}: {status['verdict']} ({n_ok}/{len(mandatory)} mandatory items"
+          + (f"; shakedown={status['shakedown']}" if args.session == 'session3' else '') + ')')
     for i in items:
         if not i['complete']:
-            print(f"   INCOMPLETE {i['item']}: {i['reason']}")
+            print(f"   {'optional-incomplete' if i.get('optional') else 'INCOMPLETE'} {i['item']}: {i['reason']}")
     return 0
 
 
