@@ -494,6 +494,11 @@ def main():
          ['summary_full.json missing or invalid'])
     run_map = load_runs(ev)
     matched = load_matched(ev)
+    if args.session == 'session3':
+        # the headline restart count is bound to the session record, never to the environment of the re-audit
+        cfg3 = load(os.path.join(ev, 'session3_config.json')) or {}
+        n3 = int(cfg3.get('headline_restarts') or 5)
+        collect_full.REQUIRED_RESTARTS = tuple(f'r{i}' for i in range(1, n3 + 1))
     mprov = (manifest.get('provenance') or {})
     foreign = []
     for (a, c), tr in run_map.items():
