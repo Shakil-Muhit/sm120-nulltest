@@ -262,12 +262,18 @@ def clock_series(ev, session, gpu_uuid):
     return out
 
 
-def block_sm_median(series, a, b):
+def block_sm_median(series, a, b, window=3.0):
+    """Median SM clock over the samples inside [a, b]; a block shorter than the 1 Hz
+    sampling interval (50 passes at 100 ms take 0.15 s) uses the nearest samples within
+    `window` seconds on either side instead."""
     if not series or not (fin(a) and fin(b)):
         return None
     ts = [t for t, _ in series]
     i = bisect.bisect_left(ts, a); j = bisect.bisect_right(ts, b)
     vals = [v for _, v in series[i:j]]
+    if not vals:
+        i = bisect.bisect_left(ts, a - window); j = bisect.bisect_right(ts, b + window)
+        vals = [v for _, v in series[i:j]]
     return qualify._median(vals) if vals else None
 
 
@@ -586,7 +592,7 @@ def csv_rows(path, required_cols):
 
 
 def audit_aux(ev, items, session, dynamic):
-    required = STATIC_AUX[session] + dynamic
+    required = list(dict.fromkeys(STATIC_AUX[session] + dynamic))      # deduplicated, order kept
     for name in required:
         rec = load(os.path.join(ev, f'aux_{name}.json')) or {}
         item(items, f'auxiliary step {name}', rec.get('status') == 'OK', [f"{rec.get('status', 'MISSING')}: {rec.get('reason')}"])
