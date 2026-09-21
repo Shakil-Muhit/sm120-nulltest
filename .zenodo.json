@@ -1,0 +1,16 @@
+{
+  "title": "sm120-nulltest: pre-registered ceiling-ledger study of MelBandRoformer inference on the NVIDIA RTX 5090 (SM120) — code and evidence",
+  "upload_type": "dataset",
+  "description": "Harness, pre-registration (prereg_amendments.md), session scripts, analysis tools, ledger and result generators, and the pod evidence bundle (node-level Nsight Systems traces, unprofiled timings, matched-pair blocks, graph verification, ideal-cost models) for a pre-registered study of launch-side tooling (CUDA Graphs, torch.compile reduce-overhead) on a band-split audio separation model on consumer Blackwell. Audio clips are not included. See README.md and docs/release/zenodo_subset.md for what the deposit contains and why.",
+  "creators": [
+    {"name": "Muhit, Shakil"}
+  ],
+  "keywords": ["CUDA graphs", "torch.compile", "RTX 5090", "SM120", "Blackwell", "MelBandRoformer", "performance characterization", "pre-registration", "ceiling ledger"],
+  "license": "OWNER-CONFIRM (no LICENSE file in the repository at the time of drafting)",
+  "related_identifiers": [
+    {"identifier": "https://github.com/Shakil-Muhit/sm120-nulltest", "relation": "isSupplementTo", "resource_type": "software"},
+    {"identifier": "https://github.com/ZFTurbo/Music-Source-Separation-Training/commit/ea7eb9c2", "relation": "requires", "resource_type": "software"}
+  ],
+  "version": "phase3-prep-2026-09-21",
+  "notes": "Registration commit e523ef9 was pushed before pod session 1 (2026-09-20 ~11:00 UTC, client-side; see docs/provenance/push_evidence.md). Creators, affiliation and license are to be confirmed by the owner before deposit."
+}

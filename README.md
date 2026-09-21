@@ -49,6 +49,22 @@ in `scripts/precommit.sh`):
 git config core.hooksPath .githooks
 ```
 
+## Quickstart: one arm in ten minutes on a rented RTX 5090
+
+On a RunPod pod from the template `runpod/pytorch:1.1.0-rc.154-cu1281-torch280-ubuntu2204` (torch 2.8.0+cu128, Triton 3.4.0; the image the Sep-20 sessions used), as root:
+
+```bash
+git clone git@github.com:Shakil-Muhit/sm120-nulltest.git && cd sm120-nulltest
+bash setup.sh                                   # pins the MSST clone at ea7eb9c2, fetches and hash-checks the checkpoint
+python fullmodel/run_full_arm.py --arm A  --chunk 4410 --tag ref --save-reference --evidence-dir evidence_quick
+python fullmodel/run_full_arm.py --arm C3 --chunk 4410 --tag r1 --evidence-dir evidence_quick
+python - <<'PY'
+import json; d = json.load(open('evidence_quick/full_C3_c4410_r1.json')); print(d['status'], d['tier'], round(d['min_of_medians_ms'], 3), 'ms')
+PY
+```
+
+The first command runs the eager baseline once and saves the reference outputs the tier validator needs; the second runs the repaired compiled arm C3 (compile plus 5 × 50 timed passes) and validates against that reference. On the Sep-20 pod, arm A at 4,410 took 16 s and arm C3 at 4,410 took 21 s after setup (timestamps in `evidence/session1_console.log`, lines 383–411); setup itself is dominated by the checkpoint download. Expected result: `status VALID`, tier `loose`, min-of-medians about 3.3 ms for C3 versus about 9.5 ms for A at this operating point (`SESSION_RESULT_v2.md`, arms table). This is a reproduction of one cell, not a session: headline statistics need the three-restart protocol in `scripts/session1.sh`.
+
 ## 1. Session command sequence (2am version)
 
 ```bash
