@@ -175,9 +175,12 @@ for chunk in 352800 4410; do
         run_matched_q C3 C3M "$chunk" "m$r"
     done
 done
+T_TRACE_AUTOTUNE="${T_TRACE_AUTOTUNE:-3000}"   # max-autotune traces recompile with caches disabled under nsys (autotuning from scratch)
 for chunk in 352800 4410; do
     run_one_q C3M "$chunk" r1 --sdr
+    T_COMPILE_SAVED="$T_COMPILE"; T_COMPILE="$T_TRACE_AUTOTUNE"
     trace_arm C3M "$chunk" trace || true
+    T_COMPILE="$T_COMPILE_SAVED"
 done
 
 echo "=== [4] E1: C3 vs C3F (freezing), both operating points + traces (C3 and C3F) + SDR; C3P contingency ==="
@@ -294,7 +297,9 @@ for chunk in 352800 4410; do
 done
 for chunk in 352800 4410; do
     run_one_q C3N "$chunk" r1 --sdr
+    T_COMPILE_SAVED="$T_COMPILE"; [ "$E4A_MODE" = "max-autotune" ] && T_COMPILE="$T_TRACE_AUTOTUNE"
     trace_arm C3N "$chunk" trace || true
+    T_COMPILE="$T_COMPILE_SAVED"
 done
 
 echo "=== [7] E5: structural variants (depth x mask width), timing only, allowance ${E5_BUDGET_S}s ==="
