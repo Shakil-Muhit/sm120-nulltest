@@ -1,12 +1,13 @@
 """Phase-3 analysis tools (registered in completeness.ANALYSIS_TOOLS; correctable
 post-session with recorded identity). Subcommands:
 
-  cast_count     --base <trace export basename> --passes N --out J
-                 : per-pass count and device time of parameter-cast kernels
-                   (Inductor names containing '_to_copy'; E1 evidence)
-  template_count --base <trace export basename> --passes N --out J
-                 : per-pass count of Triton GEMM-template kernels ('triton_tem_')
-                   vs extern GEMM kernels (E2 evidence: template selection)
+  cast_count     --ideal-costs J --dump-dir D --out J
+                 : per-pass count and device time of PARAMETER-ONLY cast kernels, the
+                   X6a set (wrapper calls whose name carries _to_copy and whose reads are
+                   all graph inputs `arg*`; gate-09 f129), joined to the ideal-cost rows
+  template_count --ideal-costs J --out J
+                 : per-pass count/time of Triton GEMM-template kernels ('triton_tem_')
+                   vs extern GEMM kernels (ideal-cost class GEMM; SDPA excluded; f130)
   aa_stats       --evidence-dir E --out J
                  : E6 A/A matched pairs: per-block a-b differences and a
                    block-level bootstrap interval (10,000 resamples, seed 20260921)
@@ -55,30 +56,70 @@ def _kern_rows(base):
     return out
 
 
+def _wrapper_calls(ic, dump_dir):
+    """The selected variant's wrapper calls in execution order (the ledger's E.wrapper)."""
+    import sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    for p in (here, os.path.join(here, 'attrib')):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    from kernel_map import parse_output_code
+    sel = ic.get('variant_selection') or {}
+    if sel.get('status') != 'ok' or not dump_dir or not os.path.isdir(dump_dir):
+        return None
+    wanted = set(sel.get('selected') or [])
+    calls = []
+    for g in parse_output_code(dump_dir):
+        if os.path.relpath(g['path'], dump_dir) in wanted:
+            calls += list(g['calls'])
+    return calls
+
+
+def _row_by_name(ic):
+    return {(r.get('kernel_full') or r.get('kernel')): r for r in ic.get('rows') or []}
+
+
 def cast_count(a):
-    rows = _kern_rows(a.base)
-    casts = [(d, n) for d, n in rows if '_to_copy' in n or 'to_copy' in n]
-    res = {'source': a.base + '_cuda_gpu_trace.csv', 'passes': a.passes,
-           'cast_kernels_per_pass': len(casts) / a.passes,
-           'cast_time_ms_per_pass': sum(d for d, _ in casts) / 1e6 / a.passes,
-           'all_kernels_per_pass': len(rows) / a.passes,
-           'note': 'kernel-name match on _to_copy (Inductor cast kernels); parameter-only vs activation casts are '
-                   'not separated here (the dump-wrapper order in ideal_costs does that)'}
+    ic = _load(a.ideal_costs) or {}
+    calls = _wrapper_calls(ic, a.dump_dir)
+    if calls is None:
+        res = {'status': 'UNRESOLVED', 'reason': 'no unique variant / dump wrapper order for this trace', 'ideal_costs': a.ideal_costs}
+        json.dump(res, open(a.out, 'w'), indent=1); print(res); return
+    rows = _row_by_name(ic)
+    seen, sel = set(), {}
+    for c in calls:
+        if c.get('kind') != 'triton':
+            continue
+        args = c.get('args') or []
+        if ('_to_copy' in c['name'] and all(str(x.get('buf', '')).startswith('arg') for x in args if x.get('read'))
+                and any(x.get('read') for x in args)):
+            r = rows.get(c['name'])
+            if r is not None:
+                sel[c['name']] = r
+    res = {'ideal_costs': a.ideal_costs, 'dump_dir': a.dump_dir, 'passes': ic.get('passes_observed'),
+           'cast_kernels_per_pass': sum((r.get('launches_per_pass') or 0) for r in sel.values()),
+           'cast_time_ms_per_pass': sum((r.get('time_us_per_pass') or 0.0) for r in sel.values()) / 1e3,
+           'distinct_cast_kernels': len(sel),
+           'rule': "X6a set: wrapper calls named *_to_copy* whose read buffers are all graph inputs (arg*) — the ledger's rule (ledger.py X6a)"}
     json.dump(res, open(a.out, 'w'), indent=1)
     print(json.dumps(res, indent=1))
 
 
 def template_count(a):
-    rows = _kern_rows(a.base)
-    tem = [(d, n) for d, n in rows if 'triton_tem_' in n]
-    ext = [(d, n) for d, n in rows if any(k in n.lower() for k in ('nvjet', 'gemm', 'cutlass', 'sm90', 'sm120', 'ampere_', 'xmma'))
-           and 'triton_' not in n]
-    res = {'source': a.base + '_cuda_gpu_trace.csv', 'passes': a.passes,
-           'triton_template_kernels_per_pass': len(tem) / a.passes,
-           'triton_template_time_ms_per_pass': sum(d for d, _ in tem) / 1e6 / a.passes,
-           'extern_gemm_kernels_per_pass': len(ext) / a.passes,
-           'extern_gemm_time_ms_per_pass': sum(d for d, _ in ext) / 1e6 / a.passes,
-           'template_names': sorted({n for _, n in tem})[:40]}
+    ic = _load(a.ideal_costs) or {}
+    rows = ic.get('rows') or []
+    tem = [r for r in rows if 'triton_tem_' in str(r.get('kernel_full') or r.get('kernel'))]
+    ext = [r for r in rows if r.get('class') == 'GEMM']
+    sdpa = [r for r in rows if r.get('class') == 'SDPA']
+    res = {'ideal_costs': a.ideal_costs, 'passes': ic.get('passes_observed'),
+           'triton_template_kernels_per_pass': sum((r.get('launches_per_pass') or 0) for r in tem),
+           'triton_template_time_ms_per_pass': sum((r.get('time_us_per_pass') or 0.0) for r in tem) / 1e3,
+           'extern_gemm_kernels_per_pass': sum((r.get('launches_per_pass') or 0) for r in ext),
+           'extern_gemm_time_ms_per_pass': sum((r.get('time_us_per_pass') or 0.0) for r in ext) / 1e3,
+           'sdpa_kernels_per_pass (excluded from GEMM)': sum((r.get('launches_per_pass') or 0) for r in sdpa),
+           'rope_kernels_per_pass': sum((r.get('launches_per_pass') or 0) for r in rows if 'rot' in str(r.get('kernel_full') or r.get('kernel')).lower()),
+           'template_names': sorted({str(r.get('kernel_full') or r.get('kernel')) for r in tem})[:40],
+           'rule': 'extern GEMM = ideal-cost class GEMM (cuBLAS entry points); templates = Inductor kernel names containing triton_tem_; SDPA rows never counted as GEMM (gate-09 f130)'}
     json.dump(res, open(a.out, 'w'), indent=1)
     print(json.dumps({k: v for k, v in res.items() if k != 'template_names'}, indent=1))
 
@@ -112,6 +153,7 @@ def aa_stats(a):
             'a_minus_b_per_block_ms': diffs, 'median_ms': statistics.median(diffs),
             'ci95_median_ms': _boot_ci(diffs), 'mean_ms': statistics.mean(diffs),
             'abs_max_ms': max(abs(d) for d in diffs), 'median_pct_of_a': statistics.median(diffs) / statistics.median(da) * 100}
+    out['pairs_by_chunk'] = sorted({v.get('chunk') for v in out['pairs'].values() if 'median_ms' in v})
     json.dump(out, open(a.out, 'w'), indent=1)
     for k, v in out['pairs'].items():
         print(k, v.get('median_ms'), v.get('ci95_median_ms'))
@@ -192,8 +234,8 @@ def e5_summary(a):
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest='cmd', required=True)
-    for name in ('cast_count', 'template_count'):
-        s = sub.add_parser(name); s.add_argument('--base', required=True); s.add_argument('--passes', type=int, required=True); s.add_argument('--out', required=True)
+    s = sub.add_parser('cast_count'); s.add_argument('--ideal-costs', required=True); s.add_argument('--dump-dir', required=True); s.add_argument('--out', required=True)
+    s = sub.add_parser('template_count'); s.add_argument('--ideal-costs', required=True); s.add_argument('--out', required=True)
     s = sub.add_parser('aa_stats'); s.add_argument('--evidence-dir', required=True); s.add_argument('--out', required=True)
     s = sub.add_parser('e9_check'); s.add_argument('--evidence-dir', required=True); s.add_argument('--registration', required=True); s.add_argument('--out', required=True)
     s = sub.add_parser('e5_summary'); s.add_argument('--evidence-dir', required=True); s.add_argument('--out', required=True)

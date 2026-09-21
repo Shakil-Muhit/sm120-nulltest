@@ -4,7 +4,8 @@ imported by the harness). Registered in prereg_amendments.md §1 (arm C3).
 
 The original registers the DC-filter custom op for the single 8-s shape
 (2, 1025, 801) with hard-coded strides. This session runs C3/H at frame
-counts T ∈ {11, 51, 201, 801} (chunks 4410, 22050, 88200, 352800). The ONLY
+counts T ∈ {11, 51, 201, 801} (chunks 4410, 22050, 88200, 352800) and, for the
+Phase-3 E9 held-out lengths, T ∈ {401, 601} (176400, 264600; qualified on the pod only). The ONLY
 changes: (1) the op name (both modules would otherwise register the same
 name); (2) the shape/stride checks are parametrised by T = input.shape[-1]
 and accept exactly the registered set; (3) verify_operator() checks every
@@ -22,7 +23,7 @@ import types
 
 import torch
 
-FRAMES = (11, 51, 201, 801)      # registered operating points + sweep
+FRAMES = (11, 51, 201, 801, 401, 601)      # registered operating points + sweep + Phase-3 E9 held-out (401, 601)
 
 
 def _check_meta(t):

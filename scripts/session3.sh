@@ -22,6 +22,7 @@ cd "$REPO_DIR"
 exec > >(tee -a "$EVID/session3_console.log") 2>&1
 echo "SESSION3 START $(date -Is) iters=$ITERS repeats=$REPEATS restarts=$RESTARTS headline_restarts=$HEADLINE_RESTARTS budget=${SESSION_BUDGET_S}s reserve=${EXTRACT_RESERVE_S}s shakedown=$SHAKEDOWN pod=${SESSION_POD:-0}"
 [ -z "${TMUX:-}" ] && echo "WARNING: not inside tmux"
+[ "${SESSION_POD:-0}" = "1" ] || SHAKEDOWN=1      # gate-09 f136: any off-pod run is engineering data
 python3 -c "import json;json.dump({'shakedown': '$SHAKEDOWN'=='1', 'session_pod': '${SESSION_POD:-0}'=='1', 'headline_restarts': $HEADLINE_RESTARTS, 'pair_restarts': $RESTARTS, 'e5_variants': '$E5_VARIANTS'.split(), 'e5_restarts': $E5_RESTARTS, 'e9_registration': '$REG', 'e9_registration_sha256': __import__('hashlib').sha256(open('$REG','rb').read()).hexdigest()}, open('$EVID/session3_config.json','w'), indent=1)"
 
 echo "=== [0] preflight ==="
@@ -88,16 +89,17 @@ PYEOF
 
 echo "=== [0c] C3 operator qualification per registered frame count ==="
 C3_QUAL_OK=1
-run_aux c3_operator_qualification 600 -- python - "$EVID/c3_operator_qualification.json" <<'PYEOF' || { echo "C3 operator qualification FAILED/UNTESTED -> C3-derived work is UNTESTED"; C3_QUAL_OK=0; }
+C3_QUAL_FRAMES="11 51 201 801"; [ "$SHAKEDOWN" = "1" ] || C3_QUAL_FRAMES="11 51 201 801 401 601"   # held-out frame counts qualified on the pod only
+run_aux c3_operator_qualification 600 -- python - "$EVID/c3_operator_qualification.json" $C3_QUAL_FRAMES <<'PYEOF' || { echo "C3 operator qualification FAILED/UNTESTED -> C3-derived work is UNTESTED"; C3_QUAL_OK=0; }
 import json, os, sys
 sys.path.insert(0, os.path.join(os.getcwd(), 'fullmodel'))
 import fullarms
-rec = fullarms.verify_c3_operator()
+rec = fullarms.verify_c3_operator([int(x) for x in sys.argv[2:]])
 json.dump(rec, open(sys.argv[1], 'w'), indent=1)
 assert all(v.get('status') == 'PASS' for v in rec.values()), rec
 print('C3 operator qualification PASS for frames', sorted(rec))
 PYEOF
-python3 -c "import json,sys; r=json.load(open('$EVID/c3_operator_qualification.json')); assert set(r)=={'11','51','201','801'} and all(v['status']=='PASS' for v in r.values())" 2>/dev/null \
+python3 -c "import json,sys; r=json.load(open('$EVID/c3_operator_qualification.json')); assert set(r)==set('$C3_QUAL_FRAMES'.split()) and all(v['status']=='PASS' for v in r.values())" 2>/dev/null \
     || { echo "C3 qualification JSON invalid -> C3-derived work is UNTESTED"; C3_QUAL_OK=0; }
 needs_c3() { case "$1" in C3|H|C3F|C3P|C3M|C3N) return 0;; *) return 1;; esac; }
 run_one_q() {
@@ -132,8 +134,15 @@ trace_arm() {
         --expected-passes "$ITERS" --out "$EVID/traces/graph_verify_${arm}_${chunk}${sfx}.json" || true
     run_aux "timing_views_${arm}_${chunk}${sfx}" 300 -- python "$REPO_DIR/fullmodel/timing_views.py" --base "$base" --arm "$arm" \
         --out "$EVID/traces/timing_views_${arm}_${chunk}${sfx}.json" || true
-    run_aux "cast_count_${arm}_${chunk}${sfx}" 120 -- python "$REPO_DIR/fullmodel/e_tools.py" cast_count --base "$base" \
-        --passes "$ITERS" --out "$EVID/traces/cast_count_${arm}_${chunk}${sfx}.json" || true
+    local dump="$EVID/traces/dump_${arm}_${chunk}_${tag}"; [ -d "$dump" ] || dump=""
+    rm -f "$EVID/traces/ideal_costs_${arm}_${chunk}${sfx}.json" "$EVID/traces/ideal_costs_${arm}_${chunk}${sfx}.csv" "$EVID/traces/template_count_${arm}_${chunk}${sfx}.json"
+    run_aux "ideal_costs_${arm}_${chunk}${sfx}" 600 -- python "$REPO_DIR/fullmodel/ideal_costs.py" --base "$base" --arm "$arm" --chunk "$chunk" \
+        ${dump:+--dump-dir "$dump"} --passes "$ITERS" --out "$EVID/traces/ideal_costs_${arm}_${chunk}${sfx}.json" || true
+    run_aux "cast_count_${arm}_${chunk}${sfx}" 120 -- python "$REPO_DIR/fullmodel/e_tools.py" cast_count \
+        --ideal-costs "$EVID/traces/ideal_costs_${arm}_${chunk}${sfx}.json" --dump-dir "${dump:-/nonexistent}" \
+        --out "$EVID/traces/cast_count_${arm}_${chunk}${sfx}.json" || true
+    run_aux "template_count_${arm}_${chunk}${sfx}" 120 -- python "$REPO_DIR/fullmodel/e_tools.py" template_count \
+        --ideal-costs "$EVID/traces/ideal_costs_${arm}_${chunk}${sfx}.json" --out "$EVID/traces/template_count_${arm}_${chunk}${sfx}.json" || true
 }
 untested_pair() {   # A B CHUNK TAG REASON
     python3 -c "import json;json.dump({'pair':['$1','$2'],'chunk':$3,'tag':'$4','status':'UNTESTED','error':'$5','pair_eligible':False},open('$EVID/matched_$1_$2_c$3_$4.json','w'),indent=1)"
@@ -190,6 +199,11 @@ def load(p):
     try: return json.load(open(p))
     except Exception: return None
 need, why = False, []
+sdr_fail = []
+for c in (352800, 4410):
+    r1 = load(os.path.join(ev, f'full_C3F_c{c}_r1.json')) or {}
+    if ((r1.get('sdr_gate') or {}).get('status')) == 'FAIL':
+        sdr_fail.append(c)
 for c in (352800, 4410):
     c3 = load(os.path.join(ev, 'traces', f'cast_count_C3_{c}.json')); f = load(os.path.join(ev, 'traces', f'cast_count_C3F_{c}.json'))
     if not c3 or not f:
@@ -199,7 +213,11 @@ for c in (352800, 4410):
     ms = [load(p) for p in sorted(glob.glob(os.path.join(ev, f'matched_C3_C3F_c{c}_m*.json')))]
     if not ms or not any(m and m.get('pair_eligible') for m in ms):
         need = True; why.append(f'{c}: no eligible C3/C3F matched pair (freezing did not compose)')
-rec = {'run_C3P': need, 'reasons': why, 'rule': 'registered E1: C3P runs iff C3F is not an eligible pair at an operating point or leaves >= 50% of the C3 cast kernels'}
+if sdr_fail:
+    need = False
+    why.append(f'E1 lane STOPPED: C3F SDR gate FAIL at {sdr_fail} (registered kill); C3P not run')
+rec = {'run_C3P': need, 'reasons': why, 'e1_lane_stopped_sdr': sdr_fail,
+       'rule': 'registered E1: C3P runs iff C3F is not an eligible pair at an operating point or leaves >= 50% of the C3 cast kernels; the lane stops if the C3F SDR gate fails'}
 json.dump(rec, open(os.path.join(ev, 'e1_branch.json'), 'w'), indent=1)
 print('[E1 branch]', rec)
 PYEOF
@@ -221,6 +239,8 @@ if [ "${SESSION_POD:-0}" = "1" ] && [ "$SHAKEDOWN" != "1" ]; then
             run_matched_q C3 H "$chunk" "m$r"
         done
     done
+    rm -f "$EVID/aa_stats.json" "$EVID/aux_aa_stats.json"
+    run_aux aa_stats 120 -- python "$REPO_DIR/fullmodel/e_tools.py" aa_stats --evidence-dir "$EVID" --out "$EVID/aa_stats.json" || true
     rm -f "$EVID/e9_check.json"
     run_aux e9_check 120 -- python "$REPO_DIR/fullmodel/e_tools.py" e9_check --evidence-dir "$EVID" --registration "$REG" --out "$EVID/e9_check.json" || true
 else
@@ -246,9 +266,21 @@ for p in sorted(glob.glob(os.path.join(ev, 'matched_C3_C3M_c352800_m*.json'))):
     if m.get('pair_eligible') and m.get('matched_delta_ms'):
         meds.append(m['matched_delta_ms']['median'])          # C3 - C3M, ms (+ = C3M faster)
 gain = statistics.median(meds) if meds else None
-use_m = bool(gain is not None and gain >= 1.0)
-rec = {'C3_minus_C3M_8s_median_ms': gain, 'eligible_restarts': len(meds),
-       'rule': 'registered E4a: control = C3M and mode = max-autotune iff C3M beat C3 at 8 s by >= 1.0 ms (E2 prediction floor); else control = C3, mode = reduce-overhead',
+def load(p):
+    try:
+        return json.load(open(p))
+    except Exception:
+        return None
+qual = {}
+for c in (352800, 4410):
+    r1 = load(os.path.join(ev, f'full_C3M_c{c}_r1.json')) or {}
+    gv = load(os.path.join(ev, 'traces', f'graph_verify_C3M_{c}.json')) or {}
+    qual[c] = {'sdr': (r1.get('sdr_gate') or {}).get('status'), 'run_status': r1.get('status'),
+               'validation': (r1.get('validation') or {}).get('status'), 'graph_verify': gv.get('verdict')}
+quality_ok = all(q['sdr'] == 'PASS' and q['run_status'] == 'VALID' and q['validation'] == 'PASS' and q['graph_verify'] == 'FULLY_GRAPHED' for q in qual.values())
+use_m = bool(gain is not None and gain >= 1.0 and quality_ok)
+rec = {'C3_minus_C3M_8s_median_ms': gain, 'eligible_restarts': len(meds), 'C3M_qualification': qual, 'quality_ok': quality_ok,
+       'rule': 'registered E4a (gate-09 f131): control = C3M and mode = max-autotune iff C3M beat C3 at 8 s by >= 1.0 ms (E2 prediction floor) AND C3M is quality-eligible at both operating points (r1 VALID, validation PASS, SDR PASS, FULLY_GRAPHED); else control = C3, mode = reduce-overhead',
        'control': 'C3M' if use_m else 'C3', 'mode': 'max-autotune' if use_m else 'reduce-overhead'}
 json.dump(rec, open(os.path.join(ev, 'e4a_decision.json'), 'w'), indent=1)
 print('[E4a decision]', rec)
@@ -304,16 +336,7 @@ run_aux boundary_bench_export 600 -- nsys stats --force-export=true --force-over
 run_aux boundary_bench_analysis 300 -- python "$REPO_DIR/fullmodel/boundary_bench.py" --analyze-trace "$EVID/traces/trace_boundary_bench" \
     --traced-json "$EVID/boundary_bench_traced.json" --out "$EVID/boundary_bench_trace_analysis.json" || true
 
-echo "=== [9] post-processing: template counts (E2), collection + completeness verdict ==="
-for chunk in 352800 4410; do
-    for arm in C3 C3M; do
-        base="$EVID/traces/trace_${arm}_${chunk}_trace"
-        [ -s "${base}_cuda_gpu_trace.csv" ] || continue
-        rm -f "$EVID/traces/template_count_${arm}_${chunk}.json"
-        run_aux "template_count_${arm}_${chunk}" 120 -- python "$REPO_DIR/fullmodel/e_tools.py" template_count --base "$base" \
-            --passes "$ITERS" --out "$EVID/traces/template_count_${arm}_${chunk}.json" || true
-    done
-done
+echo "=== [9] collection + completeness verdict ==="
 finalize_session session3
 echo "SESSION3 DONE $(date -Is) elapsed=$(( $(date +%s) - T0 ))s remaining=$(remaining)s"
 echo ">>> EXTRACT evidence/ OFF-POD BEFORE TERMINATE"

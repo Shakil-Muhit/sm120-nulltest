@@ -67,14 +67,28 @@ def _c3_fixes(model, out_dir, attention=True, dc_filter=True):
     return rec
 
 
-def verify_c3_operator():
+def verify_c3_operator(frames=None):
     import native_tail_adapted
-    return native_tail_adapted.verify_operator()
+    return native_tail_adapted.verify_operator(tuple(frames) if frames else native_tail_adapted.FRAMES)
 
 
 def _compile(model, mode, info):
     info['compile_mode'] = mode
     compiled = torch.compile(model, mode=mode, dynamic=False)
+    return lambda x: compiled(x)
+
+
+def _compile_opts(model, options, label, info):
+    """Phase 3 (gate-09 f128): an Inductor knob set through a GLOBAL config change does not
+    change the compiled artifact's identity, so Dynamo may reuse the control arm's
+    compilation inside a matched process. Passing the knob as torch.compile `options`
+    makes the backend wrapper differ (mode and options are exclusive, so the
+    reduce-overhead setting `triton.cudagraphs` is merged in explicitly)."""
+    opts = {'triton.cudagraphs': True}
+    opts.update(options)
+    info['compile_mode'] = label
+    info['inductor_config'] = dict(options)
+    compiled = torch.compile(model, options=opts, dynamic=False)
     return lambda x: compiled(x)
 
 
@@ -140,11 +154,8 @@ def build_arm_step(arm, model, x_example, ctx_nocache, num_streams, info, out_di
 
     # ---- Phase 3 arms (prereg_amendments.md v0.2) ----
     if arm == 'C3F':                                  # E1(a): C3 + Inductor freezing
-        import torch._inductor.config as icfg
-        icfg.freezing = True
-        info['inductor_config'] = {'freezing': True}
         info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
-        return _compile(model, 'reduce-overhead', info)
+        return _compile_opts(model, {'freezing': True}, 'reduce-overhead+freezing', info)
 
     if arm == 'C3P':                                  # E1(b): C3 + pre-cast band/mask Linear weights
         import precast
@@ -157,10 +168,7 @@ def build_arm_step(arm, model, x_example, ctx_nocache, num_streams, info, out_di
         return _compile(model, 'max-autotune', info)
 
     if arm == 'C1P':                                  # E3: C1 + Inductor graph partition
-        import torch._inductor.config as icfg
-        icfg.graph_partition = True
-        info['inductor_config'] = {'graph_partition': True}
-        return _compile(model, 'reduce-overhead', info)
+        return _compile_opts(model, {'graph_partition': True}, 'reduce-overhead+graph_partition', info)
 
     if arm == 'C3N':                                  # E4a: C3 + norm-scale folding wrapper
         import foldnorm

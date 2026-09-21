@@ -164,29 +164,51 @@ def audit_references(ev, items, manifest_id, session, runs, matched):
     n_req = len(OPS[session]) * (len(qualify.VALIDATION_SEEDS) + qualify.SDR_CLIPS)
     item(items, f'required reference inventory ({n_req} artifacts, bound and re-hashed)', not bad,
          [f'missing/unbound/changed: {bad[:8]}'])
+    # Phase-3 namespaces (gate-09 f133): held-out validation references (pod) and the
+    # variant reference directories (E5) are inventoried and joined separately
+    vhashes = {}
+    if session == 'session3':
+        cfg3 = load(os.path.join(ev, 'session3_config.json')) or {}
+        if cfg3.get('session_pod') and not cfg3.get('shakedown'):
+            for chunk in HELD_OUT_S3:
+                for seed in qualify.VALIDATION_SEEDS:
+                    f = os.path.join(ref, f'ref_A_c{chunk}_s{seed}.pt'); side = load(f + '.lineage.json')
+                    if os.path.exists(f) and side and side.get('manifest_id') == manifest_id and side.get('sha256') == provenance.sha256_file(f):
+                        hashes[('val', chunk, seed)] = side['sha256']
+        for d in sorted(glob.glob(os.path.join(ev, 'ref_variant_*'))):
+            v = os.path.basename(d)[len('ref_variant_'):]
+            for chunk in OPS[session]:
+                for seed in qualify.VALIDATION_SEEDS:
+                    f = os.path.join(d, f'ref_A_c{chunk}_s{seed}.pt'); side = load(f + '.lineage.json')
+                    if os.path.exists(f) and side and side.get('manifest_id') == manifest_id and side.get('sha256') == provenance.sha256_file(f):
+                        vhashes[(v, chunk, seed)] = side['sha256']
     # join: every recorded hash must equal the re-hashed artifact of its operating point
     joined = 0
     mismatch = []
     for (arm, chunk), tr in runs.items():
-        if chunk not in OPS[session]:
+        if chunk not in OPS[session] and not (session == 'session3' and chunk in HELD_OUT_S3):
             continue                      # records of the other session's operating points
         for tag, r in tr.items():
+            vname = ((r.get('variant') or {}).get('variant')) if isinstance(r.get('variant'), dict) else None
             for p in (r.get('validation') or {}).get('passes') or []:
                 if p.get('ref_sha256'):
                     joined += 1
-                    if hashes.get(('val', chunk, p.get('seed'))) != p['ref_sha256']:
-                        mismatch.append(f'{arm}@{chunk}/{tag} seed {p.get("seed")}')
+                    want_h = vhashes.get((vname, chunk, p.get('seed'))) if vname else hashes.get(('val', chunk, p.get('seed')))
+                    if want_h != p['ref_sha256']:
+                        mismatch.append(f'{arm}@{chunk}/{tag} seed {p.get("seed")}' + (f' (variant {vname})' if vname else ''))
             for row in (r.get('sdr_gate') or {}).get('clips') or []:
                 if row.get('a_output_sha256'):
                     joined += 1
                     if hashes.get(('clip', chunk, row.get('index'))) != row['a_output_sha256']:
                         mismatch.append(f'{arm}@{chunk}/{tag} clip {row.get("index")}')
     for (pair, chunk, tag), m in matched.items():
+        vname = m.get('variant')
         for arm, a in (m.get('arms') or {}).items():
             for p in (a.get('validation') or {}).get('passes') or []:
                 if p.get('ref_sha256'):
                     joined += 1
-                    if hashes.get(('val', chunk, p.get('seed'))) != p['ref_sha256']:
+                    want_h = vhashes.get((vname, chunk, p.get('seed'))) if vname else hashes.get(('val', chunk, p.get('seed')))
+                    if want_h != p['ref_sha256']:
                         mismatch.append(f'matched {arm}@{chunk}/{tag} seed {p.get("seed")}')
     item(items, f'recorded reference hashes join the audited artifacts ({joined} joins)', joined > 0 and not mismatch,
          [f'{len(mismatch)} mismatches: {mismatch[:6]}'] if mismatch else ['no recorded reference hashes'])
@@ -210,6 +232,90 @@ def session_blocks(session, runs, matched):
         for (pair, c, t), m in matched.items():
             out += [(b.get('unix_start'), b.get('unix_end'), f'matched {pair}/{t}') for b in (m.get('blocks') or [])]
     return out
+
+
+def clock_series(ev, session, gpu_uuid):
+    """(timestamp, SM MHz) samples of this GPU from the session clock log (UTC unless CLOCK_TZ=local)."""
+    clocks = os.path.join(ev, f'clocks_{session}.csv')
+    out = []
+    if not os.path.exists(clocks):
+        return out
+    for line in open(clocks):
+        parts = [x.strip() for x in line.split(',')]
+        if len(parts) != 7 or (gpu_uuid and parts[1] != gpu_uuid):
+            continue
+        try:
+            sm = float(parts[2].replace('MHz', '').strip())
+        except ValueError:
+            continue
+        ts = None
+        for fmt in ('%Y/%m/%d %H:%M:%S.%f', '%Y/%m/%d %H:%M:%S'):
+            try:
+                d = _dt.datetime.strptime(parts[0], fmt)
+                ts = d.timestamp() if os.environ.get('CLOCK_TZ', 'utc') == 'local' else d.replace(tzinfo=_dt.timezone.utc).timestamp()
+                break
+            except ValueError:
+                continue
+        if ts is not None:
+            out.append((ts, sm))
+    out.sort()
+    return out
+
+
+def block_sm_median(series, a, b):
+    if not series or not (fin(a) and fin(b)):
+        return None
+    ts = [t for t, _ in series]
+    i = bisect.bisect_left(ts, a); j = bisect.bisect_right(ts, b)
+    vals = [v for _, v in series[i:j]]
+    return qualify._median(vals) if vals else None
+
+
+def audit_clock_drift(ev, items, session, runs, matched, gpu_uuid, limit=0.05):
+    """Registered stop rule (prereg v0.2, session plan): clocks may not drift more than
+    5 % between COMPARED blocks (gate-09 f132). Matched pairs: the a-block vs the b-block
+    of each repeat. Headline cells: the per-block SM medians across r1..rN."""
+    series = clock_series(ev, session, gpu_uuid)
+    bad, unresolved, checked = [], [], 0
+    for (pair, c, t), m in matched.items():
+        if m.get('status') not in ('VALID',):
+            continue
+        blocks = m.get('blocks') or []
+        by_rep = {}
+        for b in blocks:
+            by_rep.setdefault(b.get('repeat'), []).append(b)
+        for rep, bs in by_rep.items():
+            if len(bs) != 2:
+                continue
+            sa = block_sm_median(series, bs[0].get('unix_start'), bs[0].get('unix_end'))
+            sb = block_sm_median(series, bs[1].get('unix_start'), bs[1].get('unix_end'))
+            if sa is None or sb is None:
+                unresolved.append(f'matched {pair}@{c}/{t} rep {rep}')
+                continue
+            checked += 1
+            drift = abs(sa - sb) / ((sa + sb) / 2)
+            if drift > limit:
+                bad.append(f'matched {pair}@{c}/{t} rep {rep}: {sa:.0f} vs {sb:.0f} MHz ({drift * 100:.1f} %)')
+    for (a, c), rs in runs.items():
+        meds = []
+        for t, r in rs.items():
+            if not t.startswith('r') or not t[1:].isdigit() or r.get('status') != 'VALID':
+                continue
+            for b in ((r.get('timing') or {}).get('blocks') or []):
+                sm = block_sm_median(series, b.get('unix_start'), b.get('unix_end'))
+                if sm is None:
+                    unresolved.append(f'{a}@{c}/{t} block {b.get("repeat")}')
+                else:
+                    meds.append(sm)
+        if len(meds) >= 2:
+            checked += 1
+            drift = (max(meds) - min(meds)) / (sum(meds) / len(meds))
+            if drift > limit:
+                bad.append(f'{a}@{c} restarts: {min(meds):.0f}–{max(meds):.0f} MHz ({drift * 100:.1f} %)')
+    ok = checked > 0 and not bad and not unresolved
+    item(items, f'clock drift <= {limit * 100:.0f} % between compared blocks ({checked} comparisons)', ok,
+         [f'drift violations {bad[:6]}', f'unresolved (no samples in block) {unresolved[:4]}'] if (bad or unresolved) else ['no comparisons'])
+    return bad
 
 
 def audit_clock(ev, items, session, runs, matched, gpu_uuid):
@@ -285,8 +391,12 @@ def audit_prerequisites(ev, items, manifest_id, run_map):
              ['planted-fault record missing, foreign, or not a per-pass FAIL at the planted magnitude'])
     q = load(os.path.join(ev, 'c3_operator_qualification.json')) or {}
     probs = []
-    if set(q) != C3_FRAMES:
-        probs.append(f'frame set {sorted(q)} != registered {sorted(C3_FRAMES)}')
+    cfg3 = load(os.path.join(ev, 'session3_config.json')) or {}
+    want = set(C3_FRAMES)
+    if cfg3 and cfg3.get('session_pod') and not cfg3.get('shakedown'):
+        want = want | {'401', '601'}                     # E9 held-out frame counts, pod only
+    if set(q) != want:
+        probs.append(f'frame set {sorted(q)} != registered {sorted(want)}')
     for T, v in q.items():
         oc = v.get('opcheck')
         oc_ok = isinstance(oc, dict) and bool(oc) and all(x == 'SUCCESS' for x in oc.values())
@@ -326,8 +436,10 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
             item(items, f'E6 headline {a}@{c} (r1..r{n_restart}, SDR in r1)', bool(cell and cell['headline_status'] == 'HEADLINE'),
                  (cell or {}).get('reasons', ['no runs']))
     aa = load(os.path.join(ev, 'aa_stats.json')) or {}
-    n_aa = sum(1 for v in (aa.get('pairs') or {}).values() if 'median_ms' in v)
-    item(items, 'E6 A/A statistics (block-level bootstrap intervals)', n_aa >= len(OPS['session3']), [f'{n_aa} A/A pairs summarised'])
+    aa_chunks = {v.get('chunk') for v in (aa.get('pairs') or {}).values() if 'median_ms' in v}
+    need_aa = set(OPS['session3']) | (set(HELD_OUT_S3) if (cfg.get('session_pod') and not shakedown) else set())
+    item(items, 'E6/E9 A/A statistics (block-level bootstrap intervals) for every A/A operating point', need_aa <= aa_chunks,
+         [f'A/A statistics present for {sorted(aa_chunks)}, required {sorted(need_aa)}'])
     # ---- pairs helper
     def pair_items(label, a, b, c, tags):
         for t in tags:
@@ -347,7 +459,10 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
         ok = gv.get('verdict') in (('FULLY_GRAPHED',) if need_graphed else ('FULLY_GRAPHED', 'NOT_FULLY_GRAPHED', 'NO_REPLAY_EVIDENCE'))
         item(items, f'{label} graph verification {a}@{c}' + (f' [{sfx}]' if sfx else '') + (' FULLY_GRAPHED' if need_graphed else ' (verdict recorded)'),
              ok, [f"verdict {gv.get('verdict', 'MISSING')}"], optional=optional)
-        dynamic_aux.extend([f'graph_verify_{a}_{c}{gsfx}', f'timing_views_{a}_{c}{gsfx}', f'cast_count_{a}_{c}{gsfx}'])
+        names = [f'graph_verify_{a}_{c}{gsfx}', f'timing_views_{a}_{c}{gsfx}', f'cast_count_{a}_{c}{gsfx}', f'ideal_costs_{a}_{c}{gsfx}', f'template_count_{a}_{c}{gsfx}']
+        dynamic_aux.extend(names)
+        if optional:
+            audit_session3.optional_aux = getattr(audit_session3, 'optional_aux', set()) | set(names)
     def sdr_item(label, a, c):
         r = (run_map.get((a, c)) or {}).get('r1')
         g = (r or {}).get('sdr_gate') or {}
@@ -369,7 +484,8 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
             dynamic_aux.append(f'template_count_{a}_{c}')
     # ---- E1
     branch = load(os.path.join(ev, 'e1_branch.json')) or {}
-    item(items, 'E1 branch decision recorded (e1_branch.json)', 'run_C3P' in branch, ['missing'])
+    item(items, 'E1 branch decision recorded (e1_branch.json)', 'run_C3P' in branch, ['missing'],
+         note=(f"lane stopped by SDR: {branch.get('e1_lane_stopped_sdr')}" if branch.get('e1_lane_stopped_sdr') else None))
     for c in OPS['session3']:
         pair_items('E1', 'C3', 'C3F', c, tags)
         sdr_item('E1', 'C3F', c)
@@ -689,11 +805,16 @@ def main():
         item(items, 'boundary trace analysis qualified', bool(qual.get('cases')) and qual.get('accepted_segments', 0) > 0,
              [f"qualification {qual}"])
     audit_clock(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
+    if args.session == 'session3':
+        audit_clock_drift(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
     audit_aux(ev, items, args.session, dynamic_aux)
     if args.session == 'session3':                      # registered optional experiments never block the verdict
+        opt_aux = set(OPTIONAL_AUX_S3) | set(getattr(audit_session3, 'optional_aux', set()))
         for i in items:
-            if i['item'].startswith('auxiliary step ') and i['item'].split(' ', 2)[2] in OPTIONAL_AUX_S3:
-                i['optional'] = True
+            if i['item'].startswith('auxiliary step '):
+                nm = i['item'].split(' ', 2)[2]
+                if nm in opt_aux or '_v_' in nm:
+                    i['optional'] = True
     mandatory = [i for i in items if not i.get('optional')]
     n_ok = sum(1 for i in mandatory if i['complete'])
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -706,14 +827,16 @@ def main():
               'complete_items': n_ok, 'total_items': len(mandatory),
               'optional_items': [{'item': i['item'], 'complete': i['complete'], 'reason': i['reason']} for i in items if i.get('optional')],
               'verdict': 'COMPLETE' if n_ok == len(mandatory) else 'INCOMPLETE',
-              'shakedown': bool(cfg3.get('shakedown')) if args.session == 'session3' else None,
+              'shakedown': (bool(cfg3.get('shakedown')) or not bool(cfg3.get('session_pod'))) if args.session == 'session3' else None,
+              'evidence_grade': (('pod' if (cfg3.get('session_pod') and not cfg3.get('shakedown')) else 'engineering (off-pod or shakedown: never session evidence)')
+                                 if args.session == 'session3' else 'pod'),
               'qualify_version': qualify.QUALIFY_VERSION,
               'analysis_tools_commit': analysis_commit,
               'analysis_tools_sha256': {k: v for k, v in provenance.code_hashes().items() if os.path.basename(k) in ANALYSIS_TOOLS}}
     with open(os.path.join(ev, 'session_status.json'), 'w') as f:
         json.dump(status, f, indent=1)
     print(f"[completeness] {args.session}: {status['verdict']} ({n_ok}/{len(mandatory)} mandatory items"
-          + (f"; shakedown={status['shakedown']}" if args.session == 'session3' else '') + ')')
+          + (f"; shakedown={status['shakedown']}; evidence grade: {status['evidence_grade']}" if args.session == 'session3' else '') + ')')
     for i in items:
         if not i['complete']:
             print(f"   {'optional-incomplete' if i.get('optional') else 'INCOMPLETE'} {i['item']}: {i['reason']}")

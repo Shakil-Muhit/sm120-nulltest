@@ -28,6 +28,20 @@ ARMS = ('A', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H', 'ANVT
 CHUNKS = (352800, 4410, 22050, 88200)
 import os as _os
 REQUIRED_RESTARTS = tuple(f'r{i}' for i in range(1, int(_os.environ.get('REQUIRED_RESTARTS', '3')) + 1))
+
+
+def bind_restarts(evidence_dir):
+    """Session 3 binds its headline restart count in session3_config.json (gate-09 f135):
+    the record, never the environment, decides."""
+    global REQUIRED_RESTARTS
+    p = _os.path.join(evidence_dir, 'session3_config.json')
+    if _os.path.exists(p):
+        try:
+            n = int(json.load(open(p)).get('headline_restarts') or 5)
+            REQUIRED_RESTARTS = tuple(f'r{i}' for i in range(1, n + 1))
+        except Exception:
+            pass
+    return REQUIRED_RESTARTS
 REQUIRED_MATCHED = ('m1', 'm2', 'm3')
 
 
@@ -183,6 +197,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--evidence-dir', default=os.path.join(REPO_ROOT, 'evidence'))
     args = ap.parse_args()
+    bind_restarts(args.evidence_dir)
     runs = load(args.evidence_dir)
     cells = {k: cell(v) for k, v in runs.items()}
     print('| arm | chunk | r1/r2/r3 | tier | SDR r1 (mean ΔSDR dB) | headline | ms | restart spread | best thr ms | variant / breaks | reasons |')
