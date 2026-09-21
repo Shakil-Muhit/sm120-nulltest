@@ -64,13 +64,18 @@ def build_one(arm, chunk, streams, gen_dir, paths, settle_max, variant=None):
             'settle': settle, 'gate': gate, 'gate_snapshot': gate_snapshot, 'use_amp': use_amp}
 
 
-def joint_settle(built, arms, rounds=2, passes=3):
-    """Alternate the two steps. The recording state is snapshotted BEFORE the
-    first round and after every round; stable iff unchanged across ALL rounds
-    (a re-recording of the arm built first shows up in round 1), and no new
-    graph breaks / unimplemented ops appear at any point."""
+def joint_settle(built, arms, min_rounds=2, passes=3, max_rounds=6):
+    """Alternate the two steps (plan 1.2: "until the compile/recording counters are
+    stable across two full alternation rounds"). The recording state is snapshotted
+    BEFORE the first round and after every round. Rounds continue until the last two
+    transitions are affirmatively stable (or max_rounds is reached); leading unstable
+    transitions are recorded as warm-up rounds (cudagraph trees may record additional
+    paths the first time two compiled models alternate — observed for C1P, Phase 3).
+    'stable' is None when the observer is unavailable; new graph breaks or
+    unimplemented ops at ANY point are reported separately."""
     snaps = [tm.recording_state()]
-    for r in range(rounds + 1):
+    verdicts = []
+    for r in range(max_rounds):
         for arm in arms:
             b = built[arm]
             with torch.no_grad(), b['ctx']():
@@ -78,12 +83,22 @@ def joint_settle(built, arms, rounds=2, passes=3):
                     b['step'](b['x'])
         torch.cuda.synchronize()
         snaps.append(tm.recording_state())
-    verdicts = [tm.recording_stable(a, c) for a, c in zip(snaps, snaps[1:])]
+        verdicts.append(tm.recording_stable(snaps[-2], snaps[-1]))
+        if len(verdicts) >= min_rounds and verdicts[-1] is True and verdicts[-2] is True:
+            break
+    last2 = verdicts[-2:]
+    stable = None if (len(last2) < 2 or any(v is None for v in last2)) else all(last2)
     breaks = [sum(x['counters'].get('graph_break', {}).values()) +
               sum(x['counters'].get('unimplemented', {}).values()) for x in snaps]
-    return {'stable': (None if any(v is None for v in verdicts) else all(verdicts)),
-            'new_breaks_during_joint_settle': breaks[-1] - breaks[0],
-            'rounds': rounds, 'snapshots': snaps}
+    warm = 0
+    for v in verdicts:
+        if v is True:
+            break
+        warm += 1
+    return {'stable': stable, 'new_breaks_during_joint_settle': breaks[-1] - breaks[0],
+            'rounds': len(verdicts) - 1, 'rounds_executed': len(verdicts), 'warmup_rounds': warm,
+            'policy': f'until two consecutive stable rounds (min {min_rounds}, max {max_rounds}); leading unstable rounds are warm-up',
+            'transition_verdicts': verdicts, 'snapshots': snaps}
 
 
 def main():

@@ -433,9 +433,17 @@ def pair_problems(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
             or any(not snapshot_complete(x) for x in chain):
         problems.append('matched recording snapshots incomplete or malformed')
     else:
-        verdicts = [recording_stable(a, b) for a, b in zip(chain, chain[1:])]
-        if any(v is None for v in verdicts) or not all(verdicts):
-            problems.append('recording state changed (or unresolved) across a matched phase transition')
+        # joint settle: the LAST two alternation rounds must be affirmatively stable (plan 1.2
+        # "stable across two full alternation rounds"); earlier rounds are warm-up (Phase 3,
+        # C1P recorded additional cudagraph paths in its first alternation round). Every
+        # transition after the joint settle (validation, every timed block) must be stable.
+        jv = [recording_stable(a, b) for a, b in zip(jsn, jsn[1:])]
+        tail = [jsn[-1]] + chain[len(jsn):]
+        tv = [recording_stable(a, b) for a, b in zip(tail, tail[1:])]
+        if len(jv) < 2 or any(v is None for v in jv[-2:]) or not all(jv[-2:]):
+            problems.append('joint settle: the last two alternation rounds are not affirmatively stable')
+        if any(v is None for v in tv) or not all(tv):
+            problems.append('recording state changed (or unresolved) across a matched phase transition after the joint settle')
     if m.get('pair_eligible') is False and not problems:
         problems.append(f"stored pair flag says ineligible: {m.get('ineligibility_reasons')}")
     # exactly the two declared arms, each with its full numerical validation
