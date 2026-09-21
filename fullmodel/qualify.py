@@ -8,13 +8,13 @@ recording stability, gate, manifest) — never from stored booleans.
 QUALIFY_VERSION = 5
 REGISTERED_ITERS = 50
 REGISTERED_REPEATS = 5
-COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H', 'C3F', 'C3P', 'C3M', 'C1P', 'C3N')
-ZERO_BREAK_ARMS = ('C3', 'H', 'C3F', 'C3P', 'C3M', 'C3N')
+COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H', 'C3F', 'C3P', 'C3M', 'C1P', 'C3N', 'C3G')
+ZERO_BREAK_ARMS = ('C3', 'H', 'C3F', 'C3P', 'C3M', 'C3N', 'C3G')
 VARIANT_FIELDS = ('capture_scope', 'capture_adapter_active', 'compile_mode', 'stream_count')
 TIERS = {'loose': (1e-2, 1e-3), 'tight': (1e-4, 1e-5)}
 TIER_OF = {a: ('loose' if a in COMPILE_ARMS else 'tight')
            for a in ('A', 'ANVTX', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H',
-                     'C3F', 'C3P', 'C3M', 'C1P', 'C3N')}
+                     'C3F', 'C3P', 'C3M', 'C1P', 'C3N', 'C3G')}
 
 
 def base(arm):

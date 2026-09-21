@@ -101,7 +101,7 @@ print('C3 operator qualification PASS for frames', sorted(rec))
 PYEOF
 python3 -c "import json,sys; r=json.load(open('$EVID/c3_operator_qualification.json')); assert set(r)==set('$C3_QUAL_FRAMES'.split()) and all(v['status']=='PASS' for v in r.values())" 2>/dev/null \
     || { echo "C3 qualification JSON invalid -> C3-derived work is UNTESTED"; C3_QUAL_OK=0; }
-needs_c3() { case "$1" in C3|H|C3F|C3P|C3M|C3N) return 0;; *) return 1;; esac; }
+needs_c3() { case "$1" in C3|H|C3F|C3P|C3M|C3N|C3G) return 0;; *) return 1;; esac; }
 run_one_q() {
     if [ "$PREREQ_OK" != "1" ]; then terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "$PREREQ_REASON"; return; fi
     if [ "$C3_QUAL_OK" != "1" ] && needs_c3 "$1"; then terminal_json "$EVID/full_$1_c$2_$3.json" "$1" "$2" "$3" UNTESTED "C3 operator qualification failed"; return; fi
@@ -183,7 +183,7 @@ for chunk in 352800 4410; do
     T_COMPILE="$T_COMPILE_SAVED"
 done
 
-echo "=== [4] E1: C3 vs C3F (freezing), both operating points + traces (C3 and C3F) + SDR; C3P contingency ==="
+echo "=== [4] E1: C3 vs C3F (freezing), both operating points + traces (C3 and C3F) + SDR; then C3G; C3P contingency ==="
 for chunk in 352800 4410; do
     for r in $(seq 1 "$RESTARTS"); do
         run_matched_q C3 C3F "$chunk" "m$r"
@@ -193,6 +193,16 @@ for chunk in 352800 4410; do
     run_one_q C3F "$chunk" r1 --sdr
     trace_arm C3 "$chunk" trace || true
     trace_arm C3F "$chunk" trace || true
+done
+echo "=== [4b] E1(a'): C3 vs C3G (freezing without nn-module inlining; probe docs/phase3/probes/freezing_probe.json) ==="
+for chunk in 352800 4410; do
+    for r in $(seq 1 "$RESTARTS"); do
+        run_matched_q C3 C3G "$chunk" "m$r"
+    done
+done
+for chunk in 352800 4410; do
+    run_one_q C3G "$chunk" r1 --sdr
+    trace_arm C3G "$chunk" trace || true
 done
 rm -f "$EVID/e1_branch.json"
 python3 - "$EVID" <<'PYEOF'

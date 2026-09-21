@@ -1,0 +1,68 @@
+{
+ "baseline (as C3)": {
+  "requires_grad": true,
+  "inline_inbuilt_nn_modules": true,
+  "freezing": false,
+  "cast_launches_in_wrapper": 9,
+  "output_code_files": 1,
+  "cast_kernel_names": [
+   "triton_poi_fused__to_copy_0",
+   "triton_poi_fused__to_copy_1",
+   "triton_poi_fused__to_copy_2"
+  ],
+  "child_ok": true,
+  "stderr_tail": ""
+ },
+ "C3F settings": {
+  "requires_grad": true,
+  "inline_inbuilt_nn_modules": true,
+  "freezing": true,
+  "cast_launches_in_wrapper": 9,
+  "output_code_files": 1,
+  "cast_kernel_names": [
+   "triton_poi_fused__to_copy_0",
+   "triton_poi_fused__to_copy_1",
+   "triton_poi_fused__to_copy_2"
+  ],
+  "child_ok": true,
+  "stderr_tail": ""
+ },
+ "freezing, requires_grad=False": {
+  "requires_grad": false,
+  "inline_inbuilt_nn_modules": true,
+  "freezing": true,
+  "cast_launches_in_wrapper": 9,
+  "output_code_files": 1,
+  "cast_kernel_names": [
+   "triton_poi_fused__to_copy_0",
+   "triton_poi_fused__to_copy_1",
+   "triton_poi_fused__to_copy_2"
+  ],
+  "child_ok": true,
+  "stderr_tail": ""
+ },
+ "freezing, inline_inbuilt_nn_modules=False": {
+  "requires_grad": true,
+  "inline_inbuilt_nn_modules": false,
+  "freezing": true,
+  "cast_launches_in_wrapper": 1,
+  "output_code_files": 1,
+  "cast_kernel_names": [
+   "triton_poi_fused__to_copy_0"
+  ],
+  "child_ok": true,
+  "stderr_tail": ""
+ },
+ "freezing, no grad, no inlining": {
+  "requires_grad": false,
+  "inline_inbuilt_nn_modules": false,
+  "freezing": true,
+  "cast_launches_in_wrapper": 1,
+  "output_code_files": 1,
+  "cast_kernel_names": [
+   "triton_poi_fused__to_copy_0"
+  ],
+  "child_ok": true,
+  "stderr_tail": ""
+ }
+}

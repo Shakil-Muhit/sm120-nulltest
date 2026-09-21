@@ -632,12 +632,16 @@ def fill_realized(E, rows, p3):
             continue
         O = r['O']
         if r['X'].startswith('X6a'):
-            rec = matched_realized(p3, 'C3', 'C3F', O)
-            src = 'E1 C3 − C3F'
-            if branch.get('run_C3P'):
-                rec2 = matched_realized(p3, 'C3', 'C3P', O)
-                if rec2 and (not rec or rec2['realized_ms'] > rec['realized_ms']):
-                    rec, src = rec2, 'E1(b) C3 − C3P'
+            rec, src = None, None
+            for arm, lab in (('C3F', 'E1 C3 − C3F'), ('C3G', "E1(a') C3 − C3G"), ('C3P', 'E1(b) C3 − C3P')):
+                rec2 = matched_realized(p3, 'C3', arm, O)
+                if rec2 and (rec is None or rec2['realized_ms'] > rec['realized_ms']):
+                    rec, src = rec2, lab
+            # every E1 arm's realized value is kept in the note; the row carries the best one
+            for arm, lab in (('C3F', 'C3F'), ('C3G', 'C3G'), ('C3P', 'C3P')):
+                rec2 = matched_realized(p3, 'C3', arm, O)
+                if rec2:
+                    E.phase3_notes.append(f"E1 @{O}: C3 − {arm} realized {rec2['realized_ms']:+.4f} ms {rec2['ci95_ms']} ({rec2['restarts']} restarts)")
             if rec:
                 r['realized_ms'], r['realized_ci95_ms'], r['realized_source'] = rec['realized_ms'], rec['ci95_ms'], f"{src}: {rec['files']}"
         if r['X'].startswith('X2a'):

@@ -497,7 +497,10 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
         sdr_item('E1', 'C3F', c)
         trace_items('E1', 'C3', c, need_graphed=True)
         trace_items('E1', 'C3F', c, need_graphed=True)
-        for a in ('C3', 'C3F'):
+        pair_items("E1(a')", 'C3', 'C3G', c, tags)
+        sdr_item("E1(a')", 'C3G', c)
+        trace_items("E1(a')", 'C3G', c, need_graphed=True)
+        for a in ('C3', 'C3F', 'C3G'):
             cc = load(os.path.join(ev, 'traces', f'cast_count_{a}_{c}.json')) or {}
             item(items, f'E1 cast count {a}@{c}', fin(cc.get('cast_kernels_per_pass')), ['cast count missing'])
         if branch.get('run_C3P'):

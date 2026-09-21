@@ -30,10 +30,10 @@ import capture as capture_mod                 # noqa: E402
 import padbatch                               # noqa: E402
 
 ARMS = ('A', 'ANVTX', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H',
-        'C3F', 'C3P', 'C3M', 'C1P', 'C3N')          # Phase 3: E1a, E1b, E2, E3, E4a
-COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H', 'C3F', 'C3P', 'C3M', 'C1P', 'C3N')
+        'C3F', 'C3P', 'C3M', 'C1P', 'C3N', 'C3G')   # Phase 3: E1a, E1b, E2, E3, E4a, E1a'
+COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H', 'C3F', 'C3P', 'C3M', 'C1P', 'C3N', 'C3G')
 CAPTURE_ARMS = ('B', 'E', 'G')
-REQUIRE_ZERO_BREAKS = ('C3', 'H', 'C3F', 'C3P', 'C3M', 'C3N')   # gate: zero graph breaks or INVALID
+REQUIRE_ZERO_BREAKS = ('C3', 'H', 'C3F', 'C3P', 'C3M', 'C3N', 'C3G')   # gate: zero graph breaks or INVALID
 # classification rule (sm120 VAL_TOL rationale): compiler-regenerated kernels
 # present -> loose; else tight.
 TIER = {a: ('loose' if a in COMPILE_ARMS else 'tight') for a in ARMS}
@@ -156,6 +156,23 @@ def build_arm_step(arm, model, x_example, ctx_nocache, num_streams, info, out_di
     if arm == 'C3F':                                  # E1(a): C3 + Inductor freezing
         info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
         return _compile_opts(model, {'freezing': True}, 'reduce-overhead+freezing', info)
+
+    if arm == 'C3G':                                  # E1(a'): freezing WITHOUT nn-module inlining
+        # docs/phase3/probes/freezing_probe.json (torch 2.8.0): freezing folds the autocast
+        # parameter casts only when torch._dynamo.config.inline_inbuilt_nn_modules is False.
+        # The knob is patched around C3G's compile and every C3G call only, so the control arm
+        # built earlier in the same process keeps its own (default) Dynamo configuration.
+        import torch._dynamo
+        info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
+        patch = torch._dynamo.config.patch(inline_inbuilt_nn_modules=False)
+        with patch:
+            step = _compile_opts(model, {'freezing': True}, 'reduce-overhead+freezing+noinline', info)
+        info['inductor_config'] = {'freezing': True, 'dynamo.inline_inbuilt_nn_modules': False}
+
+        def run(x):
+            with torch._dynamo.config.patch(inline_inbuilt_nn_modules=False):
+                return step(x)
+        return run
 
     if arm == 'C3P':                                  # E1(b): C3 + pre-cast band/mask Linear weights
         import precast

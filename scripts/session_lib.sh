@@ -25,8 +25,8 @@ T0=$(date +%s)
 remaining() { echo $(( SESSION_BUDGET_S - EXTRACT_RESERVE_S - ($(date +%s) - T0) )); }
 cap_for()   { local want="$1" rem; rem=$(remaining); [ "$rem" -lt "$want" ] && echo "$rem" || echo "$want"; }
 
-logs_for() { case "$1" in C1|C2|C3|C1A|C1D|H|C3F|C3P|C3M|C1P|C3N) echo "graph_breaks,recompiles,perf_hints,cudagraphs" ;; *) echo "" ;; esac; }
-tmo_for()  { case "$1" in C1|C2|C3|C1A|C1D|H|C3F|C3P|C3M|C1P|C3N) echo "$T_COMPILE" ;; *) echo "$T_OTHER" ;; esac; }
+logs_for() { case "$1" in C1|C2|C3|C1A|C1D|H|C3F|C3P|C3M|C1P|C3N|C3G) echo "graph_breaks,recompiles,perf_hints,cudagraphs" ;; *) echo "" ;; esac; }
+tmo_for()  { case "$1" in C1|C2|C3|C1A|C1D|H|C3F|C3P|C3M|C1P|C3N|C3G) echo "$T_COMPILE" ;; *) echo "$T_OTHER" ;; esac; }
 
 terminal_json() {   # path arm chunk tag status reason
     python3 - "$@" <<'PYEOF'
