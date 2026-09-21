@@ -1,6 +1,6 @@
 #!/bin/bash
 # Bring up the session pod from muhit-pc (prereg_amendments.md §5; docs/fullmodel_runbook.md).
-#   1. create the RunPod secure-cloud RTX 5090 pod `melband_profiling`
+#   1. create the RunPod secure-cloud RTX 5090 pod "melband profiling"
 #   2. wait for SSH, record the pod id/host/port in evidence-local pod.env
 #   3. ship the COMMITTED tree as a git bundle (no credentials on the pod;
 #      the clone keeps .git so every run records the commit hash)
@@ -10,7 +10,7 @@ set -u
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DCS="${1:-EU-CZ-1 EU-RO-1 EUR-IS-1 EUR-IS-2 EUR-NO-1}"   # tried in order until one has a 5090
 IMAGE="runpod/pytorch:1.1.0-rc.154-cu1281-torch280-ubuntu2204"
-NAME="melband_profiling"
+NAME="melband profiling"   # owner instruction 2026-09-21: name with a space
 CLIPS="${CLIPS_SRC:-$HOME/ms/data/sdr_clips}"
 KEY="$HOME/.runpod/ssh/RunPod-Key-Go"
 export PATH="$HOME/.local/bin:$PATH"

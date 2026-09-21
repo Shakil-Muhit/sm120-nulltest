@@ -51,6 +51,23 @@ scope/adapter, graph gate, settle, notes); `ref/` (eager-A references); `generat
 ml-beast GPU 4: `rsync -a --exclude .git --exclude evidence sm120-nulltest/ ml-beast:~/axial/sm120-nulltest/`,
 env in `~/axial/fullmodel_smoke/env.sh`, outputs in `~/axial/fullmodel_smoke/`.
 
+
+### Phase 3 (session 3) shakedown and pod flow
+Shakedown host (GPU 4), engineering data only (never evidence):
+```bash
+# driver workstation: commit, then sync the committed tree WITH .git (the manifest needs a clean committed tree)
+rsync -a --delete --exclude '/evidence/' --exclude '/evidence_smoke/' --exclude '__pycache__' --exclude 'pod.env' sm120-nulltest/ ml-beast:~/axial/sm120-nulltest/
+# shakedown host, inside tmux: user-space nsys (2026.5.1) is at $(cat ~/axial/nsys_path.txt)
+source ~/axial/fullmodel_smoke/env.sh && source ~/axial/venv/bin/activate
+export PATH=$(dirname $(cat ~/axial/nsys_path.txt)):$PATH
+export EVID=~/axial/fullmodel_smoke/session3_shakedown_$(date +%Y%m%d_%H%M) SHAKEDOWN=1 SESSION_BUDGET_S=25200 EXTRACT_RESERVE_S=600 E5_BUDGET_S=5400
+bash scripts/session3.sh        # E9 held-out lengths are recorded UNTESTED by rule; audit verdict carries shakedown=true
+```
+Pod (owner go-ahead required; name "melband profiling"): `bash scripts/pod_up.sh` → `bash scripts/pod_run.sh ship` →
+`SESSION_ENV="SESSION_BUDGET_S=18000 EXTRACT_RESERVE_S=900 E5_BUDGET_S=3600" bash scripts/pod_run.sh session3` (exports SESSION_POD=1, so the E9
+held-out lengths run) → `pod_run.sh tail session3` → `pod_run.sh extract` → `pod_run.sh terminate`. Off-pod: `completeness.py --session session3`
+re-audit, `e_tools.py e9_check`, then the ledger realized/ceiling fill.
+
 ## Phase 2 (off-pod, no GPU)
 ```bash
 python fullmodel/session_result.py --evidence-dir <extracted evidence> --out SESSION_RESULT.md

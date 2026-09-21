@@ -132,7 +132,10 @@ def install(model):
                 assert all(isinstance(value, bool) for value in config), name
                 backend_checks[str(tuple(config))] = verify_backend_context(config)
             pending.append((name, module, types.MethodType(flash_attn, module)))
-    assert len(pending) == 12, f'expected 12 Attend modules, got {len(pending)}'
+    # Phase 3 (E5): the expected count is derived from the model (one Attend per
+    # (attention, feed-forward) pair of every Transformer); the public config gives 12
+    expected = sum(len(tf.layers) for block in model.layers for tf in block if hasattr(tf, 'layers'))
+    assert expected > 0 and len(pending) == expected, f'expected {expected} Attend modules, got {len(pending)}'
     applied = []
     try:
         for name, module, method in pending:

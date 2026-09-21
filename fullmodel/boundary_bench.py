@@ -95,10 +95,11 @@ PROLOGUE_ITERS = 4096      # dependent fp32 FMA loop (~2 us of register work wit
 
 @triton.jit
 def add_one_prologue(x_ptr, acc_ptr, ITERS: tl.constexpr):
+    offs = tl.arange(0, 1)
     a = tl.zeros([1], dtype=tl.float32) + 1.0
     for _ in range(ITERS):
         a = a * 0.999 + 0.5
-    tl.store(acc_ptr, a)                     # keep the loop alive (independent buffer)
+    tl.store(acc_ptr + offs, a)              # keep the loop alive (independent buffer)
     v = tl.load(x_ptr)
     tl.store(x_ptr, v + 1)
 
@@ -106,10 +107,11 @@ def add_one_prologue(x_ptr, acc_ptr, ITERS: tl.constexpr):
 if HAVE_GDC:
     @triton.jit
     def add_one_prologue_pdl(x_ptr, acc_ptr, ITERS: tl.constexpr):
+        offs = tl.arange(0, 1)
         a = tl.zeros([1], dtype=tl.float32) + 1.0
         for _ in range(ITERS):
             a = a * 0.999 + 0.5
-        tl.store(acc_ptr, a)
+        tl.store(acc_ptr + offs, a)
         gdc_wait()                           # the dependent load waits; the loop above may overlap the primary's tail
         v = tl.load(x_ptr)
         tl.store(x_ptr, v + 1)
@@ -267,11 +269,12 @@ def analyze_trace(base, out, traced_json=None):
     Joined with the traced run's own JSON (gate-03 f40): a segment is only
     accepted when its case status is 'ok' (dependency proof + PTX passed) and
     the segment holds exactly N x REPEATS kernels; else UNRESOLVED."""
-    cases, qual_note, pdl_ptx = {}, None, None
+    cases, qual_note, pdl_ptx, pdl_ptx_prologue = {}, None, None, None
     if traced_json and os.path.exists(traced_json):
         tj = json.load(open(traced_json))
         cases = tj.get('chains', {})
         pdl_ptx = tj.get('pdl_ptx')
+        pdl_ptx_prologue = tj.get('pdl_ptx_prologue')
     if not cases:
         qual_note = 'UNRESOLVED: traced run qualification JSON missing — no calibration value derived'
     def read(path):
@@ -328,9 +331,11 @@ def analyze_trace(base, out, traced_json=None):
                 res[nm] = {'kernels': len(ks), 'expected_counter': derived,
                            'status': 'UNRESOLVED: dependency proof data missing, failed, or not the derived count'}
                 continue
-        if '/pdl_' in nm and pdl_ptx is not True:
-            res[nm] = {'kernels': len(ks), 'status': f'UNRESOLVED: PDL PTX qualification {pdl_ptx}'}
-            continue
+        if '/pdl_' in nm:
+            q = pdl_ptx_prologue if nm.startswith('prologue/') else pdl_ptx
+            if q is not True:
+                res[nm] = {'kernels': len(ks), 'status': f'UNRESOLVED: PDL PTX qualification {q}'}
+                continue
         if expected is not None and len(ks) != expected:
             res[nm] = {'kernels': len(ks), 'expected_kernels': expected,
                        'status': 'UNRESOLVED: kernel count != N x REPEATS'}
@@ -484,11 +489,13 @@ def main():
         result['pdl_launch_attributes'] = launch_attributes_record()
     else:
         result['pdl_ptx'] = 'UNTESTED: gdc intrinsics unavailable'
-    pdl_ok = result['pdl_ptx'] is True and result.get('pdl_ptx_prologue', True) is True
+    # per-chain qualification: trivial PDL chains need the trivial kernel's PTX, prologue chains their own
     for key, rec in result['chains'].items():
-        if '/pdl_' in key and rec.get('status') == 'ok' and not pdl_ok:
-            rec['status'] = 'UNRESOLVED'
-            rec['reason'] = f"PDL PTX qualification failed: {result['pdl_ptx']}"
+        if '/pdl_' in key and rec.get('status') == 'ok':
+            q = result.get('pdl_ptx_prologue') if key.startswith('prologue/') else result['pdl_ptx']
+            if q is not True:
+                rec['status'] = 'UNRESOLVED'
+                rec['reason'] = f"PDL PTX qualification failed: {q}"
     for chain in ('trivial', 'prologue', 'elem37', 'gemm'):
         for mode in ('stream', 'graph', 'pdl_stream', 'pdl_graph'):
             pts = [(n, result['chains'][f'{chain}/{mode}/N{n}']['chain_us_median'])

@@ -13,6 +13,24 @@ echo "PHASE3 SMOKE START $(date -Is) evid=$EVID gpu=$CUDA_VISIBLE_DEVICES"
 $PY -c "import torch;print('torch',torch.__version__, torch.cuda.get_device_name(0))"
 run() { echo "--- $* $(date -Is)"; timeout -k 30 1500 "$@"; echo "    exit $?"; }
 export TORCH_LOGS="graph_breaks,recompiles,cudagraphs"
+if [ "${FIXES_ONLY:-0}" = "1" ]; then
+    run $PY fullmodel/run_full_arm.py --arm A --chunk 4410 --tag v_d1_mquarter_ref --variant d1_mquarter --save-reference --skip-timing --no-manifest --evidence-dir "$EVID"
+    run $PY fullmodel/run_full_arm.py --arm C3 --chunk 4410 --tag v_d1_mquarter_r1 --variant d1_mquarter --no-manifest --evidence-dir "$EVID"
+    run $PY fullmodel/run_full_arm.py --arm H --chunk 4410 --tag v_d1_mquarter_r1 --variant d1_mquarter --no-manifest --evidence-dir "$EVID"
+    run $PY fullmodel/boundary_bench.py --out "$EVID/boundary_bench.json"
+    $PY - "$EVID" <<'PYEOF'
+import glob, json, os, sys
+ev = sys.argv[1]
+for p in sorted(glob.glob(os.path.join(ev, 'full_*.json'))):
+    r = json.load(open(p)); print(os.path.basename(p), r.get('status'), (r.get('validation') or {}).get('status'), 'gate', (r.get('graph_gate') or {}).get('status'), 'mom', r.get('min_of_medians_ms'), 'bytes', r.get('param_bytes_fp16'), 'err', (r.get('error') or '')[-200:])
+bb = json.load(open(os.path.join(ev, 'boundary_bench.json')))
+print('fits', {k: round(v['slope_us_per_node'], 3) for k, v in bb['fits'].items()})
+print('pdl_ptx', bb.get('pdl_ptx'), 'prologue', bb.get('pdl_ptx_prologue'))
+print('e7', json.dumps(bb.get('e7_pdl_saving'), indent=1))
+print('sass_prologue', (bb.get('pdl_sass_prologue') or {}).get('griddep_mnemonics_found'))
+PYEOF
+    echo "PHASE3 SMOKE (fixes) DONE $(date -Is)"; exit 0
+fi
 run $PY fullmodel/run_full_arm.py --arm A --chunk 4410 --tag ref --save-reference --sdr --skip-timing --no-manifest --evidence-dir "$EVID" --clips-dir "$CLIPS_DIR"
 for arm in C3F C3P C3M C1P C3N; do
     run $PY fullmodel/run_full_arm.py --arm "$arm" --chunk 4410 --tag smoke --no-manifest --evidence-dir "$EVID" --clips-dir "$CLIPS_DIR"
