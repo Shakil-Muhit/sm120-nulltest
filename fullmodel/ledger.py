@@ -511,9 +511,12 @@ def render(E, rows, out):
     for O in OPS:
         best = E.best_arm(O)
         st = {s: (E.status.get(s) or {}).get('verdict') for s in ('session1', 'session2')}
+        p3s = getattr(E, 'phase3_status', None)
         L.append(f"## O = {O} ({'8 s' if O == 352800 else '0.1 s streaming'}) — best arm {best[0] if best else 'UNRESOLVED'}: "
                  f"T_wall = {best[1]:.4f} ms" if best else f"## O = {O} — best arm UNRESOLVED")
-        L.append(f"session verdicts: session1 {st['session1']}, session2 {st['session2']} (an INCOMPLETE session keeps every row that cites a missing item UNRESOLVED)")
+        L.append(f"session verdicts: session1 {st['session1']}, session2 {st['session2']}"
+                 + (f", session3 {p3s.get('verdict')} (shakedown={p3s.get('shakedown')})" if p3s else '')
+                 + " (an INCOMPLETE session keeps every row that cites a missing item UNRESOLVED)")
         L.append('')
         L.append('| X | T_attr (ms) | f | Y (ms) | Z (%) | conf | effort | quality risk | group | label | evidence | would be lower if | caveats | realized (ms) | realized / ceiling |')
         L.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
@@ -528,6 +531,8 @@ def render(E, rows, out):
             Z = f"{r['Z_pct']:.2f}" if fin(r.get('Z_pct')) else '—'
             rz = r.get('realized_ms')
             rc = f"{rz / r['Y_ms']:.2f}" if (fin(rz) and fin(r.get('Y_ms')) and r['Y_ms']) else ''
+            if fin(rz) and r.get('realized_ci95_ms'):
+                rc += f" [{r['realized_ci95_ms'][0] / r['Y_ms']:.2f}, {r['realized_ci95_ms'][1] / r['Y_ms']:.2f}]" if r['Y_ms'] else ''
             L.append(f"| {r['X']} | {r['T_attributable_ms']:.4f} | {f} | {Y} | {Z} | {r['conf']} | {r['effort']} | {r['quality_risk']} | {r['group']} | {r['label']} | "
                      f"{r['evidence']} | {r['would_be_lower_if']} | {'; '.join(r['caveats']) or '—'}{(' · ' + r['note']) if r.get('note') else ''} | {fmt_r(rz)} | {rc} |")
         L.append('')
@@ -554,6 +559,10 @@ def render(E, rows, out):
         scored = [r for r in rs if fin(r.get('realized_ms'))]
         tight = [r['realized_ms'] / r['Y_ms'] for r in scored if r['Y_ms'] > 0]
         L.append(f"- confidence {g}: {len(rs)} rows, {len(scored)} scored; realized/ceiling median {statistics.median(tight):.2f} (min {min(tight):.2f}, max {max(tight):.2f})" if tight else f"- confidence {g}: {len(rs)} rows, none scored yet")
+    for n in getattr(E, 'phase3_notes', []):
+        L.append(f'- {n}')
+    for r in real:
+        L.append(f"- realized source {r['X']} @{r['O']}: {r.get('realized_source')} (CI95 {r.get('realized_ci95_ms')})")
     L.append('- notation: f_recoverable is the fraction of T_attributable removed; a class speed-up s gives f = 1 − 1/s; the remaining-time fraction is never written in the f column.')
     L.append('')
     L.append('## Stacking note (mandatory)')
@@ -572,12 +581,104 @@ def render(E, rows, out):
         json.dump(rows, f, indent=1)
 
 
+def _load_json(p):
+    try:
+        return json.load(open(p))
+    except Exception:
+        return None
+
+
+def _boot_ci(vals, n=10000, seed=20260921):
+    import random
+    rnd = random.Random(seed)
+    out = []
+    k = len(vals)
+    for _ in range(n):
+        out.append(statistics.median([vals[rnd.randrange(k)] for _ in range(k)]))
+    out.sort()
+    return [out[int(0.025 * n)], out[int(0.975 * n) - 1]]
+
+
+def matched_realized(p3, a, b, O):
+    """median over ELIGIBLE restarts of the matched block-median difference a − b
+    (ms), with a block-level bootstrap interval over all eligible blocks."""
+    import glob, os
+    meds, blocks, files = [], [], []
+    for f in sorted(glob.glob(os.path.join(p3, f'matched_{a}_{b}_c{O}_m*.json'))):
+        m = _load_json(f)
+        if m and m.get('pair_eligible') and m.get('matched_delta_ms'):
+            meds.append(m['matched_delta_ms']['median'])
+            blocks += m['matched_delta_ms']['a_minus_b_per_block']
+            files.append(os.path.basename(f))
+    if not meds:
+        return None
+    return {'realized_ms': statistics.median(meds), 'ci95_ms': _boot_ci(blocks), 'restarts': len(meds), 'files': files}
+
+
+def fill_realized(E, rows, p3):
+    """Phase 3 §6: realized values from the session-3 matched pairs (prereg v0.2).
+    Rows filled: X6a (E1: C3 − C3F, or C3 − C3P when the registered branch ran),
+    X2a (E4a: control − C3N). Aggregate comparisons that map to no single row
+    (E2 → X2a+X2b+X2c, E3 → X1, E9 → X5 crossover, E7 → X12 coefficient) are
+    recorded as notes. Every value cites its files."""
+    import os
+    E.phase3_status = (_load_json(os.path.join(p3, 'session_status.json')) or {})
+    E.phase3_notes = []
+    branch = _load_json(os.path.join(p3, 'e1_branch.json')) or {}
+    dec = _load_json(os.path.join(p3, 'e4a_decision.json')) or {}
+    ctrl = dec.get('control') or 'C3'
+    for r in rows:
+        if r['status'] != 'ok':
+            continue
+        O = r['O']
+        if r['X'].startswith('X6a'):
+            rec = matched_realized(p3, 'C3', 'C3F', O)
+            src = 'E1 C3 − C3F'
+            if branch.get('run_C3P'):
+                rec2 = matched_realized(p3, 'C3', 'C3P', O)
+                if rec2 and (not rec or rec2['realized_ms'] > rec['realized_ms']):
+                    rec, src = rec2, 'E1(b) C3 − C3P'
+            if rec:
+                r['realized_ms'], r['realized_ci95_ms'], r['realized_source'] = rec['realized_ms'], rec['ci95_ms'], f"{src}: {rec['files']}"
+        if r['X'].startswith('X2a'):
+            rec = matched_realized(p3, ctrl, 'C3N', O)
+            if rec:
+                r['realized_ms'], r['realized_ci95_ms'], r['realized_source'] = rec['realized_ms'], rec['ci95_ms'], f"E4a {ctrl} − C3N ({dec.get('mode')}): {rec['files']}"
+    for O in OPS:
+        x2 = [r for r in rows if r['O'] == O and r['status'] == 'ok' and r['X'][:3] in ('X2a', 'X2b', 'X2c')]
+        rec = matched_realized(p3, 'C3', 'C3M', O)
+        if rec and x2:
+            ceil = sum(r['Y_ms'] for r in x2)
+            E.phase3_notes.append(f"E2 @{O}: C3 − C3M realized {rec['realized_ms']:+.4f} ms {rec['ci95_ms']} ({rec['restarts']} restarts) vs X2a+X2b+X2c ceiling {ceil:.4f} ms "
+                                  f"→ {'EXCEEDS ceiling (attribution falsified or other mechanisms in play)' if rec['realized_ms'] > ceil + 1e-9 else f'{rec['realized_ms'] / ceil:.2f} of ceiling'}; files {rec['files']}")
+        if O == 352800:
+            rec = matched_realized(p3, 'C1', 'C1P', O)
+            x1 = next((r for r in rows if r['O'] == O and r['X'].startswith('X1 ') and r['status'] == 'ok'), None)
+            if rec and x1:
+                E.phase3_notes.append(f"E3 @{O}: C1 − C1P realized {rec['realized_ms']:+.4f} ms {rec['ci95_ms']} vs X1 (C1 − C3) {x1['Y_ms']:.4f} ms → partition recovers {rec['realized_ms'] / x1['Y_ms']:.2f} of the break tax; files {rec['files']}")
+    e9 = _load_json(os.path.join(p3, 'e9_check.json'))
+    if e9:
+        E.phase3_notes.append(f"E9 (X5 crossover): verdict {e9.get('verdict')}; L* predicted {e9.get('crossover_L_star_pred')}; " + '; '.join(
+            f"L={L}: pred {v.get('predicted_C3_minus_H_ms'):+.3f} obs {v.get('observed_C3_minus_H_ms (median over restarts of block medians)')} err {v.get('error_ms')}" for L, v in (e9.get('held_out') or {}).items()) + ' (e9_check.json)')
+    bb = _load_json(os.path.join(p3, 'boundary_bench.json'))
+    if bb and bb.get('e7_pdl_saving'):
+        E.phase3_notes.append('E7 (X12 coefficient): per-node PDL saving ' + ', '.join(f"{k}: {v['pdl_saving_us_per_node']:+.3f} µs" for k, v in bb['e7_pdl_saving'].items())
+                              + f"; SASS mnemonics {(bb.get('pdl_sass') or {}).get('griddep_mnemonics_found')} (boundary_bench.json)")
+        ta = _load_json(os.path.join(p3, 'boundary_bench_trace_analysis.json')) or {}
+        ov = {k: v.get('overlap_observed') for k, v in ta.items() if '/pdl_' in k and isinstance(v, dict) and v.get('status') == 'ok'}
+        if ov:
+            E.phase3_notes.append(f"E7 trace: overlap observed per PDL segment {ov} (boundary_bench_trace_analysis.json)")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--evidence-dir', required=True)
+    ap.add_argument('--phase3-dir', default=None, help='session-3 evidence directory (fills realized/ceiling)')
     ap.add_argument('--out', default='LEDGER.md')
     args = ap.parse_args()
     E, rows = build(args.evidence_dir)
+    if args.phase3_dir:
+        fill_realized(E, rows, args.phase3_dir)
     render(E, rows, args.out)
     n_ok = sum(1 for r in rows if r['status'] == 'ok')
     print(f'[ledger] {n_ok} resolved rows, {len(rows) - n_ok} UNRESOLVED -> {args.out}')

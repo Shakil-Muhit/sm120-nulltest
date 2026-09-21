@@ -8656,3 +8656,368 @@ PY" in /home/muhit/ms/sm120-nulltest
 ?? docs/codex/prompt_09_phase3.md
 Parsed 27 Python files without generating bytecode
 
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import sys
+from unittest.mock import patch
+sys.path.insert(0,'fullmodel');import completeness as co
+cfg={'shakedown':False,'session_pod':False,'e5_variants':[]}
+m={}
+for c in co.HELD_OUT_S3:
+ for p,t in [(('C3','C3'),'m1')]+[(('C3','H'),f'm{i}') for i in range(1,4)]:m[(p,c,t)]={'status':'UNTESTED','error':'held-out length: outside pod'}
+items=[];dynamic=[]
+with patch.object(co,'load',side_effect=lambda p: cfg if p.endswith('session3_config.json') else None),patch.object(co,'audit_prerequisites'):
+ co.audit_session3('fixture',items,'M',{},m,{},{},dynamic)
+e9=[i for i in items if i['item'].startswith('E9')]
+print('Config',cfg,'E9 requirements all accepted',all(i['complete'] for i in e9),'prediction check required','e9_check' in dynamic,'final shakedown field',bool(cfg.get('shakedown')))
+PY
+ git rev-parse HEAD
+ git diff --name-only HEAD -- fullmodel scripts/session3.sh scripts/session_lib.sh prereg_amendments.md docs/phase3" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+Config {'shakedown': False, 'session_pod': False, 'e5_variants': []} E9 requirements all accepted True prediction check required False final shakedown field False
+2faa775be05078e027403d7ae826f8fb70712308
+
+codex
+The checks are complete. The main findings are compiler-cache reuse, incorrect E1/E2 trace totals, unsupported E9 frame counts, and gaps in control selection and session eligibility. The E7 counter arithmetic and PDL-saving subtraction checked out. I’m confirming that the findings still apply to the current HEAD, which changed during the review.
+exec
+/usr/bin/bash -lc 'git log -3 --oneline; git diff --stat 587cd50f9623877209a9123f5702d85103f89b69 HEAD; git diff --name-only 587cd50f9623877209a9123f5702d85103f89b69 HEAD -- fullmodel scripts/session3.sh scripts/session_lib.sh prereg_amendments.md docs/phase3; git status --short' in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+2faa775 Phase 3 smoke fixes: prologue kernel block store, per-chain PDL qualification, Attend count derived from the model (E5 depth variants); runbook shakedown/pod flow; pod name with a space
+587cd50 Phase 3: engineering smoke script for the new arms (never evidence)
+6619813 Phase 3 §3: registrations E1–E9 (prereg v0.2), arms C3F/C3P/C3M/C1P/C3N, fold-norm and pre-cast wrappers, E5 variants, A/A pairs, held-out guard, E7 boundary-bench extension (prologue chains, attributes, SASS, overlap), e_tools, session3 script, completeness session3 audit, E9 cost model
+ docs/codex/09_phase3.log           | 8658 ++++++++++++++++++++++++++++++++++++
+ docs/codex/prompt_09_phase3.md     |   21 +
+ docs/fullmodel_runbook.md          |   17 +
+ fullmodel/boundary_bench.py        |   27 +-
+ fullmodel/c3_fix/graphbreak_fix.py |    5 +-
+ scripts/phase3_smoke.sh            |   18 +
+ scripts/pod_up.sh                  |    4 +-
+ 7 files changed, 8737 insertions(+), 13 deletions(-)
+fullmodel/boundary_bench.py
+fullmodel/c3_fix/graphbreak_fix.py
+ M docs/codex/09_phase3.log
+
+exec
+/usr/bin/bash -lc "git diff 587cd50f9623877209a9123f5702d85103f89b69 HEAD -- fullmodel/boundary_bench.py fullmodel/c3_fix/graphbreak_fix.py scripts/phase3_smoke.sh; nl -ba fullmodel/c3_fix/graphbreak_fix.py | sed -n '125,147p'; nl -ba fullmodel/boundary_bench.py | sed -n '91,122p;319,340p;478,515p'; nl -ba scripts/phase3_smoke.sh" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+diff --git a/fullmodel/boundary_bench.py b/fullmodel/boundary_bench.py
+index 282f6e9..a800668 100644
+--- a/fullmodel/boundary_bench.py
++++ b/fullmodel/boundary_bench.py
+@@ -95,10 +95,11 @@ PROLOGUE_ITERS = 4096      # dependent fp32 FMA loop (~2 us of register work wit
+ 
+ @triton.jit
+ def add_one_prologue(x_ptr, acc_ptr, ITERS: tl.constexpr):
++    offs = tl.arange(0, 1)
+     a = tl.zeros([1], dtype=tl.float32) + 1.0
+     for _ in range(ITERS):
+         a = a * 0.999 + 0.5
+-    tl.store(acc_ptr, a)                     # keep the loop alive (independent buffer)
++    tl.store(acc_ptr + offs, a)              # keep the loop alive (independent buffer)
+     v = tl.load(x_ptr)
+     tl.store(x_ptr, v + 1)
+ 
+@@ -106,10 +107,11 @@ def add_one_prologue(x_ptr, acc_ptr, ITERS: tl.constexpr):
+ if HAVE_GDC:
+     @triton.jit
+     def add_one_prologue_pdl(x_ptr, acc_ptr, ITERS: tl.constexpr):
++        offs = tl.arange(0, 1)
+         a = tl.zeros([1], dtype=tl.float32) + 1.0
+         for _ in range(ITERS):
+             a = a * 0.999 + 0.5
+-        tl.store(acc_ptr, a)
++        tl.store(acc_ptr + offs, a)
+         gdc_wait()                           # the dependent load waits; the loop above may overlap the primary's tail
+         v = tl.load(x_ptr)
+         tl.store(x_ptr, v + 1)
+@@ -267,11 +269,12 @@ def analyze_trace(base, out, traced_json=None):
+     Joined with the traced run's own JSON (gate-03 f40): a segment is only
+     accepted when its case status is 'ok' (dependency proof + PTX passed) and
+     the segment holds exactly N x REPEATS kernels; else UNRESOLVED."""
+-    cases, qual_note, pdl_ptx = {}, None, None
++    cases, qual_note, pdl_ptx, pdl_ptx_prologue = {}, None, None, None
+     if traced_json and os.path.exists(traced_json):
+         tj = json.load(open(traced_json))
+         cases = tj.get('chains', {})
+         pdl_ptx = tj.get('pdl_ptx')
++        pdl_ptx_prologue = tj.get('pdl_ptx_prologue')
+     if not cases:
+         qual_note = 'UNRESOLVED: traced run qualification JSON missing — no calibration value derived'
+     def read(path):
+@@ -328,9 +331,11 @@ def analyze_trace(base, out, traced_json=None):
+                 res[nm] = {'kernels': len(ks), 'expected_counter': derived,
+                            'status': 'UNRESOLVED: dependency proof data missing, failed, or not the derived count'}
+                 continue
+-        if '/pdl_' in nm and pdl_ptx is not True:
+-            res[nm] = {'kernels': len(ks), 'status': f'UNRESOLVED: PDL PTX qualification {pdl_ptx}'}
+-            continue
++        if '/pdl_' in nm:
++            q = pdl_ptx_prologue if nm.startswith('prologue/') else pdl_ptx
++            if q is not True:
++                res[nm] = {'kernels': len(ks), 'status': f'UNRESOLVED: PDL PTX qualification {q}'}
++                continue
+         if expected is not None and len(ks) != expected:
+             res[nm] = {'kernels': len(ks), 'expected_kernels': expected,
+                        'status': 'UNRESOLVED: kernel count != N x REPEATS'}
+@@ -484,11 +489,13 @@ def main():
+         result['pdl_launch_attributes'] = launch_attributes_record()
+     else:
+         result['pdl_ptx'] = 'UNTESTED: gdc intrinsics unavailable'
+-    pdl_ok = result['pdl_ptx'] is True and result.get('pdl_ptx_prologue', True) is True
++    # per-chain qualification: trivial PDL chains need the trivial kernel's PTX, prologue chains their own
+     for key, rec in result['chains'].items():
+-        if '/pdl_' in key and rec.get('status') == 'ok' and not pdl_ok:
+-            rec['status'] = 'UNRESOLVED'
+-            rec['reason'] = f"PDL PTX qualification failed: {result['pdl_ptx']}"
++        if '/pdl_' in key and rec.get('status') == 'ok':
++            q = result.get('pdl_ptx_prologue') if key.startswith('prologue/') else result['pdl_ptx']
++            if q is not True:
++                rec['status'] = 'UNRESOLVED'
++                rec['reason'] = f"PDL PTX qualification failed: {q}"
+     for chain in ('trivial', 'prologue', 'elem37', 'gemm'):
+         for mode in ('stream', 'graph', 'pdl_stream', 'pdl_graph'):
+             pts = [(n, result['chains'][f'{chain}/{mode}/N{n}']['chain_us_median'])
+diff --git a/fullmodel/c3_fix/graphbreak_fix.py b/fullmodel/c3_fix/graphbreak_fix.py
+index e3d5e6f..b37c08b 100644
+--- a/fullmodel/c3_fix/graphbreak_fix.py
++++ b/fullmodel/c3_fix/graphbreak_fix.py
+@@ -132,7 +132,10 @@ def install(model):
+                 assert all(isinstance(value, bool) for value in config), name
+                 backend_checks[str(tuple(config))] = verify_backend_context(config)
+             pending.append((name, module, types.MethodType(flash_attn, module)))
+-    assert len(pending) == 12, f'expected 12 Attend modules, got {len(pending)}'
++    # Phase 3 (E5): the expected count is derived from the model (one Attend per
++    # (attention, feed-forward) pair of every Transformer); the public config gives 12
++    expected = sum(len(tf.layers) for block in model.layers for tf in block if hasattr(tf, 'layers'))
++    assert expected > 0 and len(pending) == expected, f'expected {expected} Attend modules, got {len(pending)}'
+     applied = []
+     try:
+         for name, module, method in pending:
+diff --git a/scripts/phase3_smoke.sh b/scripts/phase3_smoke.sh
+index 8cc8a3e..5660bda 100755
+--- a/scripts/phase3_smoke.sh
++++ b/scripts/phase3_smoke.sh
+@@ -13,6 +13,24 @@ echo "PHASE3 SMOKE START $(date -Is) evid=$EVID gpu=$CUDA_VISIBLE_DEVICES"
+ $PY -c "import torch;print('torch',torch.__version__, torch.cuda.get_device_name(0))"
+ run() { echo "--- $* $(date -Is)"; timeout -k 30 1500 "$@"; echo "    exit $?"; }
+ export TORCH_LOGS="graph_breaks,recompiles,cudagraphs"
++if [ "${FIXES_ONLY:-0}" = "1" ]; then
++    run $PY fullmodel/run_full_arm.py --arm A --chunk 4410 --tag v_d1_mquarter_ref --variant d1_mquarter --save-reference --skip-timing --no-manifest --evidence-dir "$EVID"
++    run $PY fullmodel/run_full_arm.py --arm C3 --chunk 4410 --tag v_d1_mquarter_r1 --variant d1_mquarter --no-manifest --evidence-dir "$EVID"
++    run $PY fullmodel/run_full_arm.py --arm H --chunk 4410 --tag v_d1_mquarter_r1 --variant d1_mquarter --no-manifest --evidence-dir "$EVID"
++    run $PY fullmodel/boundary_bench.py --out "$EVID/boundary_bench.json"
++    $PY - "$EVID" <<'PYEOF'
++import glob, json, os, sys
++ev = sys.argv[1]
++for p in sorted(glob.glob(os.path.join(ev, 'full_*.json'))):
++    r = json.load(open(p)); print(os.path.basename(p), r.get('status'), (r.get('validation') or {}).get('status'), 'gate', (r.get('graph_gate') or {}).get('status'), 'mom', r.get('min_of_medians_ms'), 'bytes', r.get('param_bytes_fp16'), 'err', (r.get('error') or '')[-200:])
++bb = json.load(open(os.path.join(ev, 'boundary_bench.json')))
++print('fits', {k: round(v['slope_us_per_node'], 3) for k, v in bb['fits'].items()})
++print('pdl_ptx', bb.get('pdl_ptx'), 'prologue', bb.get('pdl_ptx_prologue'))
++print('e7', json.dumps(bb.get('e7_pdl_saving'), indent=1))
++print('sass_prologue', (bb.get('pdl_sass_prologue') or {}).get('griddep_mnemonics_found'))
++PYEOF
++    echo "PHASE3 SMOKE (fixes) DONE $(date -Is)"; exit 0
++fi
+ run $PY fullmodel/run_full_arm.py --arm A --chunk 4410 --tag ref --save-reference --sdr --skip-timing --no-manifest --evidence-dir "$EVID" --clips-dir "$CLIPS_DIR"
+ for arm in C3F C3P C3M C1P C3N; do
+     run $PY fullmodel/run_full_arm.py --arm "$arm" --chunk 4410 --tag smoke --no-manifest --evidence-dir "$EVID" --clips-dir "$CLIPS_DIR"
+   125	            assert 'flash_attn' not in module.__dict__, name
+   126	            assert not hasattr(module, '_c3_cuda_backends'), name
+   127	            assert not hasattr(module, '_c3_cpu_backends'), name
+   128	            for config in (module.cpu_config, module.cuda_config):
+   129	                assert config is not None, name
+   130	                assert tuple(config._fields) == (
+   131	                    'enable_flash', 'enable_math', 'enable_mem_efficient'), name
+   132	                assert all(isinstance(value, bool) for value in config), name
+   133	                backend_checks[str(tuple(config))] = verify_backend_context(config)
+   134	            pending.append((name, module, types.MethodType(flash_attn, module)))
+   135	    # Phase 3 (E5): the expected count is derived from the model (one Attend per
+   136	    # (attention, feed-forward) pair of every Transformer); the public config gives 12
+   137	    expected = sum(len(tf.layers) for block in model.layers for tf in block if hasattr(tf, 'layers'))
+   138	    assert expected > 0 and len(pending) == expected, f'expected {expected} Attend modules, got {len(pending)}'
+   139	    applied = []
+   140	    try:
+   141	        for name, module, method in pending:
+   142	            applied.append(module)
+   143	            module._c3_cpu_backends = backend_list(module.cpu_config)
+   144	            module._c3_cuda_backends = backend_list(module.cuda_config)
+   145	            module.flash_attn = method
+   146	    except Exception:
+   147	        for module in applied:
+    91	    add_one_pdl = None
+    92	
+    93	PROLOGUE_ITERS = 4096      # dependent fp32 FMA loop (~2 us of register work with no memory dependency)
+    94	
+    95	
+    96	@triton.jit
+    97	def add_one_prologue(x_ptr, acc_ptr, ITERS: tl.constexpr):
+    98	    offs = tl.arange(0, 1)
+    99	    a = tl.zeros([1], dtype=tl.float32) + 1.0
+   100	    for _ in range(ITERS):
+   101	        a = a * 0.999 + 0.5
+   102	    tl.store(acc_ptr + offs, a)              # keep the loop alive (independent buffer)
+   103	    v = tl.load(x_ptr)
+   104	    tl.store(x_ptr, v + 1)
+   105	
+   106	
+   107	if HAVE_GDC:
+   108	    @triton.jit
+   109	    def add_one_prologue_pdl(x_ptr, acc_ptr, ITERS: tl.constexpr):
+   110	        offs = tl.arange(0, 1)
+   111	        a = tl.zeros([1], dtype=tl.float32) + 1.0
+   112	        for _ in range(ITERS):
+   113	            a = a * 0.999 + 0.5
+   114	        tl.store(acc_ptr + offs, a)
+   115	        gdc_wait()                           # the dependent load waits; the loop above may overlap the primary's tail
+   116	        v = tl.load(x_ptr)
+   117	        tl.store(x_ptr, v + 1)
+   118	        gdc_launch_dependents()
+   119	else:
+   120	    add_one_prologue_pdl = None
+   121	
+   122	
+   319	        if case.get('status') != 'ok':
+   320	            res[nm] = {'kernels': len(ks), 'status': f"UNRESOLVED: case status {case.get('status')}"}
+   321	            continue
+   322	        # the proof DATA decides, not the label (gate-05 f72): trivial chains carry the
+   323	        # exact dependency counter; PDL modes additionally need the PTX qualification
+   324	        if nm.startswith('trivial/') or nm.startswith('prologue/'):
+   325	            # the expected counter is DERIVED here from N, mode, warmup and repeats
+   326	            # (gate-06 f93): 25N for stream modes, 27N for graph modes (capture adds 2)
+   327	            mode = nm.split('/')[1]
+   328	            derived = n * (WARMUP + REPEATS + (2 if 'graph' in mode else 0)) if n else None
+   329	            if not (case.get('dependency_proof') is True and derived is not None
+   330	                    and case.get('counter_delta') == derived and case.get('counter_expected') == derived):
+   331	                res[nm] = {'kernels': len(ks), 'expected_counter': derived,
+   332	                           'status': 'UNRESOLVED: dependency proof data missing, failed, or not the derived count'}
+   333	                continue
+   334	        if '/pdl_' in nm:
+   335	            q = pdl_ptx_prologue if nm.startswith('prologue/') else pdl_ptx
+   336	            if q is not True:
+   337	                res[nm] = {'kernels': len(ks), 'status': f'UNRESOLVED: PDL PTX qualification {q}'}
+   338	                continue
+   339	        if expected is not None and len(ks) != expected:
+   340	            res[nm] = {'kernels': len(ks), 'expected_kernels': expected,
+   478	                   'traceback': traceback.format_exc()[-2000:]}
+   479	            print(f'[boundary] {key}: UNTESTED ({type(e).__name__})')
+   480	            torch.cuda.synchronize()
+   481	        result['chains'][key] = rec
+   482	    # PDL qualification: the compiled PTX must contain BOTH griddepcontrol
+   483	    # instructions; otherwise every PDL case is UNRESOLVED and excluded
+   484	    if add_one_pdl is not None:
+   485	        result['pdl_ptx'] = pdl_ptx_has_griddepcontrol(add_one_pdl)
+   486	        result['pdl_ptx_prologue'] = pdl_ptx_has_griddepcontrol(add_one_prologue_pdl)
+   487	        result['pdl_sass'] = pdl_sass_check(add_one_pdl)                    # E7 evidence
+   488	        result['pdl_sass_prologue'] = pdl_sass_check(add_one_prologue_pdl)
+   489	        result['pdl_launch_attributes'] = launch_attributes_record()
+   490	    else:
+   491	        result['pdl_ptx'] = 'UNTESTED: gdc intrinsics unavailable'
+   492	    # per-chain qualification: trivial PDL chains need the trivial kernel's PTX, prologue chains their own
+   493	    for key, rec in result['chains'].items():
+   494	        if '/pdl_' in key and rec.get('status') == 'ok':
+   495	            q = result.get('pdl_ptx_prologue') if key.startswith('prologue/') else result['pdl_ptx']
+   496	            if q is not True:
+   497	                rec['status'] = 'UNRESOLVED'
+   498	                rec['reason'] = f"PDL PTX qualification failed: {q}"
+   499	    for chain in ('trivial', 'prologue', 'elem37', 'gemm'):
+   500	        for mode in ('stream', 'graph', 'pdl_stream', 'pdl_graph'):
+   501	            pts = [(n, result['chains'][f'{chain}/{mode}/N{n}']['chain_us_median'])
+   502	                   for n in NS if f'{chain}/{mode}/N{n}' in result['chains']
+   503	                   and result['chains'][f'{chain}/{mode}/N{n}'].get('status') == 'ok']
+   504	            if pts:
+   505	                result['fits'][f'{chain}/{mode}'] = fit(pts)
+   506	            excluded = [f'{chain}/{mode}/N{n}' for n in NS if f'{chain}/{mode}/N{n}' in result['chains']
+   507	                        and result['chains'][f'{chain}/{mode}/N{n}'].get('status') != 'ok']
+   508	            if excluded:
+   509	                result.setdefault('excluded_from_fits', []).extend(excluded)
+   510	    result['real_kernel_pdl'] = 'UNSUPPORTED: cuBLAS/ATen launches expose no PDL attribute'
+   511	    e7 = {}
+   512	    for chain in ('trivial', 'prologue'):
+   513	        for base_mode, pdl_mode in (('stream', 'pdl_stream'), ('graph', 'pdl_graph')):
+   514	            fb, fp = result['fits'].get(f'{chain}/{base_mode}'), result['fits'].get(f'{chain}/{pdl_mode}')
+   515	            if fb and fp and fb.get('slope_us_per_node') is not None and fp.get('slope_us_per_node') is not None:
+     1	#!/bin/bash
+     2	# PHASE-3 SMOKE (engineering only, never evidence): builds every new arm once at 4410
+     3	# with --no-manifest, one A/A matched pair, one E5 variant, the boundary bench with
+     4	# the E7 additions, and proves the E9 held-out guard refuses off-pod runs.
+     5	set -u
+     6	. "$HOME/axial/fullmodel_smoke/env.sh"
+     7	REPO="$HOME/axial/sm120-nulltest"
+     8	EVID="${EVID:-$HOME/axial/fullmodel_smoke/phase3_$(date +%Y%m%d_%H%M)}"
+     9	mkdir -p "$EVID"
+    10	cd "$REPO"
+    11	exec > >(tee -a "$EVID/smoke.log") 2>&1
+    12	echo "PHASE3 SMOKE START $(date -Is) evid=$EVID gpu=$CUDA_VISIBLE_DEVICES"
+    13	$PY -c "import torch;print('torch',torch.__version__, torch.cuda.get_device_name(0))"
+    14	run() { echo "--- $* $(date -Is)"; timeout -k 30 1500 "$@"; echo "    exit $?"; }
+    15	export TORCH_LOGS="graph_breaks,recompiles,cudagraphs"
+    16	if [ "${FIXES_ONLY:-0}" = "1" ]; then
+    17	    run $PY fullmodel/run_full_arm.py --arm A --chunk 4410 --tag v_d1_mquarter_ref --variant d1_mquarter --save-reference --skip-timing --no-manifest --evidence-dir "$EVID"
+    18	    run $PY fullmodel/run_full_arm.py --arm C3 --chunk 4410 --tag v_d1_mquarter_r1 --variant d1_mquarter --no-manifest --evidence-dir "$EVID"
+    19	    run $PY fullmodel/run_full_arm.py --arm H --chunk 4410 --tag v_d1_mquarter_r1 --variant d1_mquarter --no-manifest --evidence-dir "$EVID"
+    20	    run $PY fullmodel/boundary_bench.py --out "$EVID/boundary_bench.json"
+    21	    $PY - "$EVID" <<'PYEOF'
+    22	import glob, json, os, sys
+    23	ev = sys.argv[1]
+    24	for p in sorted(glob.glob(os.path.join(ev, 'full_*.json'))):
+    25	    r = json.load(open(p)); print(os.path.basename(p), r.get('status'), (r.get('validation') or {}).get('status'), 'gate', (r.get('graph_gate') or {}).get('status'), 'mom', r.get('min_of_medians_ms'), 'bytes', r.get('param_bytes_fp16'), 'err', (r.get('error') or '')[-200:])
+    26	bb = json.load(open(os.path.join(ev, 'boundary_bench.json')))
+    27	print('fits', {k: round(v['slope_us_per_node'], 3) for k, v in bb['fits'].items()})
+    28	print('pdl_ptx', bb.get('pdl_ptx'), 'prologue', bb.get('pdl_ptx_prologue'))
+    29	print('e7', json.dumps(bb.get('e7_pdl_saving'), indent=1))
+    30	print('sass_prologue', (bb.get('pdl_sass_prologue') or {}).get('griddep_mnemonics_found'))
+    31	PYEOF
+    32	    echo "PHASE3 SMOKE (fixes) DONE $(date -Is)"; exit 0
+    33	fi
+    34	run $PY fullmodel/run_full_arm.py --arm A --chunk 4410 --tag ref --save-reference --sdr --skip-timing --no-manifest --evidence-dir "$EVID" --clips-dir "$CLIPS_DIR"
+    35	for arm in C3F C3P C3M C1P C3N; do
+    36	    run $PY fullmodel/run_full_arm.py --arm "$arm" --chunk 4410 --tag smoke --no-manifest --evidence-dir "$EVID" --clips-dir "$CLIPS_DIR"
+    37	done
+    38	run $PY fullmodel/run_full_arm.py --arm C3N --chunk 4410 --tag smoke_sdr --sdr --skip-timing --no-manifest --evidence-dir "$EVID" --clips-dir "$CLIPS_DIR"
+    39	run $PY fullmodel/matched_run.py --pair C3 C3 --chunk 4410 --tag aa --no-manifest --evidence-dir "$EVID"
+    40	run $PY fullmodel/run_full_arm.py --arm A --chunk 4410 --tag v_d1_mquarter_ref --variant d1_mquarter --save-reference --skip-timing --no-manifest --evidence-dir "$EVID"
+    41	run $PY fullmodel/run_full_arm.py --arm C3 --chunk 4410 --tag v_d1_mquarter_r1 --variant d1_mquarter --no-manifest --evidence-dir "$EVID"
+    42	run $PY fullmodel/run_full_arm.py --arm H --chunk 4410 --tag v_d1_mquarter_r1 --variant d1_mquarter --no-manifest --evidence-dir "$EVID"
+    43	run $PY fullmodel/boundary_bench.py --out "$EVID/boundary_bench.json"
+    44	echo "--- held-out guard (must refuse)"; $PY fullmodel/run_full_arm.py --arm A --chunk 176400 --tag guard --no-manifest --evidence-dir "$EVID" --skip-timing; echo "    exit $? (non-zero expected)"
+    45	run $PY fullmodel/e_tools.py aa_stats --evidence-dir "$EVID" --out "$EVID/aa_stats.json"
+    46	run $PY fullmodel/e_tools.py e5_summary --evidence-dir "$EVID" --out "$EVID/e5_summary.json"
+    47	echo "=== summary"
+    48	$PY - "$EVID" <<'PYEOF'
+    49	import glob, json, os, sys
+    50	ev = sys.argv[1]
+    51	for p in sorted(glob.glob(os.path.join(ev, 'full_*.json')) + glob.glob(os.path.join(ev, 'matched_*.json'))):
+    52	    r = json.load(open(p))
+    53	    if 'pair' in r:
+    54	        print(os.path.basename(p), r.get('status'), 'eligible', r.get('pair_eligible'), r.get('ineligibility_reasons'), (r.get('matched_delta_ms') or {}).get('median'))
+    55	    else:
+    56	        print(os.path.basename(p), r.get('status'), (r.get('validation') or {}).get('status'), 'tier', r.get('tier'), 'mode', r.get('compile_mode'),
+    57	              'gate', (r.get('graph_gate') or {}).get('status'), 'breaks', (r.get('graph_gate') or {}).get('graph_break_count'),
+    58	              'mom', r.get('min_of_medians_ms'), 'sdr', (r.get('sdr_gate') or {}).get('status'), (r.get('sdr_gate') or {}).get('mean_delta_sdr_ref_db'),
+    59	              'cfg', r.get('inductor_config'), 'notes', (r.get('notes') or [])[:2], 'err', (r.get('error') or '')[-300:])
+    60	bb = json.load(open(os.path.join(ev, 'boundary_bench.json')))
+    61	print('pdl_ptx', bb.get('pdl_ptx'), bb.get('pdl_ptx_prologue'), 'sass', {k: v for k, v in (bb.get('pdl_sass') or {}).items() if k != 'matching_lines'})
+    62	print('e7', json.dumps(bb.get('e7_pdl_saving'), indent=1))
+    63	print('attrs', bb.get('pdl_launch_attributes'))
+    64	PYEOF
+    65	echo "PHASE3 SMOKE DONE $(date -Is)"
+
+codex
+The updated HEAD fixes the depth-1 attention-count assertion and the E7 prologue store/qualification issues; those are excluded from the findings. The remaining defects still apply. The in-memory checks also confirmed that finite clock drift can pass the audit, and that E9/E5 reference handling and E5 optional reductions can produce incorrect completeness verdicts.
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import sys,os,json
+sys.path.insert(0,'fullmodel');import collect_full
+root='/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855/evidence'
+r={t:json.load(open(f'{root}/full_C3_c352800_{t}.json')) for t in ('r1','r2','r3')}
+c=collect_full.cell(r)
+print('REQUIRED_RESTARTS environment:',os.environ.get('REQUIRED_RESTARTS'))
+print('Collector required set:',collect_full.REQUIRED_RESTARTS,'result without r4/r5:',c['headline_status'],c['reasons'])
+PY
+ git rev-parse --short HEAD" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+REQUIRED_RESTARTS environment: None
+Collector required set: ('r1', 'r2', 'r3') result without r4/r5: HEADLINE []
+2faa775
+
