@@ -214,13 +214,19 @@ for c in (352800, 4410):
     if f['cast_kernels_per_pass'] >= 0.5 * c3['cast_kernels_per_pass']:
         need = True; why.append(f"{c}: C3F still runs {f['cast_kernels_per_pass']:.1f} of C3's {c3['cast_kernels_per_pass']:.1f} cast kernels per pass")
     ms = [load(p) for p in sorted(glob.glob(os.path.join(ev, f'matched_C3_C3F_c{c}_m*.json')))]
-    if not ms or not any(m and m.get('pair_eligible') for m in ms):
+    elig = [m for m in ms if m and m.get('pair_eligible') and m.get('matched_delta_ms')]
+    if not elig:
         need = True; why.append(f'{c}: no eligible C3/C3F matched pair (freezing did not compose)')
+    else:
+        import statistics
+        gain = statistics.median([m['matched_delta_ms']['median'] for m in elig])     # C3 - C3F, + = C3F faster
+        if gain <= 0:
+            need = True; why.append(f'{c}: C3F realized no gain over C3 ({gain:+.3f} ms): freezing composes but does not pay; C3P isolates the pre-cast mechanism')
 if sdr_fail:
     need = False
     why.append(f'E1 lane STOPPED: C3F SDR gate FAIL at {sdr_fail} (registered kill); C3P not run')
 rec = {'run_C3P': need, 'reasons': why, 'e1_lane_stopped_sdr': sdr_fail,
-       'rule': 'registered E1: C3P runs iff C3F is not an eligible pair at an operating point or leaves >= 50% of the C3 cast kernels; the lane stops if the C3F SDR gate fails'}
+       'rule': 'registered E1: C3P runs iff C3F is not an eligible pair at an operating point, leaves >= 50% of the C3 cast kernels, or realizes no gain (C3 - C3F <= 0) at an operating point; the lane stops if the C3F SDR gate fails'}
 json.dump(rec, open(os.path.join(ev, 'e1_branch.json'), 'w'), indent=1)
 print('[E1 branch]', rec)
 PYEOF
