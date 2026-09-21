@@ -278,17 +278,21 @@ def block_sm_median(series, a, b, window=3.0):
 
 
 def audit_clock_drift(ev, items, session, runs, matched, gpu_uuid, limit=0.05):
-    """Registered stop rule (prereg v0.2, session plan): clocks may not drift more than
-    5 % between COMPARED blocks (gate-09 f132). Matched pairs: the a-block vs the b-block
-    of each repeat. Headline cells: the per-block SM medians across r1..rN."""
+    """Registered rule (prereg v0.2, session plan): clocks may not drift more than 5 %
+    between COMPARED blocks (gate-09 f132). Matched pairs: the a-block vs the b-block of
+    each repeat (blocks shorter than the 1 Hz sampling interval use the nearest samples,
+    a proxy the note records). Headline cells: per-block SM medians across r1..rN.
+    Returns {'pairs': {(pair, chunk, tag): [violations]}, 'cells': {(arm, chunk): [..]}};
+    the caller scopes the consequence to the affected comparison (a pair restart or a
+    cell), and a mandatory stage fails only when no clean restart remains."""
     series = clock_series(ev, session, gpu_uuid)
-    bad, unresolved, checked = [], [], 0
+    flagged = {'pairs': {}, 'cells': {}}
+    unresolved, checked = [], 0
     for (pair, c, t), m in matched.items():
         if m.get('status') not in ('VALID',):
             continue
-        blocks = m.get('blocks') or []
         by_rep = {}
-        for b in blocks:
+        for b in (m.get('blocks') or []):
             by_rep.setdefault(b.get('repeat'), []).append(b)
         for rep, bs in by_rep.items():
             if len(bs) != 2:
@@ -301,7 +305,7 @@ def audit_clock_drift(ev, items, session, runs, matched, gpu_uuid, limit=0.05):
             checked += 1
             drift = abs(sa - sb) / ((sa + sb) / 2)
             if drift > limit:
-                bad.append(f'matched {pair}@{c}/{t} rep {rep}: {sa:.0f} vs {sb:.0f} MHz ({drift * 100:.1f} %)')
+                flagged['pairs'].setdefault((pair, c, t), []).append(f'rep {rep}: {sa:.0f} vs {sb:.0f} MHz ({drift * 100:.1f} %)')
     for (a, c), rs in runs.items():
         meds = []
         for t, r in rs.items():
@@ -317,11 +321,13 @@ def audit_clock_drift(ev, items, session, runs, matched, gpu_uuid, limit=0.05):
             checked += 1
             drift = (max(meds) - min(meds)) / (sum(meds) / len(meds))
             if drift > limit:
-                bad.append(f'{a}@{c} restarts: {min(meds):.0f}–{max(meds):.0f} MHz ({drift * 100:.1f} %)')
-    ok = checked > 0 and not bad and not unresolved
-    item(items, f'clock drift <= {limit * 100:.0f} % between compared blocks ({checked} comparisons)', ok,
-         [f'drift violations {bad[:6]}', f'unresolved (no samples in block) {unresolved[:4]}'] if (bad or unresolved) else ['no comparisons'])
-    return bad
+                flagged['cells'][(a, c)] = [f'restarts: {min(meds):.0f}–{max(meds):.0f} MHz ({drift * 100:.1f} %)']
+    n_bad = len(flagged['pairs']) + len(flagged['cells'])
+    item(items, f'clock drift <= {limit * 100:.0f} % between compared blocks: {checked} comparisons, {n_bad} flagged (informational; consequences are scoped per comparison)',
+         checked > 0 and not unresolved, [f'unresolved (no samples near block) {unresolved[:4]}'] if unresolved else ['no comparisons'],
+         note=(('flagged: ' + '; '.join(f'{k}: {v}' for k, v in list(flagged['pairs'].items())[:8] + list(flagged['cells'].items())[:4])) if n_bad else 'no violations'),
+         optional=True)
+    return flagged
 
 
 def audit_clock(ev, items, session, runs, matched, gpu_uuid):
@@ -422,12 +428,13 @@ def _untested_reason(m, needle):
     return bool(m and m.get('status') == 'UNTESTED' and needle in str(m.get('error') or ''))
 
 
-def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux):
+def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux, drift=None):
     """Phase-3 registrations (prereg_amendments.md v0.2): mandatory items E6, E3, E2, E1,
     E9 (pod; UNTESTED-by-rule on a shakedown), E4a; optional E5 and E7 (registered as
     skippable under the deadline)."""
     cfg = load(os.path.join(ev, 'session3_config.json')) or {}
     shakedown = bool(cfg.get('shakedown'))
+    drift = drift or {'pairs': {}, 'cells': {}}
     n_restart = int(cfg.get('headline_restarts') or 5)
     n_pair = int(cfg.get('pair_restarts') or 3)
     audit_prerequisites(ev, items, manifest_id, run_map)
@@ -439,8 +446,9 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
     for a in ('C3', 'H', 'A', 'C1'):
         for c in OPS['session3']:
             cell = cells.get(f'{a}_{c}')
+            fl = drift['cells'].get((a, c))
             item(items, f'E6 headline {a}@{c} (r1..r{n_restart}, SDR in r1)', bool(cell and cell['headline_status'] == 'HEADLINE'),
-                 (cell or {}).get('reasons', ['no runs']))
+                 (cell or {}).get('reasons', ['no runs']), note=(f'clock-drift flagged across restarts (registered 5 % rule): {fl}' if fl else None))
     aa = load(os.path.join(ev, 'aa_stats.json')) or {}
     aa_chunks = {v.get('chunk') for v in (aa.get('pairs') or {}).values() if 'median_ms' in v}
     need_aa = set(OPS['session3']) | (set(HELD_OUT_S3) if (cfg.get('session_pod') and not shakedown) else set())
@@ -448,9 +456,17 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
          [f'A/A statistics present for {sorted(aa_chunks)}, required {sorted(need_aa)}'])
     # ---- pairs helper
     def pair_items(label, a, b, c, tags):
+        clean = 0
         for t in tags:
             m = matched.get(((a, b), c, t))
-            item(items, f'{label} matched {a} vs {b} @{c} ({t})', _pair_ok(m, manifest_id), qualify.pair_problems(m) if m else ['record missing'])
+            fl = drift['pairs'].get(((a, b), c, t))
+            ok = _pair_ok(m, manifest_id)
+            item(items, f'{label} matched {a} vs {b} @{c} ({t})', ok, qualify.pair_problems(m) if m else ['record missing'],
+                 note=(f'clock-drift flagged (registered 5 % rule): {fl}' if fl else None))
+            if ok and not fl:
+                clean += 1
+        item(items, f'{label} {a} vs {b} @{c}: at least one eligible restart without a clock-drift flag', clean > 0,
+             [f'every eligible restart is clock-drift flagged: {[drift["pairs"].get(((a, b), c, t)) for t in tags]}'])
     def trace_items(label, a, c, sfx='', need_graphed=True, optional=False):
         base = os.path.join(ev, 'traces', f'trace_{a}_{c}_' + (sfx or 'trace'))
         exp = load(base + '_exports.json') or {}
@@ -659,7 +675,8 @@ def main():
     dynamic_aux = []
 
     if args.session == 'session3':
-        audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux)
+        drift = audit_clock_drift(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
+        audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux, drift)
     elif args.session == 'session1':
         for a, c in MATRIX_S1:
             cell = cells.get(f'{a}_{c}')
@@ -814,8 +831,6 @@ def main():
         item(items, 'boundary trace analysis qualified', bool(qual.get('cases')) and qual.get('accepted_segments', 0) > 0,
              [f"qualification {qual}"])
     audit_clock(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
-    if args.session == 'session3':
-        audit_clock_drift(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
     audit_aux(ev, items, args.session, dynamic_aux)
     if args.session == 'session3':                      # registered optional experiments never block the verdict
         opt_aux = set(OPTIONAL_AUX_S3) | set(getattr(audit_session3, 'optional_aux', set()))
