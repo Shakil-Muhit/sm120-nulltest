@@ -653,8 +653,15 @@ def fill_realized(E, rows, p3):
         rec = matched_realized(p3, 'C3', 'C3M', O)
         if rec and x2:
             ceil = sum(r['Y_ms'] for r in x2)
+            g1 = next((r for r in rows if r['O'] == O and r['status'] == 'ok' and r['X'].startswith('G1')), None)
+            g1_txt = f"; G1 union (X2 ∪ X6 ∪ X6a ∪ X13) attributable time {g1['T_attributable_ms']:.4f} ms" if g1 else ''
+            tc = _load_json(os.path.join(p3, 'traces', f'template_count_C3M_{O}.json')) or {}
+            tc_txt = (f"; C3M trace: {tc.get('triton_template_kernels_per_pass')} Triton template GEMMs/pass ({(tc.get('triton_template_time_ms_per_pass') or 0):.3f} ms), "
+                      f"{tc.get('extern_gemm_kernels_per_pass')} extern GEMMs/pass; template names carry _to_copy (weight cast fused into the template), so E2 also realizes part of X6a"
+                      if tc else '')
             E.phase3_notes.append(f"E2 @{O}: C3 − C3M realized {rec['realized_ms']:+.4f} ms {rec['ci95_ms']} ({rec['restarts']} restarts) vs X2a+X2b+X2c ceiling {ceil:.4f} ms "
-                                  f"→ {'EXCEEDS ceiling (attribution falsified or other mechanisms in play)' if rec['realized_ms'] > ceil + 1e-9 else f'{rec['realized_ms'] / ceil:.2f} of ceiling'}; files {rec['files']}")
+                                  f"→ {'EXCEEDS the X2 ceiling: max-autotune changes GEMM kernel selection and fuses weight casts, mechanisms outside X2' if rec['realized_ms'] > ceil + 1e-9 else f'{rec['realized_ms'] / ceil:.2f} of ceiling'}"
+                                  f"{g1_txt}{tc_txt}; files {rec['files']}")
         if O == 352800:
             rec = matched_realized(p3, 'C1', 'C1P', O)
             x1 = next((r for r in rows if r['O'] == O and r['X'].startswith('X1 ') and r['status'] == 'ok'), None)
