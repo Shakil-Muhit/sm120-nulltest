@@ -1,0 +1,3880 @@
+{
+ "chunk": 4410,
+ "gpu": "NVIDIA GeForce RTX 5090",
+ "torch": "2.8.0+cu128",
+ "note": "engineering probe on ml-beast; cold-L2 iterations (256 MB flush before each); GEMM-only CUDA-event time; never evidence",
+ "rows": [
+  {
+   "input_shape": [
+    1,
+    11,
+    384
+   ],
+   "weight_shape": [
+    1536,
+    384
+   ],
+   "M": 11,
+   "N": 1536,
+   "K": 384,
+   "calls_per_pass": 60,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    1536,
+    1536
+   ],
+   "M": 11,
+   "N": 1536,
+   "K": 1536,
+   "calls_per_pass": 60,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 14.336000196635723,
+    "p10_us": 14.303999952971935,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.27199998497963
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 14.336000196635723,
+    "p10_us": 14.336000196635723,
+    "p90_us": 16.383999958634377
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    24
+   ],
+   "weight_shape": [
+    384,
+    24
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 24,
+   "calls_per_pass": 14,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.127999767661095
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    48,
+    1536
+   ],
+   "M": 11,
+   "N": 48,
+   "K": 1536,
+   "calls_per_pass": 14,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.28800043463707
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.319999746978283
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    60,
+    11,
+    384
+   ],
+   "weight_shape": [
+    1536,
+    384
+   ],
+   "M": 660,
+   "N": 1536,
+   "K": 384,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 10.208000428974628,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.239999741315842
+   },
+   "b_precast_alone": {
+    "median_us": 10.208000428974628,
+    "p10_us": 10.208000428974628,
+    "p90_us": 12.28800043463707
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 12.28800043463707
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x6_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x6_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x6_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x6_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    60,
+    11,
+    384
+   ],
+   "weight_shape": [
+    8,
+    384
+   ],
+   "M": 660,
+   "N": 8,
+   "K": 384,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.224000222980976
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_64x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_64x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_64x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_64x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    60,
+    11,
+    512
+   ],
+   "weight_shape": [
+    384,
+    512
+   ],
+   "M": 660,
+   "N": 384,
+   "K": 512,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.224000222980976
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    60,
+    11,
+    384
+   ],
+   "weight_shape": [
+    1536,
+    384
+   ],
+   "M": 660,
+   "N": 1536,
+   "K": 384,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.239999741315842
+   },
+   "b_precast_alone": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 12.28800043463707
+   },
+   "c_touch_then_gemm": {
+    "median_us": 8.224000222980976,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.27199998497963
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_128x64_64x3_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_128x64_64x3_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_128x64_64x3_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_128x64_64x3_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    60,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    384,
+    1536
+   ],
+   "M": 660,
+   "N": 384,
+   "K": 1536,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 18.432000651955605,
+    "p10_us": 18.432000651955605,
+    "p90_us": 18.432000651955605
+   },
+   "b_precast_alone": {
+    "median_us": 20.479999482631683,
+    "p10_us": 18.432000651955605,
+    "p90_us": 20.479999482631683
+   },
+   "c_touch_then_gemm": {
+    "median_us": 16.416000202298164,
+    "p10_us": 16.383999958634377,
+    "p90_us": 18.464000895619392
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 18.432000651955605,
+    "p10_us": 18.432000651955605,
+    "p90_us": 20.479999482631683
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x10_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x10_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x10_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x10_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    11,
+    60,
+    384
+   ],
+   "weight_shape": [
+    1536,
+    384
+   ],
+   "M": 660,
+   "N": 1536,
+   "K": 384,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.27199998497963
+   },
+   "b_precast_alone": {
+    "median_us": 12.256000190973282,
+    "p10_us": 10.208000428974628,
+    "p90_us": 12.28800043463707
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x6_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x6_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x6_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x6_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    11,
+    60,
+    384
+   ],
+   "weight_shape": [
+    8,
+    384
+   ],
+   "M": 660,
+   "N": 8,
+   "K": 384,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 9.472000412642956
+   },
+   "c_touch_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.224000222980976
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_64x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_64x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_64x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_64x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    11,
+    60,
+    512
+   ],
+   "weight_shape": [
+    384,
+    512
+   ],
+   "M": 660,
+   "N": 384,
+   "K": 512,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 8.191999979317188
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    11,
+    60,
+    384
+   ],
+   "weight_shape": [
+    1536,
+    384
+   ],
+   "M": 660,
+   "N": 1536,
+   "K": 384,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.239999741315842
+   },
+   "b_precast_alone": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "c_touch_then_gemm": {
+    "median_us": 8.25599953532219,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_128x64_64x3_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_128x64_64x3_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_128x64_64x3_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_128x64_64x3_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    11,
+    60,
+    1536
+   ],
+   "weight_shape": [
+    384,
+    1536
+   ],
+   "M": 660,
+   "N": 384,
+   "K": 1536,
+   "calls_per_pass": 6,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 18.432000651955605,
+    "p10_us": 18.432000651955605,
+    "p90_us": 18.432000651955605
+   },
+   "b_precast_alone": {
+    "median_us": 20.479999482631683,
+    "p10_us": 18.432000651955605,
+    "p90_us": 20.479999482631683
+   },
+   "c_touch_then_gemm": {
+    "median_us": 16.416000202298164,
+    "p10_us": 16.383999958634377,
+    "p90_us": 18.432000651955605
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 18.432000651955605,
+    "p10_us": 18.432000651955605,
+    "p90_us": 20.479999482631683
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x10_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x10_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x10_tn_align8>(cutlass_80_tensorop_f16_s16816gemm_relu_f16_64x64_32x10_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    28
+   ],
+   "weight_shape": [
+    384,
+    28
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 28,
+   "calls_per_pass": 4,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.127999767661095
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    56,
+    1536
+   ],
+   "M": 11,
+   "N": 56,
+   "K": 1536,
+   "calls_per_pass": 4,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.28800043463707
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.28800043463707
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    36
+   ],
+   "weight_shape": [
+    384,
+    36
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 36,
+   "calls_per_pass": 3,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.127999767661095,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.127999767661095,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    52
+   ],
+   "weight_shape": [
+    384,
+    52
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 52,
+   "calls_per_pass": 3,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    72,
+    1536
+   ],
+   "M": 11,
+   "N": 72,
+   "K": 1536,
+   "calls_per_pass": 3,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.28800043463707
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.28800043463707
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    104,
+    1536
+   ],
+   "M": 11,
+   "N": 104,
+   "K": 1536,
+   "calls_per_pass": 3,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.319999746978283
+   },
+   "b_precast_alone": {
+    "median_us": 14.336000196635723,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.319999746978283
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    40
+   ],
+   "weight_shape": [
+    384,
+    40
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 40,
+   "calls_per_pass": 2,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.127999767661095
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    80
+   ],
+   "weight_shape": [
+    384,
+    80
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 80,
+   "calls_per_pass": 2,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.064000211656094,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    80,
+    1536
+   ],
+   "M": 11,
+   "N": 80,
+   "K": 1536,
+   "calls_per_pass": 2,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.28800043463707
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.28800043463707
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    160,
+    1536
+   ],
+   "M": 11,
+   "N": 160,
+   "K": 1536,
+   "calls_per_pass": 2,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    44
+   ],
+   "weight_shape": [
+    384,
+    44
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 44,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.127999767661095
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_32x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    60
+   ],
+   "weight_shape": [
+    384,
+    60
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 60,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 4.127999767661095,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    64
+   ],
+   "weight_shape": [
+    384,
+    64
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 64,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    68
+   ],
+   "weight_shape": [
+    384,
+    68
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 68,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.111999973654747
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    76
+   ],
+   "weight_shape": [
+    384,
+    76
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 76,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    88
+   ],
+   "weight_shape": [
+    384,
+    88
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 88,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    96
+   ],
+   "weight_shape": [
+    384,
+    96
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 96,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 4.127999767661095,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    104
+   ],
+   "weight_shape": [
+    384,
+    104
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 104,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    112
+   ],
+   "weight_shape": [
+    384,
+    112
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 112,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    116
+   ],
+   "weight_shape": [
+    384,
+    116
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 116,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    124
+   ],
+   "weight_shape": [
+    384,
+    124
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 124,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 4.095999989658594,
+    "p10_us": 4.095999989658594,
+    "p90_us": 4.095999989658594
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.111999973654747,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    132
+   ],
+   "weight_shape": [
+    384,
+    132
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 132,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    144
+   ],
+   "weight_shape": [
+    384,
+    144
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 144,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    156
+   ],
+   "weight_shape": [
+    384,
+    156
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 156,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    164
+   ],
+   "weight_shape": [
+    384,
+    164
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 164,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.1599997356534
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    176
+   ],
+   "weight_shape": [
+    384,
+    176
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 176,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    188
+   ],
+   "weight_shape": [
+    384,
+    188
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 188,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    200
+   ],
+   "weight_shape": [
+    384,
+    200
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 200,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    216
+   ],
+   "weight_shape": [
+    384,
+    216
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 216,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    228
+   ],
+   "weight_shape": [
+    384,
+    228
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 228,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_32x32_128x1_tn_align2::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    244
+   ],
+   "weight_shape": [
+    384,
+    244
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 244,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.175999995321035,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    264
+   ],
+   "weight_shape": [
+    384,
+    264
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 264,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    284
+   ],
+   "weight_shape": [
+    384,
+    284
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 284,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.191999979317188
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    304
+   ],
+   "weight_shape": [
+    384,
+    304
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 304,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    320
+   ],
+   "weight_shape": [
+    384,
+    320
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 320,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    344
+   ],
+   "weight_shape": [
+    384,
+    344
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 344,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 4.095999989658594,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    372
+   ],
+   "weight_shape": [
+    384,
+    372
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 372,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.208000428974628,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    396
+   ],
+   "weight_shape": [
+    384,
+    396
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 396,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "c_touch_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.27199998497963
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    420
+   ],
+   "weight_shape": [
+    384,
+    420
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 420,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.224000222980976
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "c_touch_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.191999979317188
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    452
+   ],
+   "weight_shape": [
+    384,
+    452
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 452,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.224000222980976
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "c_touch_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.224000222980976
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1>(cutlass_75_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align1::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    488
+   ],
+   "weight_shape": [
+    384,
+    488
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 488,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.175999995321035,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    520
+   ],
+   "weight_shape": [
+    384,
+    520
+   ],
+   "M": 11,
+   "N": 384,
+   "K": 520,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    88,
+    1536
+   ],
+   "M": 11,
+   "N": 88,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.319999746978283
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 12.28800043463707
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    120,
+    1536
+   ],
+   "M": 11,
+   "N": 120,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 14.303999952971935,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.27199998497963
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 12.319999746978283
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x1_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    128,
+    1536
+   ],
+   "M": 11,
+   "N": 128,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    136,
+    1536
+   ],
+   "M": 11,
+   "N": 136,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    152,
+    1536
+   ],
+   "M": 11,
+   "N": 152,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    176,
+    1536
+   ],
+   "M": 11,
+   "N": 176,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    192,
+    1536
+   ],
+   "M": 11,
+   "N": 192,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    208,
+    1536
+   ],
+   "M": 11,
+   "N": 208,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.1599997356534
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    224,
+    1536
+   ],
+   "M": 11,
+   "N": 224,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    232,
+    1536
+   ],
+   "M": 11,
+   "N": 232,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    248,
+    1536
+   ],
+   "M": 11,
+   "N": 248,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.1599997356534,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    264,
+    1536
+   ],
+   "M": 11,
+   "N": 264,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 6.175999995321035,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    288,
+    1536
+   ],
+   "M": 11,
+   "N": 288,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    312,
+    1536
+   ],
+   "M": 11,
+   "N": 312,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 8.1599997356534
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.224000222980976
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    328,
+    1536
+   ],
+   "M": 11,
+   "N": 328,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.224000222980976
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.224000222980976
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    352,
+    1536
+   ],
+   "M": 11,
+   "N": 352,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    376,
+    1536
+   ],
+   "M": 11,
+   "N": 376,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.175999995321035,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.224000222980976
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    400,
+    1536
+   ],
+   "M": 11,
+   "N": 400,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    432,
+    1536
+   ],
+   "M": 11,
+   "N": 432,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.224000222980976
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    456,
+    1536
+   ],
+   "M": 11,
+   "N": 456,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    488,
+    1536
+   ],
+   "M": 11,
+   "N": 488,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.1599997356534,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    528,
+    1536
+   ],
+   "M": 11,
+   "N": 528,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    568,
+    1536
+   ],
+   "M": 11,
+   "N": 568,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.1599997356534,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    608,
+    1536
+   ],
+   "M": 11,
+   "N": 608,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.111999973654747,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 8.191999979317188
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    640,
+    1536
+   ],
+   "M": 11,
+   "N": 640,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    688,
+    1536
+   ],
+   "M": 11,
+   "N": 688,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.144000217318535
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    744,
+    1536
+   ],
+   "M": 11,
+   "N": 744,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 6.144000217318535,
+    "p90_us": 8.191999979317188
+   },
+   "b_precast_alone": {
+    "median_us": 10.239999741315842,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "c_touch_then_gemm": {
+    "median_us": 6.144000217318535,
+    "p10_us": 6.144000217318535,
+    "p90_us": 6.175999995321035
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 8.191999979317188,
+    "p10_us": 8.191999979317188,
+    "p90_us": 10.239999741315842
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    792,
+    1536
+   ],
+   "M": 11,
+   "N": 792,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.256000190973282,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    840,
+    1536
+   ],
+   "M": 11,
+   "N": 840,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    904,
+    1536
+   ],
+   "M": 11,
+   "N": 904,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 14.336000196635723
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    976,
+    1536
+   ],
+   "M": 11,
+   "N": 976,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  },
+  {
+   "input_shape": [
+    1,
+    11,
+    1536
+   ],
+   "weight_shape": [
+    1040,
+    1536
+   ],
+   "M": 11,
+   "N": 1040,
+   "K": 1536,
+   "calls_per_pass": 1,
+   "iters": 100,
+   "a_cast_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 12.28800043463707
+   },
+   "b_precast_alone": {
+    "median_us": 14.336000196635723,
+    "p10_us": 12.28800043463707,
+    "p90_us": 14.336000196635723
+   },
+   "c_touch_then_gemm": {
+    "median_us": 10.239999741315842,
+    "p10_us": 10.239999741315842,
+    "p90_us": 10.239999741315842
+   },
+   "d_other_cast_then_gemm": {
+    "median_us": 12.28800043463707,
+    "p10_us": 12.256000190973282,
+    "p90_us": 14.336000196635723
+   },
+   "gemm_kernels": {
+    "a": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ],
+    "b": [
+     "void cutlass::Kernel2<cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_f16_s161616gemm_f16_16x16_128x2_tn_align8::Params)"
+    ]
+   }
+  }
+ ]
+}
