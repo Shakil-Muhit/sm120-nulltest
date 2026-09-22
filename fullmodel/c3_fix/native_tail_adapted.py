@@ -23,7 +23,7 @@ import types
 
 import torch
 
-FRAMES = (11, 51, 201, 801, 401, 601)      # registered operating points + sweep + Phase-3 E9 held-out (401, 601)
+FRAMES = (11, 51, 201, 801, 401, 601, 101)      # registered operating points + sweep + Phase-3 E9 held-out (401, 601) + Phase-4 1 s (101)
 
 
 def _check_meta(t):

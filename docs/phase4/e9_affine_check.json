@@ -1,0 +1,72 @@
+{
+ "affine_form": {
+  "a_ms": 1.1364757319858305,
+  "b_ms_per_frame": -0.0019158010470663486,
+  "note": "D(F) = a + b*F exactly, because F/(R F/(F+h)) = (F+h)/R when the tile factor is 1"
+ },
+ "held_out_reproduction": {
+  "176400": {
+   "stored": 0.368239512112225,
+   "affine": 0.3682395121122247,
+   "diff": 2.7755575615628914e-16
+  },
+  "264600": {
+   "stored": -0.014920697301044394,
+   "affine": -0.01492069730104495,
+   "diff": 5.551115123125783e-16
+  }
+ },
+ "in_sample": {
+  "4410": {
+   "stored_residual (pred-obs)": 0.17880192046810084,
+   "affine_pred": 1.1154019204681007,
+   "obs": 0.9365999999999999,
+   "recomputed_residual": 0.17880192046810084
+  },
+  "22050": {
+   "stored_residual (pred-obs)": 0.13986987858544708,
+   "affine_pred": 1.0387698785854467,
+   "obs": 0.8988999999999998,
+   "recomputed_residual": 0.13986987858544686
+  },
+  "88200": {
+   "stored_residual (pred-obs)": -0.41800027847450494,
+   "affine_pred": 0.7513997215254944,
+   "obs": 1.1693999999999996,
+   "recomputed_residual": -0.41800027847450516
+  },
+  "352800": {
+   "stored_residual (pred-obs)": 0.09291909328568515,
+   "affine_pred": -0.39808090671431473,
+   "obs": -0.49099999999999966,
+   "recomputed_residual": 0.09291909328568493
+  }
+ },
+ "max_abs_reproduction_error_ms": 5.551115123125783e-16,
+ "calibration_points": {
+  "4410": 0.9365999999999999,
+  "22050": 0.8988999999999998,
+  "88200": 1.1693999999999996,
+  "352800": -0.49099999999999966
+ },
+ "calibration_monotone": false,
+ "calibration_only_minimax_affine": {
+  "a_ms": 1.2445513924050629,
+  "b_ms_per_frame": -0.001807088607594936,
+  "max_abs_error_ms": 0.28807341772151884,
+  "review_counterexample": {
+   "a": 1.244551392405063,
+   "b": -0.001807088607595,
+   "max_abs_error_ms": 0.288073417721519
+  },
+  "note": "retrospective comparator: a line CAN meet the 0.4 ms tolerance on the four calibration values; it was not the registered fit and is not evaluated at 4 s/6 s here"
+ },
+ "piecewise_linear_baseline_retrospective": {
+  "176400": 0.6159333333333332,
+  "264600": 0.06246666666666689
+ },
+ "registered_predictions": {
+  "176400": 0.368239512112225,
+  "264600": -0.014920697301044394
+ }
+}

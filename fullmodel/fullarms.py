@@ -30,14 +30,15 @@ import capture as capture_mod                 # noqa: E402
 import padbatch                               # noqa: E402
 
 ARMS = ('A', 'ANVTX', 'B', 'C1', 'C2', 'C3', 'C1A', 'C1D', 'D', 'E', 'F', 'G', 'H',
-        'C3F', 'C3P', 'C3M', 'C1P', 'C3N', 'C3G')   # Phase 3: E1a, E1b, E2, E3, E4a, E1a'
-COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H', 'C3F', 'C3P', 'C3M', 'C1P', 'C3N', 'C3G')
+        'C3F', 'C3P', 'C3M', 'C1P', 'C3N', 'C3G',   # Phase 3: E1a, E1b, E2, E3, E4a, E1a'
+        'C3I', 'C3MG', 'HG')                        # Phase 4: inlining-off control, C3M+freezing/no-inlining, H+freezing/no-inlining
+COMPILE_ARMS = ('C1', 'C2', 'C3', 'C1A', 'C1D', 'H', 'C3F', 'C3P', 'C3M', 'C1P', 'C3N', 'C3G', 'C3I', 'C3MG', 'HG')
 CAPTURE_ARMS = ('B', 'E', 'G')
-REQUIRE_ZERO_BREAKS = ('C3', 'H', 'C3F', 'C3P', 'C3M', 'C3N', 'C3G')   # gate: zero graph breaks or INVALID
+REQUIRE_ZERO_BREAKS = ('C3', 'H', 'C3F', 'C3P', 'C3M', 'C3N', 'C3G', 'C3I', 'C3MG', 'HG')   # gate: zero graph breaks or INVALID
 # classification rule (sm120 VAL_TOL rationale): compiler-regenerated kernels
 # present -> loose; else tight.
 TIER = {a: ('loose' if a in COMPILE_ARMS else 'tight') for a in ARMS}
-CHUNKS = (352800, 4410, 22050, 88200, 176400, 264600)   # registered operating points + sweep + E9 held-out
+CHUNKS = (352800, 4410, 22050, 88200, 176400, 264600, 44100)   # registered operating points + sweep + E9 held-out + Phase-4 1 s
 HELD_OUT_CHUNKS = (176400, 264600)            # E9: run ONLY inside the registered pod session (SESSION_POD=1)
 
 
@@ -166,6 +167,45 @@ def build_arm_step(arm, model, x_example, ctx_nocache, num_streams, info, out_di
         info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
         patch = torch._dynamo.config.patch(inline_inbuilt_nn_modules=False)
         with patch:
+            step = _compile_opts(model, {'freezing': True}, 'reduce-overhead+freezing+noinline', info)
+        info['inductor_config'] = {'freezing': True, 'dynamo.inline_inbuilt_nn_modules': False}
+
+        def run(x):
+            with torch._dynamo.config.patch(inline_inbuilt_nn_modules=False):
+                return step(x)
+        return run
+
+    if arm == 'C3I':                                  # Phase 4 control: inlining OFF, freezing OFF (isolates the inlining knob)
+        import torch._dynamo
+        info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
+        with torch._dynamo.config.patch(inline_inbuilt_nn_modules=False):
+            step = _compile_opts(model, {}, 'reduce-overhead+noinline', info)
+        info['inductor_config'] = {'dynamo.inline_inbuilt_nn_modules': False}
+
+        def run(x):
+            with torch._dynamo.config.patch(inline_inbuilt_nn_modules=False):
+                return step(x)
+        return run
+
+    if arm == 'C3MG':                                 # Phase 4: max-autotune + freezing, inlining OFF (composition test)
+        import torch._dynamo
+        info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
+        with torch._dynamo.config.patch(inline_inbuilt_nn_modules=False):
+            opts = {'triton.cudagraphs': True, 'max_autotune': True, 'freezing': True}
+            info['compile_mode'] = 'max-autotune+freezing+noinline'
+            info['inductor_config'] = {'max_autotune': True, 'freezing': True, 'dynamo.inline_inbuilt_nn_modules': False}
+            compiled = torch.compile(model, options=opts, dynamic=False)
+
+        def run(x):
+            with torch._dynamo.config.patch(inline_inbuilt_nn_modules=False):
+                return compiled(x)
+        return run
+
+    if arm == 'HG':                                   # Phase 4: H (pad-and-batch) + freezing, inlining OFF
+        import torch._dynamo
+        info['c3_fixes'] = _c3_fixes(model, out_dir, attention=True, dc_filter=True)
+        info['padbatch'] = padbatch.install(model)
+        with torch._dynamo.config.patch(inline_inbuilt_nn_modules=False):
             step = _compile_opts(model, {'freezing': True}, 'reduce-overhead+freezing+noinline', info)
         info['inductor_config'] = {'freezing': True, 'dynamo.inline_inbuilt_nn_modules': False}
 

@@ -1,0 +1,533 @@
+{
+ "estimand_and_method": "Phase 4 \u00a72B \u2014 analysis revision of the matched-pair statistics (historical outputs preserved).\n\nEstimand: for a matched pair (a, b) at one operating point, the per-repeat paired difference\nd = median(latency_a over 50 passes) \u2212 median(latency_b over 50 passes), where a and b blocks\nalternate within one process (repeat = one a-block and the following b-block). Experimental\nunit for inference: the process restart (each restart is an independent compile + settle +\n5 repeats); repeats within a restart are treated as clustered, not independent.\n\nPoint estimate (unchanged from the historical report): median over restarts of the per-restart\nmedian of d (\"median of restart medians\").\nInterval (revised): a two-level (cluster) bootstrap that resamples restarts with replacement and,\nwithin each drawn restart, repeats with replacement, recomputing the same statistic; 10,000\ndraws, seed 20260921, percentile 2.5/97.5. With three restarts this interval is coarse and\ncannot be narrower than the spread of the three restart medians; the restart medians and their\nrange are reported beside it. The historical interval (pooled-repeat median bootstrap) is kept\nfor comparison and labelled as estimating a different statistic.\nClock-flagged repeats are excluded exactly as the audit flags them (e_tools.drift_context).\n",
+ "pairs": {
+  "C3:H:176400": {
+   "files": [
+    "matched_C3_H_c176400_m1.json",
+    "matched_C3_H_c176400_m2.json",
+    "matched_C3_H_c176400_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    1.042359508574009,
+    1.1476380750536919,
+    1.1288269888609648
+   ],
+   "restart_median_range_ms": [
+    1.042359508574009,
+    1.1476380750536919
+   ],
+   "point_estimate_ms (median of restart medians)": 1.1288269888609648,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    0.9576015872880816,
+    1.3033088762313128
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": 1.1288269888609648,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     1.0285230819135904,
+     1.2235394679009914
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:H:264600": {
+   "files": [
+    "matched_C3_H_c264600_m1.json",
+    "matched_C3_H_c264600_m2.json",
+    "matched_C3_H_c264600_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    0.6742995465174317,
+    0.6722906837239861,
+    0.6421440048143268
+   ],
+   "restart_median_range_ms": [
+    0.6421440048143268,
+    0.6742995465174317
+   ],
+   "point_estimate_ms (median of restart medians)": 0.6722906837239861,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    0.5812149029225111,
+    0.7177315419539809
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": 0.6526949582621455,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     0.5866006249561906,
+     0.7177315419539809
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3M:352800": {
+   "files": [
+    "matched_C3_C3M_c352800_m1.json",
+    "matched_C3_C3M_c352800_m2.json",
+    "matched_C3_C3M_c352800_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    4.5706668170169,
+    4.796455381438136,
+    4.808308440260589
+   ],
+   "restart_median_range_ms": [
+    4.5706668170169,
+    4.808308440260589
+   ],
+   "point_estimate_ms (median of restart medians)": 4.796455381438136,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    4.52398497145623,
+    4.885156522504985
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": 4.768398473970592,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     4.622398992069066,
+     4.808308440260589
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3M:4410": {
+   "files": [
+    "matched_C3_C3M_c4410_m1.json",
+    "matched_C3_C3M_c4410_m2.json",
+    "matched_C3_C3M_c4410_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    0.19096792675554752,
+    0.19872759003192186,
+    0.2371150767430663
+   ],
+   "restart_median_range_ms": [
+    0.19096792675554752,
+    0.2371150767430663
+   ],
+   "point_estimate_ms (median of restart medians)": 0.19872759003192186,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    0.16262044664472342,
+    0.26529678143560886
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": 0.20204402972012758,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     0.19096792675554752,
+     0.2549134660512209
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3G:352800": {
+   "files": [
+    "matched_C3_C3G_c352800_m1.json",
+    "matched_C3_C3G_c352800_m2.json",
+    "matched_C3_C3G_c352800_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    1.4037624932825565,
+    1.314053894020617,
+    1.4176580589264631
+   ],
+   "restart_median_range_ms": [
+    1.314053894020617,
+    1.4176580589264631
+   ],
+   "point_estimate_ms (median of restart medians)": 1.4037624932825565,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    1.2687845155596733,
+    1.4648374635726213
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": 1.376806991174817,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     1.314053894020617,
+     1.4176580589264631
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3G:4410": {
+   "files": [
+    "matched_C3_C3G_c4410_m1.json",
+    "matched_C3_C3G_c4410_m2.json",
+    "matched_C3_C3G_c4410_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 14,
+   "restart_medians_ms": [
+    0.6571274716407061,
+    0.7169244345277548,
+    0.6667202687822282
+   ],
+   "restart_median_range_ms": [
+    0.6571274716407061,
+    0.7169244345277548
+   ],
+   "point_estimate_ms (median of restart medians)": 0.6667202687822282,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    0.6276870844885707,
+    0.7287119515240192
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": 0.670990499202162,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     0.6578883621841669,
+     0.7080327486619353
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3P:352800": {
+   "files": [
+    "matched_C3_C3P_c352800_m1.json",
+    "matched_C3_C3P_c352800_m2.json",
+    "matched_C3_C3P_c352800_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    0.713097513653338,
+    0.7336359703913331,
+    0.7748223142698407
+   ],
+   "restart_median_range_ms": [
+    0.713097513653338,
+    0.7748223142698407
+   ],
+   "point_estimate_ms (median of restart medians)": 0.7336359703913331,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    0.7022720528766513,
+    0.8311484707519412
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": 0.7336359703913331,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     0.7111835293471813,
+     0.7970950100570917
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3P:4410": {
+   "files": [
+    "matched_C3_C3P_c4410_m1.json",
+    "matched_C3_C3P_c4410_m2.json",
+    "matched_C3_C3P_c4410_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 14,
+   "restart_medians_ms": [
+    0.5994896637275815,
+    0.5494104698300362,
+    0.5329390405677259
+   ],
+   "restart_median_range_ms": [
+    0.5329390405677259,
+    0.5994896637275815
+   ],
+   "point_estimate_ms (median of restart medians)": 0.5494104698300362,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    0.49323507118970156,
+    0.6103345658630133
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": 0.559814739972353,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     0.5306900711730123,
+     0.6049121147952974
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3F:352800": {
+   "files": [
+    "matched_C3_C3F_c352800_m1.json",
+    "matched_C3_C3F_c352800_m2.json",
+    "matched_C3_C3F_c352800_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    -2.592982491478324,
+    -2.487875521183014,
+    -2.447139471769333
+   ],
+   "restart_median_range_ms": [
+    -2.592982491478324,
+    -2.447139471769333
+   ],
+   "point_estimate_ms (median of restart medians)": -2.487875521183014,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -2.650601207278669,
+    -2.391775487922132
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -2.505253069102764,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -2.650601207278669,
+     -2.415465540252626
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3F:4410": {
+   "files": [
+    "matched_C3_C3F_c4410_m1.json",
+    "matched_C3_C3F_c4410_m2.json",
+    "matched_C3_C3F_c4410_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 13,
+   "restart_medians_ms": [
+    -2.532106824219227,
+    -2.530611352995038,
+    -2.591172291431576
+   ],
+   "restart_median_range_ms": [
+    -2.591172291431576,
+    -2.530611352995038
+   ],
+   "point_estimate_ms (median of restart medians)": -2.532106824219227,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -2.6547888992354274,
+    -2.51770147588104
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -2.540354966185987,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -2.603237866424024,
+     -2.5243995478376746
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C1:C1P:352800": {
+   "files": [
+    "matched_C1_C1P_c352800_m1.json",
+    "matched_C1_C1P_c352800_m2.json",
+    "matched_C1_C1P_c352800_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    -15.180541551671922,
+    -15.17285720910877,
+    -15.159202157519758
+   ],
+   "restart_median_range_ms": [
+    -15.180541551671922,
+    -15.159202157519758
+   ],
+   "point_estimate_ms (median of restart medians)": -15.17285720910877,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -15.201410511508584,
+    -15.006585395894945
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -15.17285720910877,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -15.195741085335612,
+     -15.055311843752861
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3M:C3N:352800": {
+   "files": [
+    "matched_C3M_C3N_c352800_m1.json",
+    "matched_C3M_C3N_c352800_m2.json",
+    "matched_C3M_C3N_c352800_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 15,
+   "restart_medians_ms": [
+    -2.439149538986385,
+    -2.301376429386437,
+    -2.2813441464677453
+   ],
+   "restart_median_range_ms": [
+    -2.439149538986385,
+    -2.2813441464677453
+   ],
+   "point_estimate_ms (median of restart medians)": -2.301376429386437,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -2.482405863702297,
+    -2.232071361504495
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -2.3366670357063413,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -2.482405863702297,
+     -2.299206331372261
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3M:C3N:4410": {
+   "files": [
+    "matched_C3M_C3N_c4410_m1.json",
+    "matched_C3M_C3N_c4410_m2.json",
+    "matched_C3M_C3N_c4410_m3.json"
+   ],
+   "restarts": 3,
+   "repeats_used": 14,
+   "restart_medians_ms": [
+    -0.04854367580264807,
+    0.0647660344839096,
+    -0.11330819688737392
+   ],
+   "restart_median_range_ms": [
+    -0.11330819688737392,
+    0.0647660344839096
+   ],
+   "point_estimate_ms (median of restart medians)": -0.04854367580264807,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -0.1277840929105878,
+    0.07153954356908798
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -0.07034168811514974,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -0.10424561332911253,
+     0.02068339381366968
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3:352800": {
+   "files": [
+    "matched_C3_C3_c352800_m1.json"
+   ],
+   "restarts": 1,
+   "repeats_used": 5,
+   "restart_medians_ms": [
+    -0.09079510346055031
+   ],
+   "restart_median_range_ms": [
+    -0.09079510346055031,
+    -0.09079510346055031
+   ],
+   "point_estimate_ms (median of restart medians)": -0.09079510346055031,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -0.34038396552205086,
+    0.06738700903952122
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -0.09079510346055031,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -0.34038396552205086,
+     0.06738700903952122
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3:4410": {
+   "files": [
+    "matched_C3_C3_c4410_m1.json"
+   ],
+   "restarts": 1,
+   "repeats_used": 4,
+   "restart_medians_ms": [
+    -0.058141478803008795
+   ],
+   "restart_median_range_ms": [
+    -0.058141478803008795,
+    -0.058141478803008795
+   ],
+   "point_estimate_ms (median of restart medians)": -0.058141478803008795,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -0.09473762474954128,
+    0.020072446204721928
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -0.058141478803008795,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -0.09473762474954128,
+     0.020072446204721928
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3:176400": {
+   "files": [
+    "matched_C3_C3_c176400_m1.json"
+   ],
+   "restarts": 1,
+   "repeats_used": 5,
+   "restart_medians_ms": [
+    -0.05051959306001663
+   ],
+   "restart_median_range_ms": [
+    -0.05051959306001663,
+    -0.05051959306001663
+   ],
+   "point_estimate_ms (median of restart medians)": -0.05051959306001663,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -0.14551752246916294,
+    0.25011005345731974
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -0.05051959306001663,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -0.14551752246916294,
+     0.25011005345731974
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  },
+  "C3:C3:264600": {
+   "files": [
+    "matched_C3_C3_c264600_m1.json"
+   ],
+   "restarts": 1,
+   "repeats_used": 5,
+   "restart_medians_ms": [
+    -0.12295995838940144
+   ],
+   "restart_median_range_ms": [
+    -0.12295995838940144,
+    -0.12295995838940144
+   ],
+   "point_estimate_ms (median of restart medians)": -0.12295995838940144,
+   "ci95_cluster_bootstrap_ms (revised; same statistic)": [
+    -0.20455848425626755,
+    0.147281214594841
+   ],
+   "historical": {
+    "pooled_repeat_median_ms": -0.12295995838940144,
+    "ci95_pooled_repeat_bootstrap_ms": [
+     -0.20455848425626755,
+     0.147281214594841
+    ],
+    "note": "the historical interval resampled pooled repeats (a different statistic from the reported point estimate)"
+   },
+   "inference_scope": "this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread"
+  }
+ }
+}

@@ -1,0 +1,138 @@
+{
+ "E2_C3_vs_C3M_352800": {
+  "class_totals_ms_per_pass": {
+   "C3": {
+    "GEMM": 15.9392,
+    "SDPA": 3.5474,
+    "INDUCTOR_FUSED": 8.4708,
+    "COPY": 0.0411,
+    "FFT": 0.0164,
+    "OTHER": 0.0533
+   },
+   "C3M": {
+    "GEMM": 13.5556,
+    "SDPA": 3.514,
+    "INDUCTOR_FUSED": 5.8995,
+    "COPY": 0.0406,
+    "FFT": 0.0168,
+    "OTHER": 0.054
+   }
+  },
+  "class_deltas_ms (C3 - C3M)": {
+   "FFT": -0.0004,
+   "OTHER": -0.0007,
+   "GEMM": 2.3836,
+   "SDPA": 0.0334,
+   "INDUCTOR_FUSED": 2.5713,
+   "COPY": 0.0005
+  },
+  "sum_of_class_deltas_ms": 4.9877,
+  "templates_by_fused_ops": {
+   "": {
+    "kernels": 178,
+    "launches": 4240.0,
+    "time_ms": 98.3981
+   }
+  },
+  "template_count": 178,
+  "triton_signatures_gone_in_C3M": {},
+  "triton_signatures_new_in_C3M": {},
+  "note": "class totals are node-level traced device time per pass (perturbed); their deltas are descriptive and need not sum to the unprofiled 4.80 ms; templates fuse the listed ops"
+ },
+ "E1_C3_vs_C3G_352800": {
+  "class_totals_ms_per_pass": {
+   "C3": {
+    "GEMM": 15.9392,
+    "SDPA": 3.5474,
+    "INDUCTOR_FUSED": 8.4708,
+    "COPY": 0.0411,
+    "FFT": 0.0164,
+    "OTHER": 0.0533
+   },
+   "C3G": {
+    "GEMM": 16.0627,
+    "SDPA": 3.5356,
+    "INDUCTOR_FUSED": 7.2575,
+    "COPY": 0.028,
+    "FFT": 0.0169,
+    "OTHER": 0.054
+   }
+  },
+  "class_deltas_ms (C3 - C3G)": {
+   "FFT": -0.0005,
+   "OTHER": -0.0007,
+   "GEMM": -0.1235,
+   "SDPA": 0.0118,
+   "INDUCTOR_FUSED": 1.2133,
+   "COPY": 0.0131
+  },
+  "kernel_launches_per_pass": {
+   "C3": 1143.0,
+   "C3G": 729.0
+  },
+  "param_only_casts": {
+   "C3": {
+    "triton||param-only": {
+     "kernels": 420,
+     "launches": 17542.0,
+     "time_ms": 50.3506
+    }
+   },
+   "C3G": {}
+  },
+  "signatures_gone_in_C3G (non-cast)": {},
+  "signatures_new_in_C3G": {},
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {
+   "triton||": 2.3987
+  },
+  "sum_of_class_deltas_ms": 1.1135
+ },
+ "E1_C3_vs_C3G_4410": {
+  "class_totals_ms_per_pass": {
+   "C3": {
+    "GEMM": 1.2174,
+    "SDPA": 0.1012,
+    "INDUCTOR_FUSED": 1.1526,
+    "COPY": 0.007,
+    "FFT": 0.0048,
+    "OTHER": 0.0163
+   },
+   "C3G": {
+    "GEMM": 1.5854,
+    "SDPA": 0.1011,
+    "INDUCTOR_FUSED": 0.2928,
+    "COPY": 0.0047,
+    "FFT": 0.0049,
+    "OTHER": 0.0161
+   }
+  },
+  "class_deltas_ms (C3 - C3G)": {
+   "FFT": -0.0001,
+   "OTHER": 0.0002,
+   "GEMM": -0.368,
+   "SDPA": 0.0001,
+   "INDUCTOR_FUSED": 0.8598,
+   "COPY": 0.0023
+  },
+  "kernel_launches_per_pass": {
+   "C3": 1151.0,
+   "C3G": 737.0
+  },
+  "param_only_casts": {
+   "C3": {
+    "triton||param-only": {
+     "kernels": 420,
+     "launches": 17542.0,
+     "time_ms": 46.5631
+    }
+   },
+   "C3G": {}
+  },
+  "signatures_gone_in_C3G (non-cast)": {},
+  "signatures_new_in_C3G": {},
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {
+   "triton||": 0.1999
+  },
+  "sum_of_class_deltas_ms": 0.4943
+ }
+}
