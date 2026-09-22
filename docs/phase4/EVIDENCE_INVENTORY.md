@@ -16,4 +16,4 @@ Owner's machine paths; nothing below is public. Hashes establish content identit
 
 Omitted from the ZIP for size, all present under the paths above with the receipts' hashes: raw Nsight Systems reports (`traces/*.nsys-rep`), SQLite exports, per-event CSVs (`*_cuda_gpu_trace.csv`, `*_cuda_api_trace.csv`, `*_nvtx_*_trace.csv`, kernel/NVTX summaries), compile dumps (`traces/dump_*`), reference tensors (`ref/*.pt`). Nothing omitted is claimed to be in the ZIP.
 
-Repository: `git@github-shakil:Shakil-Muhit/sm120-nulltest.git`, branch `phase4-followup` (Stage 1 commit 1dca907; Stage 2 commit recorded in the ZIP README), `main` at 9298a6a unchanged.
+Repository: `git@github-shakil:Shakil-Muhit/sm120-nulltest.git`, branch `phase4-followup` (Stage 1 commit 1dca907; Stage 2 commit 5df311f), `main` at 9298a6a unchanged.
