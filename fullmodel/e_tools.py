@@ -38,6 +38,7 @@ import glob
 import json
 import os
 import random
+import re
 import statistics
 import sys
 
@@ -158,9 +159,16 @@ def drift_context(ev):
     (pair, chunk, tag) -> {repeat: message}."""
     import completeness
     man = _load(os.path.join(ev, 'session_manifest.json')) or {}
+    session = man.get('session') or 'session3'
     runs = completeness.load_runs(ev)
     matched = completeness.load_matched(ev)
-    flags = completeness.drift_flags(ev, 'session3', runs, matched, (man.get('env') or {}).get('gpu_uuid'))
+    flags = completeness.drift_flags(ev, session, runs, matched, (man.get('env') or {}).get('gpu_uuid'))
+    # an unresolved clock comparison (no samples near the block) makes that repeat ineligible, exactly like a flag (gate-11 f151)
+    for u in flags.get('unresolved') or []:
+        m_ = re.match(r"matched \('([^']+)', '([^']+)'\)@(\d+)/(\w+) rep (\d+)", u)
+        if m_:
+            key = ((m_.group(1), m_.group(2)), int(m_.group(3)), m_.group(4))
+            flags['pairs'].setdefault(key, {})[int(m_.group(5))] = 'clock samples unavailable (unresolved comparison)'
     return man.get('manifest_id'), flags
 
 
@@ -416,6 +424,14 @@ def matched_trace(a):
     except FileNotFoundError:
         api = None
     import bisect
+    if not gpu or api is None or not api:
+        out['status'] = 'UNRESOLVED: GPU or CUDA-API export has no rows (header-only export)'
+        json.dump(out, open(a.out, 'w'), indent=1); print(out['status']); return
+    for arm in arms:
+        ids = sorted(w[0] for w in windows.get(arm, []))
+        if ids != list(range(qualify.REGISTERED_ITERS)):
+            out['status'] = f'UNRESOLVED: {arm} host pass windows are not the unique ids 0..49 ({len(ids)} found)'
+            json.dump(out, open(a.out, 'w'), indent=1); print(out['status']); return
     gstarts = [g[0] for g in gpu]
     astarts = [x[0] for x in api] if api else []
     for arm, ws in windows.items():

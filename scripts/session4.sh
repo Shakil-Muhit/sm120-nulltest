@@ -4,6 +4,8 @@
 # for the new arms → collection and audit. Same deadline / reserve / terminal-record rules as sessions 1–3.
 # SHAKEDOWN=1 (engineering host): everything runs (no held-out rule applies in Phase 4); the audit grades it engineering.
 set -u
+export SESSION_BUDGET_S="${SESSION_BUDGET_S:-16200}" EXTRACT_RESERVE_S="${EXTRACT_RESERVE_S:-900}"   # registered defaults (docs/phase4/PLAN.md; gate-11 f160)
+export PHASE4=1                                                                                     # the Phase-3 held-out rule no longer applies (gate-11 f159)
 . "$(dirname "${BASH_SOURCE[0]}")/session_lib.sh"
 SHAKEDOWN="${SHAKEDOWN:-0}"; [ "${SESSION_POD:-0}" = "1" ] || SHAKEDOWN=1
 PA_LENGTHS="${PA_LENGTHS:-44100 176400 264600 352800}"
@@ -145,29 +147,52 @@ echo "=== [2] PA: matched C3 vs H at $PA_LENGTHS, $RESTARTS restarts each ==="
 for r in $(seq 1 "$RESTARTS"); do for chunk in $PA_LENGTHS; do run_matched_q C3 H "$chunk" "m$r"; done; done
 
 echo "=== [3] PB: C1P runner discrepancy @352800 ==="
-for r in $(seq 1 "$RESTARTS"); do run_one_q C1P 352800 "r$r"; done              # standalone UNPROFILED C1P (never run before)
+for r in $(seq 1 "$RESTARTS"); do extra=""; [ "$r" = "1" ] && extra="--sdr"; run_one_q C1P 352800 "r$r" $extra; done   # standalone UNPROFILED C1P (never run before); SDR in r1
 for r in $(seq 1 "$RESTARTS"); do run_matched_q C1 C1P 352800 "m$r"; done         # matched, control first (Phase-3 order)
 for r in 1 2; do run_matched_q C1P C1 352800 "m$r"; done                            # matched, build order swapped
 run_matched_profiled C1 C1P 352800 p1                                                # the matched context itself under the profiler (repeat 0)
 trace_arm C1P 352800 trace || true                                                   # standalone profiled C1P (same session, for the aligned comparison)
 trace_arm C1 352800 trace || true
 
-echo "=== [4] PC1–PC4: configuration interactions at $PC_OPS ==="
+echo "=== [4a] PQ quality gates FIRST (registered stop rule): r1 with the SDR gate for every arm used in PC pairs, both operating points ==="
+declare -A ARM_OK
+for chunk in $PC_OPS; do
+    for arm in C3 C3I C3G C3M C3MG H HG; do
+        run_one_q "$arm" "$chunk" r1 --sdr
+        st=$(python3 - "$EVID/full_${arm}_c${chunk}_r1.json" <<'PYEOF'
+import json, sys
+try:
+    r = json.load(open(sys.argv[1]))
+    print('OK' if r.get('status') == 'VALID' and (r.get('validation') or {}).get('status') == 'PASS' and (r.get('sdr_gate') or {}).get('status') == 'PASS' else 'STOP')
+except Exception:
+    print('STOP')
+PYEOF
+)
+        ARM_OK["$arm@$chunk"]="$st"
+        [ "$st" = "OK" ] || echo "ARM STOP: $arm@$chunk ($st) — its matched pairs at this operating point are recorded UNTESTED"
+    done
+done
+pair_or_stop() {   # A B CHUNK TAG: run the pair only when both arms passed their gates at this operating point
+    if [ "${ARM_OK[$1@$3]:-STOP}" = "OK" ] && [ "${ARM_OK[$2@$3]:-STOP}" = "OK" ]; then run_matched_q "$@"; else
+        python3 -c "import json;json.dump({'pair':['$1','$2'],'chunk':$3,'tag':'$4','status':'UNTESTED','error':'registered stop rule: an arm failed its correctness gate at this operating point','pair_eligible':False},open('$EVID/matched_$1_$2_c$3_$4.json','w'),indent=1)"
+    fi
+}
+
+echo "=== [4b] PC1–PC4: configuration interactions at $PC_OPS ==="
 for chunk in $PC_OPS; do
     for r in $(seq 1 "$RESTARTS"); do
-        run_matched_q C3 C3I "$chunk" "m$r"
-        run_matched_q C3I C3G "$chunk" "m$r"
-        run_matched_q C3M C3MG "$chunk" "m$r"
-        run_matched_q H HG "$chunk" "m$r"
+        pair_or_stop C3 C3I "$chunk" "m$r"
+        pair_or_stop C3I C3G "$chunk" "m$r"
+        pair_or_stop C3M C3MG "$chunk" "m$r"
+        pair_or_stop H HG "$chunk" "m$r"
     done
 done
 
-echo "=== [5] PQ: quality gates and node traces for the new arms ==="
-for chunk in $PC_OPS; do for arm in C3I C3MG HG; do run_one_q "$arm" "$chunk" r1 --sdr; done; done
+echo "=== [5] PQ: node traces for the new arms and their controls ==="
 for arm in C3I HG C3G C3; do for chunk in 4410 352800; do trace_arm "$arm" "$chunk" trace || true; done; done
 T_COMPILE_SAVED="$T_COMPILE"; T_COMPILE="$T_TRACE_AUTOTUNE"
-trace_arm C3MG 4410 trace || true
-trace_arm C3MG 352800 trace || true
+trace_arm C3MG 4410 trace || true                    # mandatory (deployment evidence at 100 ms)
+trace_arm C3MG 352800 trace || true                  # optional under the deadline (recompiles with caches off, ~25 min)
 T_COMPILE="$T_COMPILE_SAVED"
 
 echo "=== [6] statistics, collection + completeness verdict ==="

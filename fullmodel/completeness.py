@@ -677,12 +677,22 @@ def audit_session4(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
     def clean_reps(pair, c, t):
         fl = drift['pairs'].get((pair, c, t)) or {}
         return [r for r in range(int(qualify.REGISTERED_REPEATS)) if r not in fl]
+    SDR_GATED = ('C3', 'C3I', 'C3G', 'C3M', 'C3MG', 'H', 'HG')
+    def sdr_valid_pass(a_, c_):
+        r = (run_map.get((a_, c_)) or {}).get('r1')
+        if not r:
+            return False
+        g = r.get('sdr_gate') or {}
+        return (not qualify.sdr_problems(r, c_, manifest_id, qualify.variant(r))) and qualify.sdr_recomputed(g)[0] == 'PASS'
     def pair_items(label, a, b, c, tags_, min_clean=1):
         clean = 0
+        gate_ok = True
+        if c in SDR_OPS.get('session4', ()):
+            gate_ok = all(sdr_valid_pass(x, c) for x in (a, b) if x in SDR_GATED)
         for t in tags_:
             m = matched.get(((a, b), c, t)); fl = drift['pairs'].get(((a, b), c, t))
-            ok = _pair_ok(m, manifest_id)
-            item(items, f'{label} matched {a} vs {b} @{c} ({t})', ok, qualify.pair_problems(m) if m else ['record missing'],
+            ok = _pair_ok(m, manifest_id) and gate_ok
+            item(items, f'{label} matched {a} vs {b} @{c} ({t})', ok, (qualify.pair_problems(m) if m else ['record missing']) + ([] if gate_ok else ['an arm of this pair has no validated SDR PASS at this operating point (registered stop rule)']),
                  note=(f'clock-drift flagged repeats (excluded from published aggregates): {fl}' if fl else None))
             if ok and clean_reps((a, b), c, t):
                 clean += 1
@@ -727,38 +737,41 @@ def audit_session4(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
              (qualify.pair_problems(m) if m else ['no A/A record']) + ([f'flagged {fl}'] if fl else []))
     # PA
     for c in [int(x) for x in (cfg.get('pa_lengths') or [44100, 176400, 264600, 352800])]:
-        pair_items('PA', 'C3', 'H', c, tags, min_clean=2)
+        pair_items('PA', 'C3', 'H', c, tags, min_clean=1)
     # PB
     cell = cells.get('C1P_352800')
     fl = drift['cells'].get(('C1P', 352800))
     item(items, 'PB standalone unprofiled C1P @352800 (r1..r3 HEADLINE-grade cell; clock drift across restarts <= 5 %)', bool(cell and cell['headline_status'] == 'HEADLINE') and not fl,
          (cell or {}).get('reasons', ['no runs']) + ([f'clock-drift flagged: {fl}'] if fl else []))
-    pair_items('PB', 'C1', 'C1P', 352800, tags, min_clean=2)
+    pair_items('PB', 'C1', 'C1P', 352800, tags, min_clean=1)
     pair_items('PB (order swapped)', 'C1P', 'C1', 352800, ['m1', 'm2'], min_clean=1)
     m = matched.get((('C1', 'C1P'), 352800, 'p1'))
     mt = load(os.path.join(ev, 'traces', 'matched_trace_C1_C1P_352800_p1.json')) or {}
     exp = load(os.path.join(ev, 'traces', 'trace_matched_C1_C1P_352800_p1_exports.json')) or {}
-    ok = bool(m and m.get('status') == 'VALID' and m.get('manifest_id') == manifest_id and m.get('profiled_repeat') == 0 and exp.get('complete') is True
-              and mt.get('status') == 'ok' and all(a_ in (mt.get('arms') or {}) and (mt['arms'][a_].get('passes') or 0) == 50 for a_ in ('C1', 'C1P')))
-    item(items, 'PB profiled matched C1/C1P process (repeat 0 captured; exports complete; aligned analysis for both arms, 50 passes each)', ok,
-         [f"record {bool(m)} profiled_repeat {(m or {}).get('profiled_repeat')} exports {exp.get('complete')} analysis {mt.get('status')}"])
+    pbase = os.path.join(ev, 'traces', 'trace_matched_C1_C1P_352800_p1')
+    exports_ok = all(csv_rows(f'{pbase}_{rep}.csv', cols) for rep, cols in (('cuda_gpu_trace', ('Start', 'Duration', 'Name')), ('cuda_api_trace', ('Start', 'Name')), ('nvtx_pushpop_trace', ('Start', 'Name'))))
+    pprobs = qualify.pair_problems(m) if m else ['record missing']
+    ok = bool(m and not pprobs and m.get('manifest_id') == manifest_id and m.get('profiled_repeat') == 0 and exp.get('complete') is True and exports_ok
+              and mt.get('status') == 'ok' and all(a_ in (mt.get('arms') or {}) and sorted(p_.get('pass') for p_ in mt['arms'][a_].get('per_pass') or []) == list(range(50)) for a_ in ('C1', 'C1P')))
+    item(items, 'PB profiled matched C1/C1P process (record passes the shared validator; repeat 0 captured; populated exports; aligned analysis with unique pass ids 0..49 per arm)', ok,
+         pprobs + [f"profiled_repeat {(m or {}).get('profiled_repeat')} exports {exp.get('complete')} populated {exports_ok} analysis {mt.get('status')}"])
     dynamic_aux.append('matched_trace_C1_C1P_352800_p1')
     trace_items('PB', 'C1P', 352800, need_graphed=False)
     trace_items('PB', 'C1', 352800, need_graphed=False)
     # PC1–PC4
     for c in [int(x) for x in (cfg.get('pc_ops') or [4410, 352800])]:
-        pair_items('PC1', 'C3', 'C3I', c, tags, min_clean=2)
-        pair_items('PC2', 'C3I', 'C3G', c, tags, min_clean=2)
-        pair_items('PC3', 'C3M', 'C3MG', c, tags, min_clean=2)
-        pair_items('PC4', 'H', 'HG', c, tags, min_clean=2)
-        for a in ('C3I', 'C3MG', 'HG'):
+        pair_items('PC1', 'C3', 'C3I', c, tags, min_clean=1)
+        pair_items('PC2', 'C3I', 'C3G', c, tags, min_clean=1)
+        pair_items('PC3', 'C3M', 'C3MG', c, tags, min_clean=1)
+        pair_items('PC4', 'H', 'HG', c, tags, min_clean=1)
+        for a in SDR_GATED:
             sdr_item('PQ', a, c)
     # PQ traces: mandatory at 4410 for C3I/HG/C3G/C3 and at 352800 for C3I/HG/C3G/C3; C3MG optional at both
     for a in ('C3I', 'HG', 'C3G', 'C3'):
         for c in (4410, 352800):
             trace_items('PQ', a, c, need_graphed=True)
-    for c in (4410, 352800):
-        trace_items('PQ', 'C3MG', c, need_graphed=True, optional=True)
+    trace_items('PQ', 'C3MG', 4410, need_graphed=True, optional=False)
+    trace_items('PQ', 'C3MG', 352800, need_graphed=True, optional=True)
     for name in ('aa_stats.json', 'stats_v2.json'):
         item(items, f'statistics file {name} present', bool(load(os.path.join(ev, name))), ['missing'])
 

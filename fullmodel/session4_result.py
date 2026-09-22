@@ -63,7 +63,19 @@ def main():
              f"Practical thresholds (declared in advance): {thr} ms. Verdict rule: 'x faster' needs the interval to exclude zero and |point| ≥ threshold; 'practical tie' needs the interval inside ±threshold.")
     L.append('')
 
+    import qualify
+    SDR_GATED = ('C3', 'C3I', 'C3G', 'C3M', 'C3MG', 'H', 'HG')
+    def sdr_pass(arm, O):
+        r1 = load(os.path.join(ev, f'full_{arm}_c{O}_r1.json'))
+        if not r1:
+            return None
+        g = r1.get('sdr_gate') or {}
+        return (not qualify.sdr_problems(r1, O, manifest_id, qualify.variant(r1))) and qualify.sdr_recomputed(g)[0] == 'PASS'
     def pair_block(label, x, y, O, extra=''):
+        if O in (4410, 352800):
+            gates = {arm: sdr_pass(arm, O) for arm in (x, y) if arm in SDR_GATED}
+            if any(v is not True for v in gates.values()):
+                L.append(f"| {O} | {x} vs {y} | UNRESOLVED: SDR gate not a validated PASS for {[k for k, v in gates.items() if v is not True]} (registered stop rule) | | | | |"); return None
         r = stats_v2.pair_stats(ev, x, y, O, manifest_id, flags)
         if not r:
             L.append(f"| {O} | {x} vs {y} | UNRESOLVED (no eligible pair) | | | | |"); return None
@@ -119,7 +131,9 @@ def main():
     for arm in ('C1P', 'C1'):
         gv = load(os.path.join(ev, 'traces', f'graph_verify_{arm}_352800.json')) or {}; m_ = gv.get('median') or {}
         tv = load(os.path.join(ev, 'traces', f'timing_views_{arm}_352800.json')) or {}; med = tv.get('median_us') or {}
-        L.append(f"- standalone traced {arm}: {gv.get('verdict', 'UNRESOLVED')}; graph launches/pass {f(m_.get('graph_launch_calls'), '.1f')}, staging {f(m_.get('input_staging_kernels'), '.1f')}, uncaptured {f(m_.get('uncaptured_model_kernels'), '.1f')}; kernel sum {f((med.get('sum_ns') or 0) / 1e3, '.3f')} ms, span {f((med.get('span_ns') or 0) / 1e3, '.3f')} ms")
+        ksum = med['sum_ns'] / 1e3 if isinstance(med.get('sum_ns'), (int, float)) else None
+        span = med['span_ns'] / 1e3 if isinstance(med.get('span_ns'), (int, float)) else None
+        L.append(f"- standalone traced {arm}: {gv.get('verdict', 'UNRESOLVED')}; graph launches/pass {f(m_.get('graph_launch_calls'), '.1f')}, staging {f(m_.get('input_staging_kernels'), '.1f')}, uncaptured {f(m_.get('uncaptured_model_kernels'), '.1f')}; kernel sum {f(ksum, '.3f')} ms, span {f(span, '.3f')} ms")
     L.append('')
     # PC
     L.append('## PC1–PC4 — configuration interactions'); L.append(''); L.append(hdr); L.append(sep)
