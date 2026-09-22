@@ -4,7 +4,26 @@ Handoff: the owner's Phase-3 handoff of 2026-09-21 (supersedes `plan_ceiling_led
 
 ## 1. Summary
 
-RESULTS-SECTION-PENDING (filled from the extracted evidence: `SESSION3_RESULT.md`, `LEDGER.md` realized/ceiling column, `e9_check.json`).
+Phase 3 is complete. The nine registrations (E1–E9, `prereg_amendments.md` v0.2) were run in one pod session of 4 h 29 min on the RTX 5090 pod "melband profiling"; the on-pod audit is COMPLETE (198 of 198 mandatory items, evidence grade pod, `evidence/session_status.json`), every optional stage (E5, E7) finished inside the budget, and the evidence (1,698 files) was extracted with a verified receipt before the pod was deleted. Every number below is computed by `fullmodel/session3_result.py`, `fullmodel/ledger.py --phase3-dir` and `fullmodel/e_tools.py` from the cited files.
+
+Outcomes against the registered defaults (matched pairs, median over three eligible restarts, block-level 95 % bootstrap intervals; SDR gate PASS for every arm; details in `SESSION3_RESULT.md`):
+
+| experiment | pod result | registered default | verdict |
+|---|---|---|---|
+| E6 A/A (C3 vs C3) | −0.09 ms at 8 s, −0.06 ms at 100 ms, both intervals cover zero; 40 of 40 headline restarts eligible | ≤ 0.15 / ≤ 0.05 ms | 8 s confirmed; 100 ms 0.006 ms over the bound |
+| E3 graph partition (C1P vs C1, 8 s) | C1P 15.17 ms slower [15.06, 15.20]; 68 graph launches, 56 staging copies, 68 uncaptured kernels per pass | no material change | not confirmed: partition is a finding |
+| E2 max-autotune (C3M vs C3) | C3M faster by 4.80 ms [4.62, 4.81] at 8 s and 0.20 ms [0.19, 0.25] at 100 ms; 178 GEMMs per pass moved to Triton templates that fuse the weight cast | 1.0–4.48 ms; ≤ 0.05 ms | above both defaults |
+| E1 freezing (C3F) | 2.49 / 2.54 ms slower; all 420 cast kernels kept | ≥ 0.55 / ≥ 0.60 ms | not confirmed |
+| E1 freezing without nn-module inlining (C3G) | +1.40 ms [1.31, 1.42] at 8 s, +0.67 ms [0.66, 0.71] at 100 ms; zero cast kernels | ≥ 0.55 / ≥ 0.60 ms | confirmed; at 8 s exceeds the X6a ceiling of 0.92 ms |
+| E1 pre-cast (C3P) | +0.73 ms [0.71, 0.80] at 8 s, +0.55 ms [0.53, 0.60] at 100 ms; casts 420 → 60 | ≥ 0.55 / ≥ 0.60 ms | 8 s confirmed; 100 ms 0.05 ms under |
+| E9 held-out crossover (C3 vs H) | H faster by 1.13 ms [1.03, 1.22] at 4 s and 0.67 ms [0.59, 0.72] at 6 s; crossover between 6 s and 8 s | +0.37 ms and −0.02 ms, tolerance 0.4 ms | FAIL; the residual points at the kernel-efficiency term (`docs/phase3/e9/e9_residual.json`) |
+| E4a norm-fold wrapper (C3N vs C3M, max-autotune) | 2.30 ms slower [2.30, 2.48] at 8 s; −0.01 ms at 100 ms | ≥ 0.5 ms; ≤ 0.1 ms | 8 s not confirmed; 100 ms confirmed |
+| E5 structural variants | cast time depth 6 / depth 1 = 1.11, boundary count 1.17; wall floor at 100 ms moves 3.6–3.7× faster than bytes/1.79 TB/s with mask-estimator bytes | invariant within 10 %; slope ≈ bytes/1.79 TB/s | (i) narrowly not confirmed; (ii) slope is 3.6–3.7× the bandwidth floor (fp32 read + fp16 write + fp16 read of the cast, not one fp16 read); (iii) reported |
+| E7 PDL | trivial chain 0.719 → 0.568 µs/node (saving 0.151, reproducing Sep 20 within 0.05); prologue chain graph saving 0.184 µs/node, stream saving 2.03 µs/node; overlap observed in PDL graph segments; SASS ACQBULK/PREEXIT | prologue graph saving ≥ 0.5 µs/node | not confirmed; the 0.58 µs/node figure stands (overlap observed) |
+
+Ledger (`LEDGER.md`, realized/ceiling filled from the pod pairs): X6a realized 1.40 ms against a 0.92 ms ceiling at 8 s, so the coverage check fires ("realized EXCEEDS its ceiling") and the X6a attribution is incomplete: freezing without inlining folds more than the parameter casts. At 100 ms X6a realized is 0.78 of its ceiling. X2a's wrapper realization is negative at both operating points. E2's 4.80 ms exceeds the X2a+X2b+X2c ceiling of 1.84 ms and is compared with the G1 union of 8.52 ms: max-autotune changes GEMM kernel selection and fuses the weight casts, mechanisms outside X2. Graph partition recovers none of the X1 break tax (−2.25 of it).
+
+Two registered predictions held as stated (E6 at 8 s; E1 through C3G and C3P), six did not; each failed prediction is reported with its number and its mechanism, and no prediction was revised after the fact.
 
 ## 2. Timeline (local time, UTC+6; UTC in brackets)
 
@@ -19,9 +38,13 @@ RESULTS-SECTION-PENDING (filled from the extracted evidence: `SESSION3_RESULT.md
 | 09-22 01:58 | First shakedown done (3.0 h): INCOMPLETE 138/161 for three causes, all in the harness: the fixed two-round joint settle scored the graph-partition pairs ineligible (`fc41966`), the max-autotune traces exceeded the 1,500 s cap (`6c0adfa`), and the clock-drift check needed a sampling window (`d86ec18`). E1 contingency rule extended (`afa6cdd`); the freezing probe (`docs/phase3/probes/freezing_probe.json`) explained why freezing kept the casts and produced arm C3G (`6b3aca8`). |
 | 09-22 02:04 | Final full shakedown started on the fixed code. |
 | 09-22 05:53 | Final shakedown done (3.8 h): 180/181, then 189/191 after the clock-drift rule was scoped per comparison (`5109c8c`); the two remaining items are the re-audit's tree identity and the C3 vs C3G pairs at 4,410 whose restarts were all clock-flagged on the shared node (environmental; `prereg_amendments.md` note). 5 Hz clock sampler added for session 3 (`ed3ea3d`). |
-| 09-22 06:1x [00:1x] | Pod "melband profiling" created in EU-RO-1 (EU-CZ-1 had no 5090); bundle of `ed3ea3d`, clip pack and `setup.sh` shipped; pins verified on the pod. |
+| 09-22 05:56 [23:56 on 09-21] | Pod "melband profiling" created in EU-RO-1 (EU-CZ-1 had no 5090); bundle of `ed3ea3d`, clip pack and `setup.sh` shipped; pins verified on the pod. |
 | 09-22 06:02 [00:02] | Session 3 started on the pod (`SESSION_BUDGET_S=18000`, reserve 900 s, `E5_BUDGET_S=3600`; `SESSION_POD=1`, so the E9 held-out lengths run). |
-| RESULTS-SECTION-PENDING | session end, audit verdict, extraction receipt, pod deletion. |
+| 09-22 08:06–08:45 [02:06–02:45] | Owner paused the assistant; the session ran on unattended (E1 → E9). |
+| 09-22 10:31 [04:31] | Session 3 done: 16,118 s elapsed with 982 s of budget to spare; on-pod audit COMPLETE 198/198 (grade pod); E5 (48 cells) and E7 completed inside the budget, so the prepared continuation was not needed. |
+| 09-22 10:31–10:45 | Extraction: 1,698 files, archive sha256 `0691998a…`, remote content hash unchanged during extraction (receipt in `pod.env.extracted`). |
+| 09-22 10:46 [04:46] | Pod deleted (`runpodctl pod delete d5n5vfr3z1tbp6`); production pods untouched. Pod time about 4.8 h. |
+| 09-22 10:50–11:05 | Off-pod: local re-audit (197/198; the one difference is the tree identity of a later analysis commit), `SESSION3_RESULT.md`, `LEDGER.md` realized/ceiling, figure CSVs, E9 residual attribution; pushed as `463c923`. Codex gate 10 on the analysis tools started (local). |
 
 ## 3. What was built
 
@@ -41,19 +64,23 @@ RESULTS-SECTION-PENDING (filled from the extracted evidence: `SESSION3_RESULT.md
 
 ## 5. Session 3 on the pod
 
-RESULTS-SECTION-PENDING (per stage: E6 A/A and headline restarts, E3, E2, E1, E9, E4a, E5, E7; audit verdict; extraction receipt).
+Stage durations (from `evidence/session3_console.log`, UTC): preflight 00:02–00:04; E6 00:04–00:31 (two A/A pairs, 40 headline restarts, all eligible); E3 00:31–00:40; E2 00:40–01:52 (the two C3M traces took 30 and 25 minutes because a max-autotune trace recompiles with the Inductor caches disabled under the profiler); E1 01:52–02:36 (C3F, C3G, C3P with their traces and SDR gates); E9 02:36–02:48; E4a 02:48–04:00; E5 04:00–04:30; E7 04:30–04:31; collection and audit 04:31.
+
+Headline cells over five restarts (`summary_full.json`, min-of-medians medians): A 63.05 ms and 10.47 ms; C1 36.46 and 5.32; C3 29.58 and 3.25; H 29.61 and 2.33 (8 s and 100 ms). The Sep-20 pod gave C3 28.87 and H 2.34 at the same points; this pod is about 2.5 % slower at 8 s.
+
+E-by-E tables, intervals, cast counts, graph verdicts, template counts, E5 cells and the E7 chain table are in `SESSION3_RESULT.md`; the ledger notes carry every realized value with its files.
 
 ## 6. Registered predictions versus outcomes
 
-RESULTS-SECTION-PENDING (table from `SESSION3_RESULT.md`).
+See the summary table in §1; the verdict lines with the exact rule applied are in `SESSION3_RESULT.md` ("Registered prediction" lines). The E9 registration (`docs/phase3/e9/e9_cost_model.json`, sha256 recorded in `session3_config.json` at session start) predicted the crossover at 261,072 samples; the measurement puts it between 264,600 and 352,800. Under the registered rule the residual is attributed, not refitted: absorbing it in one term would require C3's per-band GEMM rate to be 53 rather than 71 TFLOPS at 401 frames and 67 rather than 82 at 601 (`docs/phase3/e9/e9_residual.json`), i.e. the two-point saturating rate curves are wrong at mid lengths, consistent with the in-sample residual of −0.42 ms at 88,200.
 
 ## 7. The ledger: realized versus ceiling
 
-RESULTS-SECTION-PENDING (`LEDGER.md` regenerated with `--phase3-dir`; coverage check; tightness by grade).
+`LEDGER.md` now carries four realized values (X6a and X2a at both operating points) with block-level intervals and their source files, plus notes for E2, E3, E9 and E7. Coverage check: one row's realized value exceeds its ceiling (X6a at 8 s, 1.40 vs 0.92 ms), which falsifies "casts only" as the attribution of freezing's gain. Tightness: grade B rows scored 4, realized/ceiling median −0.02 (min −2.04 for the wrapper fold at 8 s, max 1.53 for X6a at 8 s); grades A and C have no intervened rows. The 100 ms X6a row is 0.78 of its ceiling with interval [0.77, 0.83].
 
 ## 8. Audit verdicts and corrections
 
-RESULTS-SECTION-PENDING.
+On-pod: COMPLETE 198/198, evidence grade pod, no optional item incomplete, clock-drift rule applied at 5 Hz sampling with no violation that removed a stage. Off-pod re-audit from the analysis commit: 197/198, the single difference being the manifest's tree identity (the analysis tools were committed after the measurement; `session_status_local_reaudit_940cd26.json` beside the on-pod record). No measuring code was changed after the session; the analysis tools were corrected before the session (gate 09) and the result generator's wording after it (E6 and E4a verdict lines, E5 (iii) wording), with recorded identity.
 
 ## 9. Owner decisions and deviations
 
@@ -65,10 +92,15 @@ RESULTS-SECTION-PENDING.
 
 ## 10. Open items
 
-RESULTS-SECTION-PENDING.
+1. Codex gate 10 on the analysis tools (running at the time of writing; its verdict and any fixes are recorded in `docs/codex/10_analysis.md` and the closing commit).
+2. X6a attribution: freezing without inlining realizes 1.40 ms at 8 s against a 0.92 ms cast ceiling; the remaining 0.48 ms is unattributed (constant folding beyond the casts; the C3G trace with 729 kernels versus C3's 1,142 is the place to look).
+3. E9: the cost model's rate curves need more than two trace points; the registered rule forbids refitting within this study, so the crossover between 6 s and 8 s stands as a measured bracket.
+4. E4a: the wrapper-class fold does not pay under either mode; the kernel-class epilogue (E4b) remains the owner's lane.
+5. Gate-08 audit-strictness findings 114–127 remain deferred by the owner's rule.
+6. Push-time evidence stays client-side until the repository is public or the owner records the GitHub Events `created_at` (`docs/provenance/push_evidence.md`); the OpenTimestamps proof can be upgraded after about a day.
 
 ## 11. Reproducibility
 
 - Registration and code: `Shakil-Muhit/sm120-nulltest` at `ed3ea3d` (measurement).
-- Evidence: RESULTS-SECTION-PENDING (extraction directory and receipt).
+- Evidence: `/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence` (1,698 files; receipt line in `pod.env.extracted`, archive sha256 `0691998a60f0f87fd954c218a2fa36ddc0ae441f9fe9001d7805bd74a5f4fc5e`). Sep-20 evidence as before.
 - Regenerate: `python fullmodel/completeness.py --evidence-dir <ev> --session session3`; `python fullmodel/session3_result.py --evidence-dir <ev> --out SESSION3_RESULT.md`; `python fullmodel/ledger.py --evidence-dir <sep-20 ev> --phase3-dir <ev> --out LEDGER.md`; `python fullmodel/figures.py --evidence-dir <sep-20 ev> --phase3-dir <ev>`.
