@@ -41,7 +41,8 @@
    -2.482405863702297,
    -2.299206331372261
   ],
-  "realized_source": "E4a C3M \u2212 C3N (max-autotune): ['matched_C3M_C3N_c352800_m1.json', 'matched_C3M_C3N_c352800_m2.json', 'matched_C3M_C3N_c352800_m3.json']"
+  "realized_source": "E4a C3M \u2212 C3N (max-autotune): ['matched_C3M_C3N_c352800_m1.json', 'matched_C3M_C3N_c352800_m2.json', 'matched_C3M_C3N_c352800_m3.json']",
+  "realized_excluded_repeats": {}
  },
  {
   "X": "X2b RoPE folded into the QKV GEMM epilogue (E4b)",
@@ -218,7 +219,8 @@
    1.314053894020617,
    1.4176580589264631
   ],
-  "realized_source": "E1(a') C3 \u2212 C3G: ['matched_C3_C3G_c352800_m1.json', 'matched_C3_C3G_c352800_m2.json', 'matched_C3_C3G_c352800_m3.json']"
+  "realized_source": "E1(a') C3 \u2212 C3G: ['matched_C3_C3G_c352800_m1.json', 'matched_C3_C3G_c352800_m2.json', 'matched_C3_C3G_c352800_m3.json']",
+  "realized_excluded_repeats": {}
  },
  {
   "X": "X7 STFT / iSTFT",
@@ -373,12 +375,17 @@
    "C3 trace perturbation \u00d71.052 (node-level)"
   ],
   "note": "f = write/(read+write): the GEMM-output round trip disappears; upper bound (whole time) = 0.0379 ms",
-  "realized_ms": -0.012523378245532513,
+  "realized_ms": -0.04854367580264807,
   "realized_ci95_ms": [
-   -0.09257905185222626,
-   0.06295263301581144
+   -0.10424561332911253,
+   0.02068339381366968
   ],
-  "realized_source": "E4a C3M \u2212 C3N (max-autotune): ['matched_C3M_C3N_c4410_m1.json', 'matched_C3M_C3N_c4410_m2.json', 'matched_C3M_C3N_c4410_m3.json']"
+  "realized_source": "E4a C3M \u2212 C3N (max-autotune): ['matched_C3M_C3N_c4410_m1.json', 'matched_C3M_C3N_c4410_m2.json', 'matched_C3M_C3N_c4410_m3.json']",
+  "realized_excluded_repeats": {
+   "matched_C3M_C3N_c4410_m1.json": [
+    0
+   ]
+  }
  },
  {
   "X": "X2b RoPE folded into the QKV GEMM epilogue (E4b)",
@@ -566,12 +573,17 @@
    "C3 trace perturbation \u00d71.052 (node-level)"
   ],
   "note": "",
-  "realized_ms": 0.6650325376540422,
+  "realized_ms": 0.6667202687822282,
   "realized_ci95_ms": [
-   0.6571274716407061,
-   0.7149960147216916
+   0.6578883621841669,
+   0.7080327486619353
   ],
-  "realized_source": "E1(a') C3 \u2212 C3G: ['matched_C3_C3G_c4410_m1.json', 'matched_C3_C3G_c4410_m2.json', 'matched_C3_C3G_c4410_m3.json']"
+  "realized_source": "E1(a') C3 \u2212 C3G: ['matched_C3_C3G_c4410_m1.json', 'matched_C3_C3G_c4410_m2.json', 'matched_C3_C3G_c4410_m3.json']",
+  "realized_excluded_repeats": {
+   "matched_C3_C3G_c4410_m3.json": [
+    0
+   ]
+  }
  },
  {
   "X": "X7 STFT / iSTFT",

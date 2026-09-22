@@ -7199,3 +7199,589 @@ without phase3 vs pod-commit Sep20 ledger unchanged True
 
 codex
 The E9 observations and E2 deltas reproduce from the raw samples, and the Sep-20 ledger rows are unchanged without `--phase3-dir`. I also found that the reported “extern GEMM” counts include Triton templates, and the E2 weight-cast attribution conflicts with the cast records and compile dump.
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,csv,statistics as s
+from pathlib import Path
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');e5=json.loads((p/'e5_summary.json').read_text());agg={}
+for name,r in e5['cells'].items():
+ if r.get('arm') not in ('C3','H') or not r.get('tag','').endswith(('r1','r2')):continue
+ raw=json.loads((p/name).read_text());wall=min(s.median(b['latency_ms_per_iter']) for b in raw['timing']['blocks']);assert wall==r['min_of_medians_ms']
+ agg.setdefault((r['arm'],r['chunk'],r['variant']),[]).append(r)
+ if r['chunk']==4410:
+  tag=r['tag'].rsplit('_r',1)[0]+'_trace';tv=json.loads((p/f'traces/timing_views_{r[\"arm\"]}_4410_{tag}.json').read_text());cc=json.loads((p/f'traces/cast_count_{r[\"arm\"]}_4410_{tag}.json').read_text());gv=json.loads((p/f'traces/graph_verify_{r[\"arm\"]}_4410_{tag}.json').read_text())
+  assert r['kernel_sum_ms']==tv['median_us']['sum_ns']/1000 and r['span_ms']==tv['median_us']['span_ns']/1000
+  assert r['cast_time_ms_per_pass']==cc['cast_time_ms_per_pass']
+  counts={x['captured_model_kernels'] for x in gv['per_pass']};assert counts=={r['boundary_count']}
+print('E5 32 unprofiled run values, 16 trace joins, unit conversions, and boundary counts reproduce')
+for width in ('full','quarter'):
+ x=agg[('C3',4410,'d1_m'+width)][0];y=agg[('C3',4410,'d6_m'+width)][0];print('E5 depth ratios',width,'cast',y['cast_time_ms_per_pass']/x['cast_time_ms_per_pass'],'boundary',y['boundary_count']/x['boundary_count'])
+for d in (1,6):
+ x=agg[('C3',4410,f'd{d}_mfull')];y=agg[('C3',4410,f'd{d}_mquarter')];dw=s.median(z['min_of_medians_ms'] for z in x)-s.median(z['min_of_medians_ms'] for z in y);mb=x[0]['mask_estimator_bytes_fp16']-y[0]['mask_estimator_bytes_fp16'];print('E5 slope',d,dw,mb/1e6,mb/1.79e9,dw/(mb/1.79e9))
+for width in ('full','quarter'):
+ w1=s.median(z['min_of_medians_ms'] for z in agg[('C3',352800,'d1_m'+width)]);w6=s.median(z['min_of_medians_ms'] for z in agg[('C3',352800,'d6_m'+width)]);print('E5 wall fit',width,(w6-w1)/5,w1-(w6-w1)/5)
+for session,path in [('session2',Path('/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855/evidence')),('session3',p)]:
+ bb=json.loads((path/'boundary_bench.json').read_text());ta=json.loads((path/'boundary_bench_trace_analysis.json').read_text());print('BOUNDARY',session)
+ print('FIT EXAMPLE',next(iter(bb['fits'].items())))
+ for k,v in bb.get('e7_pdl_saving',{}).items():
+  ch,mode=k.split('/');a,b=mode.split('->');diff=bb['fits'][ch+'/'+a]['slope_us_per_node']-bb['fits'][ch+'/'+b]['slope_us_per_node'];assert abs(diff-v['pdl_saving_us_per_node'])<1e-10
+  print(k,diff)
+ print('OVERLAP',[(k,v['status'],v.get('overlap_count')) for k,v in ta.items() if '/pdl_' in k and v.get('overlap_observed')])
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+E5 32 unprofiled run values, 16 trace joins, unit conversions, and boundary counts reproduce
+E5 depth ratios full cast 1.1112955281379764 boundary 1.1734693877551021
+E5 depth ratios quarter cast 1.2334563826409002 boundary 1.1791359325605901
+E5 slope 1 0.7373705157078803 355.258368 0.19846836201117318 3.7153050906238065
+E5 slope 6 0.7135077612474561 355.258368 0.19846836201117318 3.5950705392897215
+E5 wall fit full 4.167482582852244 4.6002262039110065
+E5 wall fit quarter 4.183895466849208 2.4011900066398084
+BOUNDARY session2
+FIT EXAMPLE ('trivial/stream', {'slope_us_per_node': 4.882960383084281, 'intercept_us': 6.46636647503874, 'points': [[10, 52.400000393390656], [100, 491.93599820137024], [1000, 4900.559902191162], [2000, 9766.976356506348]]})
+OVERLAP []
+BOUNDARY session3
+FIT EXAMPLE ('trivial/stream', {'slope_us_per_node': 5.1380032057590626, 'intercept_us': 89.45447571240265, 'points': [[10, 60.63999980688095], [100, 535.5519950389862], [1000, 5515.6800746917725], [2000, 10225.135803222656]]})
+trivial/stream->pdl_stream 0.0862743872152647
+trivial/graph->pdl_graph 0.15092590015393648
+prologue/stream->pdl_stream 2.0305424266391334
+prologue/graph->pdl_graph 0.1836446589893761
+OVERLAP [('trivial/pdl_graph/N1000', 'ok', 3), ('trivial/pdl_graph/N2000', 'ok', 2)]
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys,copy,io,contextlib
+from pathlib import Path
+from types import SimpleNamespace as NS
+from unittest.mock import patch
+sys.path.insert(0,'fullmodel');import e_tools as e,session3_result as sr,ledger,qualify as q
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');ev=str(p);op=open
+# Capture writes entirely in RAM; no evidence or repo files change.
+def invoke(fn,args):
+ buf=io.StringIO()
+ def memopen(path,mode='r',*a,**kw):return buf if mode.startswith('w') else op(path,mode,*a,**kw)
+ with patch('builtins.open',side_effect=memopen),contextlib.redirect_stdout(io.StringIO()):fn(args)
+ return json.loads(buf.getvalue())
+reg=json.load(op('docs/phase3/e9/e9_cost_model.json'))
+# Reorder a valid A/A record without altering timestamps or samples.
+m=json.load(op(p/'matched_C3_C3_c352800_m1.json'));aa=copy.deepcopy(m);a,b=aa['pair']
+bs=[z for z in aa['blocks'] if z['arm']==b][::-1];ix=iter(bs);aa['blocks']=[next(ix) if z['arm']==b else z for z in aa['blocks']]
+print('AA permuted valid record problems',q.pair_problems(aa))
+with patch.object(e.glob,'glob',return_value=['aa.json']),patch.object(e,'_load',return_value=aa):
+ out=invoke(e.aa_stats,NS(evidence_dir='unused',out='RAM'))
+print('AA original / incorrectly re-paired',m['matched_delta_ms']['median'],out['pairs']['aa.json']['median_ms'],out['pairs']['aa.json']['a_minus_b_per_block_ms'])
+# Pair inputs keep their samples but claim a different summary.
+m=json.load(op(p/'matched_C3_H_c176400_m1.json'));m['matched_delta_ms']['median']=123.0
+print('Tampered sample-summary validator',q.pair_problems(m))
+with patch.object(sr.glob,'glob',return_value=['pair.json']),patch.object(sr,'load',return_value=m): print('pair_result accepts',sr.pair_result('unused','C3','H',176400)['median_ms'])
+with patch.object(ledger.glob,'glob',return_value=['pair.json']),patch.object(ledger,'_load_json',return_value=m): print('matched_realized accepts',ledger.matched_realized('unused','C3','H',176400)['realized_ms'])
+# Missing numerical/count input currently fabricates a zero.
+with patch.object(e,'_load',return_value=None):print('template_count absent input',invoke(e.template_count,NS(ideal_costs='missing',out='RAM')))
+with patch.object(e,'_load',return_value={'variant_selection':{'status':'ok'},'rows':[]}),patch.object(e,'_wrapper_calls',return_value=[{'kind':'triton','name':'triton_poi_fused__to_copy_0','args':[{'buf':'arg0_1','read':True}]}]):
+ print('cast_count missing matched row',invoke(e.cast_count,NS(ideal_costs='missing_row',dump_dir='present',out='RAM')))
+# Only one held-out point is measured and passes; the other is missing.
+def ld(path):
+ if path=='reg':return reg
+ L=176400;pred=reg['variants'][reg['registered_variant']]['held_out_pred'][str(L)]['D_C3_minus_H_ms']
+ return {'pair_eligible':True,'matched_delta_ms':{'median':pred,'a_minus_b_per_block':[pred]*5}}
+with patch.object(e,'_load',side_effect=ld),patch.object(e.glob,'glob',side_effect=lambda path:['one'] if '176400' in path else []):
+ o=invoke(e.e9_check,NS(evidence_dir='unused',registration='reg',out='RAM'));print('E9 passing first point, missing second:',o['verdict'],{k:r.get('status') for k,r in o['held_out'].items()})
+# E9 exact zero observation must not count as the predicted negative sign.
+def ld0(path):
+ if path=='reg':return reg
+ pred=reg['variants'][reg['registered_variant']]['held_out_pred']['176400']['D_C3_minus_H_ms'] if '176400' in path else 0.0
+ return {'pair_eligible':True,'matched_delta_ms':{'median':pred,'a_minus_b_per_block':[pred]*5}}
+with patch.object(e,'_load',side_effect=ld0),patch.object(e.glob,'glob',side_effect=lambda path:[path]):
+ o=invoke(e.e9_check,NS(evidence_dir='unused',registration='reg',out='RAM'));print('E9 zero second observation:',o['verdict'],o['held_out']['264600']['sign_observed'],o['held_out']['264600']['sign_correct'])
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 21ms:
+AA permuted valid record problems []
+AA original / incorrectly re-paired -0.09079510346055031 -0.09519304148852825 [-0.3674599574878812, -0.09519304148852825, -0.32447860576212406, 0.07178494706749916, 0.06173062138259411]
+Tampered sample-summary validator ['a stored matched delta summary differs from the value recomputed from samples']
+pair_result accepts 123.0
+matched_realized accepts 123.0
+template_count absent input {'ideal_costs': 'missing', 'passes': None, 'triton_template_kernels_per_pass': 0, 'triton_template_time_ms_per_pass': 0.0, 'extern_gemm_kernels_per_pass': 0, 'extern_gemm_time_ms_per_pass': 0.0, 'sdpa_kernels_per_pass (excluded from GEMM)': 0, 'rope_kernels_per_pass': 0, 'template_names': [], 'rule': 'extern GEMM = ideal-cost class GEMM (cuBLAS entry points); templates = Inductor kernel names containing triton_tem_; SDPA rows never counted as GEMM (gate-09 f130)'}
+cast_count missing matched row {'ideal_costs': 'missing_row', 'dump_dir': 'present', 'passes': None, 'cast_kernels_per_pass': 0, 'cast_time_ms_per_pass': 0.0, 'distinct_cast_kernels': 0, 'rule': "X6a set: wrapper calls named *_to_copy* whose read buffers are all graph inputs (arg*) — the ledger's rule (ledger.py X6a)"}
+E9 passing first point, missing second: FAIL {'176400': None, '264600': 'UNRESOLVED: no eligible matched C3/H pair at this length'}
+E9 zero second observation: PASS C3 faster True
+
+exec
+/usr/bin/bash -lc "nl -ba fullmodel/ledger.py | sed -n '400,495p'" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+   400	            gv = E.graph_verify(best_arm, O)
+   401	            pp = gv.get('per_pass') or []
+   402	            if pp and gv.get('qualified'):
+   403	                n_cur = statistics.median(p.get('captured_model_kernels', 0) + p.get('uncaptured_model_kernels', 0) + p.get('input_staging_kernels', 0) for p in pp)
+   404	            else:
+   405	                n_cur = None
+   406	            n_floor, floor_src = None, None
+   407	            best_calls = None
+   408	            icb = E.ideal(best_arm, O)
+   409	            selb = icb.get('variant_selection') or {}
+   410	            dumpb = os.path.join(E.ev, 'traces', f'dump_{best_arm}_{O}_trace')
+   411	            if selb.get('status') == 'ok' and os.path.isdir(dumpb):
+   412	                wanted = set(selb.get('selected') or [])
+   413	                for g in parse_output_code(dumpb):
+   414	                    if os.path.relpath(g['path'], dumpb) in wanted:
+   415	                        best_calls = (best_calls or []) + [(c, g) for c in g['calls']]
+   416	                floor_src = f'{best_arm} wrapper'
+   417	            floor_calls = best_calls or (calls if best_arm == 'C3' else None)
+   418	            if floor_calls:
+   419	                groups, prev = 0, None
+   420	                for c, g in floor_calls:
+   421	                    k = c['kind']
+   422	                    if k == 'triton' and prev != 'triton':
+   423	                        groups += 1
+   424	                    prev = k
+   425	                n_floor = groups + sum(1 for c, g in floor_calls if c['kind'] != 'triton')
+   426	            if fin(n_cur) and fin(n_floor) and fin(c_boundary):
+   427	                rows.append(row('X10 kernel-count reduction', O, c_boundary * max(0.0, n_cur - n_floor) / 1e3, 1.0, 'C', 'kernel', 'numerical', 'G3',
+   428	                                f'graph_verify_{best_arm}_{O}.json (N_current {n_cur:.0f}), {floor_src} (N_floor {n_floor}), boundary_bench_trace_analysis {gap_key} gap {c_boundary:.3f} µs',
+   429	                                'boundary gaps overlap with execution (gap is a serial upper bound)', wall))
+   430	            else:
+   431	                rows.append(unresolved('X10 kernel-count reduction', O, 'kernel counts or the boundary gap are unresolved', group='G3'))
+   432	            for arm in ('G', 'F'):
+   433	                v = E.views(arm, O)
+   434	                m = v.get('median_us') or {}
+   435	                if v.get('passes') == 50 and fin(m.get('sum_ns')) and fin(m.get('critical_path_observed_order_ns')):
+   436	                    T = m['sum_ns'] / 1e3
+   437	                    rows.append(row(f'X11 concurrency ({arm} trace)', O, T, max(0.0, 1.0 - m['critical_path_observed_order_ns'] / m['sum_ns']), 'C',
+   438	                                    'wrapper', 'none', 'G3', f'timing_views_{arm}_{O}.json (observed-order critical path vs summed durations)',
+   439	                                    'true dependencies are longer than the observed-order chain', wall,
+   440	                                    caveats=[f'{arm} trace perturbation ×{E.pert_factor(arm, O):.3f}'] if fin(E.pert_factor(arm, O)) and E.pert_factor(arm, O) > 1.05 else []))
+   441	                else:
+   442	                    rows.append(unresolved(f'X11 concurrency ({arm} trace)', O, 'timing views missing', group='G3'))
+   443	            vb = E.views(best_arm, O).get('median_us') or {}
+   444	            cp = vb.get('critical_path_observed_order_ns')
+   445	            if fin(cp) and fin(c_boundary) and wall:
+   446	                rows.append(row('X12 boundary-removal figure (persistent execution; NOT a bound until removable costs are justified and the microbenchmark coefficient is shown to transfer)', O,
+   447	                                max(0.0, wall - cp / 1e3 - c_boundary / 1e3), 1.0, 'C', 'architecture', 'numerical', 'G3',
+   448	                                f'wall(best={best_arm}) − observed-order critical path (timing_views_{best_arm}_{O}) − one graph-mode gap ({c_boundary:.3f} µs, boundary_bench_trace_analysis)',
+   449	                                'excluded mechanisms, sized from the literature: cross-task pipelining 1.2–1.3× per task (MPK, Qwen3-8B on B200); achieved-bandwidth lift 39 % → 62 % of speed-of-light (Cohere, weight-floored decode on H100); a megakernel\'s own ~120 µs sync + setup (Hazy, Llama-3.2-1B on B200) as the counterweight', wall))
+   450	            else:
+   451	                rows.append(unresolved('X12 boundary-removal figure', O, 'critical path of the best arm or the boundary gap missing', group='G3'))
+   452	
+   453	        # ---- X13 mask-estimator chain
+   454	        gsites = ic.get('gemm_sites') or []
+   455	        if sets['X13_gemm_idx'] and gsites and gemm_t:
+   456	            tail_sites = [gsites[i] for i in sets['X13_gemm_idx'] if i < len(gsites)]
+   457	            all_flops = sum(g.get('flops', 0) for g in gsites) or None
+   458	            tail_flops = sum(g.get('flops', 0) for g in tail_sites)
+   459	            T_gemm = gemm_t * (tail_flops / all_flops) if all_flops else None
+   460	            ideal_gemm = sum(g.get('ideal_us_hbm', 0) for g in tail_sites) / 1e3
+   461	            T_f = tsum(sets['X13_fused'])
+   462	            ideal_f = sum((r.get('ideal_us_hbm') or r.get('time_us_per_pass') or 0.0) for r in sets['X13_fused'].values()) / 1e3
+   463	            if T_gemm is not None:
+   464	                T = T_gemm + T_f
+   465	                f = max(0.0, 1.0 - (ideal_gemm + ideal_f) / T) if T else None
+   466	                rows.append(row('X13 mask-estimator MLP chain fusion', O, T, f, 'B', 'kernel', 'numerical', 'G1',
+   467	                                f'ideal_costs_C3_{O}.json gemm_sites (tail: {len(tail_sites)} sites, GEMM time apportioned by FLOPs) + {len(sets["X13_fused"])} tail fused rows',
+   468	                                'the tail GEMM time share differs from its FLOP share', wall, caveats=cav,
+   469	                                note='GEMM class time apportioned by FLOP share (cuBLAS names carry no site)'))
+   470	            else:
+   471	                rows.append(unresolved('X13 mask-estimator MLP chain fusion', O, 'GEMM site FLOPs unavailable', group='G1'))
+   472	        else:
+   473	            rows.append(unresolved('X13 mask-estimator MLP chain fusion', O, 'tail GEMM sites not identified', group='G1'))
+   474	
+   475	        # ---- X14 cross-chunk batching (throughput)
+   476	        fit = (E.boundary.get('fits') or {}).get('trivial/graph') or {}
+   477	        t_fixed = fit.get('intercept_us')
+   478	        thr = E.throughput(best_arm, O) if best_arm else None
+   479	        if fin(t_fixed) and fin(thr) and thr > 0:
+   480	            tf = max(0.0, t_fixed) / 1e3
+   481	            rows.append(row('X14 cross-chunk batching (THROUGHPUT, reported separately)', O, thr, tf / thr, 'C', 'wrapper', 'none', '—',
+   482	                            f'boundary_bench.json fits trivial/graph intercept {t_fixed:.3f} µs; throughput_ms_per_pass_best of {best_arm}',
+   483	                            'fixed per-pass costs are larger than the graph-launch floor', wall, modelled=False,
+   484	                            note='throughput headroom, not latency; Z here is relative to the throughput wall'))
+   485	        else:
+   486	            rows.append(unresolved('X14 cross-chunk batching (throughput)', O, 'graph-mode intercept or throughput wall missing'))
+   487	        # G1 union for the stacking note
+   488	        g1 = set(sets['X2']) | set(sets['X13_fused']) | set(sets['X6a']) | {(r.get('kernel_full') or r.get('kernel')) for r in x6}
+   489	        g1_union = sum((E.row_time(O, n) or {}).get('time_us_per_pass') or 0.0 for n in g1) / 1e3
+   490	        rows.append({'X': 'G1 union of attributable time (X2 ∪ X6 ∪ X6a ∪ X13 fused)', 'O': O, 'status': 'ok', 'T_attributable_ms': g1_union,
+   491	                     'f_recoverable': None, 'Y_ms': None, 'Z_pct': None, 'T_wall_ms': wall, 'conf': '—', 'effort': '—', 'quality_risk': '—',
+   492	                     'group': 'G1', 'evidence': 'ideal_costs rows (distinct kernels)', 'would_be_lower_if': 'n/a', 'label': 'MODELLED',
+   493	                     'caveats': cav, 'note': 'stacking bound: G1 rows may sum to at most this'})
+   494	    return E, rows
+   495	
+
+exec
+/usr/bin/bash -lc "rg -n 'graph|pdl|overlap|fits|median_ns|T_N_ms' fullmodel/boundary_bench.py" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+16:    graph      : the chain captured into one CUDA graph, replayed
+17:    pdl_stream : trivial kernels launched with programmatic dependent launch
+18:                 (Triton 3.4 `launch_pdl=True`; gdc_wait() BEFORE the dependent
+21:    pdl_graph  : the PDL chain captured into a CUDA graph
+30:  boundary estimate for non-PDL modes; for PDL modes kernels overlap and
+85:    def add_one_pdl(x_ptr):
+91:    add_one_pdl = None
+109:    def add_one_prologue_pdl(x_ptr, acc_ptr, ITERS: tl.constexpr):
+115:        gdc_wait()                           # the dependent load waits; the loop above may overlap the primary's tail
+120:    add_one_prologue_pdl = None
+124:    return add_one, add_one_pdl
+137:def pdl_sass_check(kernel):
+184:    """What `launch_pdl=True` sets (Triton 3.4 driver launcher): the CUDA launch attribute
+191:        return {'triton': triton.__version__, 'launch_pdl_flag': True,
+193:                'attribute': 'cudaLaunchAttributeProgrammaticStreamSerialization (value 1) when launch_pdl=True',
+194:                'ptx': 'griddepcontrol.wait / griddepcontrol.launch_dependents (checked in pdl_ptx)'}
+196:        return {'triton': triton.__version__, 'launch_pdl_flag': True, 'status': f'UNRESOLVED: {type(e).__name__}'}
+199:def pdl_ptx_has_griddepcontrol(kernel):
+222:    graph = None
+230:        graph = torch.cuda.CUDAGraph()
+231:        with torch.cuda.graph(graph):
+233:        graph.replay()
+241:        if graph is not None:
+242:            graph.replay()
+272:    cases, qual_note, pdl_ptx, pdl_ptx_prologue = {}, None, None, None
+276:        pdl_ptx = tj.get('pdl_ptx')
+277:        pdl_ptx_prologue = tj.get('pdl_ptx_prologue')
+326:            # (gate-06 f93): 25N for stream modes, 27N for graph modes (capture adds 2)
+328:            derived = n * (WARMUP + REPEATS + (2 if 'graph' in mode else 0)) if n else None
+334:        if '/pdl_' in nm:
+335:            q = pdl_ptx_prologue if nm.startswith('prologue/') else pdl_ptx
+354:                   'overlap_count': sum(1 for g in gaps if g < 0),
+355:                   'overlap_us_median': (statistics.median([-g for g in gaps if g < 0]) / 1e3) if any(g < 0 for g in gaps) else 0.0,
+356:                   'overlap_observed': any(g < 0 for g in gaps),
+357:                   'note': ('overlapping kernels (PDL): gap is not a boundary estimate'
+358:                            if 'pdl' in nm else 'serial gap = boundary estimate for this mode')}
+382:              'ns': list(NS), 'chains': {}, 'fits': {}}
+383:    add_one, add_one_pdl = _trivial_kernels()
+395:    def launch_trivial(n, pdl):
+396:        k = add_one_pdl if pdl else add_one
+399:                if pdl:
+400:                    k[(1,)](x, launch_pdl=True)
+407:    def launch_prologue(n, pdl):
+408:        k = add_one_prologue_pdl if pdl else add_one_prologue
+411:                if pdl:
+412:                    k[(1,)](x, acc, PROLOGUE_ITERS, launch_pdl=True)
+436:        specs.append(('trivial', 'graph', n, launch_trivial(n, False), True))
+437:        specs.append(('trivial', 'pdl_stream', n, launch_trivial(n, True), False))
+438:        specs.append(('trivial', 'pdl_graph', n, launch_trivial(n, True), True))
+441:        specs.append(('prologue', 'graph', n, launch_prologue(n, False), True))
+442:        specs.append(('prologue', 'pdl_stream', n, launch_prologue(n, True), False))
+443:        specs.append(('prologue', 'pdl_graph', n, launch_prologue(n, True), True))
+446:        specs.append(('elem37', 'graph', n, launch_elem(n), True))
+448:        specs.append(('gemm', 'graph', n, launch_gemm(n), True))
+453:        if mode.startswith('pdl') and (add_one_pdl is None or add_one_prologue_pdl is None):
+472:                    rec['status'] = 'FAILED_PROOF'      # excluded from fits/derived values
+484:    if add_one_pdl is not None:
+485:        result['pdl_ptx'] = pdl_ptx_has_griddepcontrol(add_one_pdl)
+486:        result['pdl_ptx_prologue'] = pdl_ptx_has_griddepcontrol(add_one_prologue_pdl)
+487:        result['pdl_sass'] = pdl_sass_check(add_one_pdl)                    # E7 evidence
+488:        result['pdl_sass_prologue'] = pdl_sass_check(add_one_prologue_pdl)
+489:        result['pdl_launch_attributes'] = launch_attributes_record()
+491:        result['pdl_ptx'] = 'UNTESTED: gdc intrinsics unavailable'
+494:        if '/pdl_' in key and rec.get('status') == 'ok':
+495:            q = result.get('pdl_ptx_prologue') if key.startswith('prologue/') else result['pdl_ptx']
+500:        for mode in ('stream', 'graph', 'pdl_stream', 'pdl_graph'):
+505:                result['fits'][f'{chain}/{mode}'] = fit(pts)
+509:                result.setdefault('excluded_from_fits', []).extend(excluded)
+510:    result['real_kernel_pdl'] = 'UNSUPPORTED: cuBLAS/ATen launches expose no PDL attribute'
+513:        for base_mode, pdl_mode in (('stream', 'pdl_stream'), ('graph', 'pdl_graph')):
+514:            fb, fp = result['fits'].get(f'{chain}/{base_mode}'), result['fits'].get(f'{chain}/{pdl_mode}')
+516:                e7[f'{chain}/{base_mode}->{pdl_mode}'] = {
+517:                    'slope_us_per_node_base': fb['slope_us_per_node'], 'slope_us_per_node_pdl': fp['slope_us_per_node'],
+518:                    'pdl_saving_us_per_node': fb['slope_us_per_node'] - fp['slope_us_per_node']}
+519:    result['e7_pdl_saving'] = e7
+521:    # plan 1.4 input: the 37 MB in-place elementwise chain fits the device L2
+522:    # (recorded from device properties), so its graph-mode per-launch time is
+526:    e = result['chains'].get('elem37/graph/N100', {})
+533:            'note': 'measured on the 37 MB fp16 in-place chain in graph mode; use as BW_L2 for '
+534:                    'kernels whose working set fits L2 (plan 1.4)'}
+538:        'hazy_h100_stream_us': 2.1, 'hazy_h100_graph_us': 1.3,
+539:        'nvidia_cuda126_graph_rtx3060_us_per_node': 0.55,
+540:        'note': 'comparison points only (the NVIDIA figure is empty-kernel graph device service '
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,csv,statistics as st
+from pathlib import Path
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence')
+for s,path in [('session2',Path('/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855/evidence')),('session3',p)]:
+ d=json.loads((path/'boundary_bench.json').read_text())
+ for k,v in d['fits'].items():
+  xs=[p[0] for p in v['points']];ys=[p[1] for p in v['points']];xm=st.mean(xs);ym=st.mean(ys);slope=sum((x-xm)*(y-ym) for x,y in zip(xs,ys))/sum((x-xm)**2 for x in xs);intercept=ym-slope*xm
+  assert abs(slope-v['slope_us_per_node'])<1e-8 and abs(intercept-v['intercept_us'])<1e-6
+ print(s,'fits recomputed',len(d['fits']))
+actual=list(csv.reader(open('docs/phase3/figures/fig_boundary.csv')))[1:];expect=[]
+for s,path in [('session2',Path('/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855/evidence')),('session3',p)]:
+ d=json.loads((path/'boundary_bench.json').read_text())
+ for k,v in d['fits'].items():expect.append([s,k,v.get('slope_us_per_node'),v.get('intercept_us'),json.dumps(v.get('points'))])
+ for k,v in d.get('e7_pdl_saving',{}).items():expect.append([s,'E7 '+k,v.get('pdl_saving_us_per_node'),'',''])
+print('FIG BOUNDARY matches source',actual==[[str(x) for x in row] for row in expect],len(expect))
+rows=json.load(open('LEDGER.json'));actual=list(csv.reader(open('docs/phase3/figures/fig_ledger.csv')))[1:];expect=[]
+for r in rows:
+ vals=[r.get(k) for k in ['X','O','status','T_attributable_ms','f_recoverable','Y_ms','Z_pct','conf','group','label','realized_ms','realized_ci95_ms']]+[(r['realized_ms']/r['Y_ms']) if isinstance(r.get('realized_ms'),(int,float)) and r.get('Y_ms') else '',r.get('realized_source')]
+ expect.append(['' if x is None else str(x) for x in vals])
+print('FIG LEDGER matches source',expect==actual)
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+session2 fits recomputed 8
+session3 fits recomputed 12
+FIG BOUNDARY matches source True 24
+FIG LEDGER matches source True
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys,copy,contextlib,io,builtins
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,'fullmodel');import session3_result as sr
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');load=sr.load
+class Mem(io.StringIO):
+ def close(self):pass
+def gen(changes=None,missing_pairs=False):
+ out=Mem();op=builtins.open
+ def rd(path):return changes.get(Path(path).name,load(path)) if changes else load(path)
+ def wr(path,mode='r',*a,**kw):return out if mode.startswith('w') else op(path,mode,*a,**kw)
+ with patch.object(sys,'argv',['session3_result.py','--evidence-dir',str(p),'--out','RAM']),patch('builtins.open',side_effect=wr),patch.object(sr,'load',side_effect=rd),contextlib.redirect_stdout(io.StringIO()):
+  if missing_pairs:
+   with patch.object(sr.glob,'glob',return_value=[]):sr.main()
+  else:sr.main()
+ return out.getvalue()
+x=gen();print('REPORT current regeneration identical',x==Path('SESSION3_RESULT.md').read_text())
+x=gen(missing_pairs=True)
+for line in x.splitlines():
+ if ('Registered prediction' in line or 'best realized' in line) and 'UNRESOLVED' in line:print('MISSING PAIRS',line)
+x=gen({'boundary_bench.json':None,'boundary_bench_trace_analysis.json':None})
+print('MISSING E7',[l for l in x.splitlines() if 'Registered prediction (prologue' in l])
+bb=copy.deepcopy(load(str(p/'boundary_bench.json')));ta=copy.deepcopy(load(str(p/'boundary_bench_trace_analysis.json')))
+bb['e7_pdl_saving']['prologue/graph->pdl_graph']['pdl_saving_us_per_node']=0.6
+bb['e7_pdl_saving']['trivial/graph->pdl_graph']['pdl_saving_us_per_node']=0.4
+for k,v in ta.items():
+ if '/pdl_' in k:v['overlap_observed']=False;v['overlap_count']=0
+x=gen({'boundary_bench.json':bb,'boundary_bench_trace_analysis.json':ta})
+print('E7 two failed conjuncts',[l for l in x.splitlines() if 'Registered prediction (prologue' in l])
+PY" in /home/muhit/ms/sm120-nulltest
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys,collections,re
+from pathlib import Path
+sys.path.insert(0,'fullmodel/attrib');from kernel_map import parse_output_code
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence/traces')
+for O in (352800,4410):
+ a='C3M';ic=json.loads((p/f'ideal_costs_{a}_{O}.json').read_text());dump=p/f'dump_{a}_{O}_trace';want=ic['variant_selection']['selected'];stats=collections.Counter();nreads=[]
+ for g in parse_output_code(str(dump)):
+  if str(Path(g['path']).relative_to(dump)) not in want:continue
+  for c in g['calls']:
+   if not c['name'].startswith('triton_tem_'):continue
+   k=g['kernels'][c['name']];stats[tuple(k['ptr_dtypes'].items())]+=1
+   nreads.append((c['name'],k['ptr_dtypes']))
+ print('C3M template pointer dtypes',O,stats)
+ print('to_copy named templates with fp32 input',[(n,d) for n,d in nreads if '_to_copy' in n and 'fp32' in d.values()][:5])
+PY" in /home/muhit/ms/sm120-nulltest
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys
+from pathlib import Path
+sys.path.insert(0,'fullmodel');import completeness as c,qualify as q,collect_full as cf
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');runs=c.load_runs(str(p));matched=c.load_matched(str(p));man=json.loads((p/'session_manifest.json').read_text());mid=man['manifest_id']
+print('All matched manifests agree',all(m['manifest_id']==mid for m in matched.values()))
+print('All matched validators',[(key,q.pair_problems(m)) for key,m in matched.items() if q.pair_problems(m)])
+print('All nonreference nonfault runs validator',[(key,t,q.trace_problems(r) if t.endswith('trace') else q.run_problems(r)) for key,rs in runs.items() for t,r in rs.items() if r['status']=='VALID' and t not in ('ref','sdrref') and not r.get('planted_fault') and (q.trace_problems(r) if t.endswith('trace') else q.run_problems(r))][:10])
+for O in (352800,4410):
+ r=runs[('C3N',O)]['r1'];modes={(m['arms']['C3N']['compile_mode'],m['effective_variants']['C3N']) for (pair,c_,_),m in matched.items() if pair[1]=='C3N' and c_==O};print('Actual E4 control modes',O,modes,'sdr',q.sdr_recomputed(r['sdr_gate']))
+print('Foreign runs',[(key,t) for key,rs in runs.items() for t,r in rs.items() if r.get('status')=='VALID' and r.get('manifest_id')"'!=mid])
+PY' in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+All matched manifests agree True
+All matched validators []
+All nonreference nonfault runs validator [(('A', 352800), 'v_d1_mfull_ref', ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)', 'no timed region']), (('A', 352800), 'v_d1_mquarter_ref', ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)', 'no timed region']), (('A', 352800), 'v_d6_mfull_ref', ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)', 'no timed region']), (('A', 352800), 'v_d6_mquarter_ref', ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)', 'no timed region']), (('A', 4410), 'v_d1_mfull_ref', ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)', 'no timed region']), (('A', 4410), 'v_d1_mquarter_ref', ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)', 'no timed region']), (('A', 4410), 'v_d6_mfull_ref', ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)', 'no timed region']), (('A', 4410), 'v_d6_mquarter_ref', ['validation REFERENCE_SAVED (a reference-writing run is never a measurement)', 'no timed region']), (('C3', 352800), 'v_d1_mfull_r1', ["stored eligibility flag says ineligible: ['structural variant d1_mfull (E5): never a headline']"]), (('C3', 352800), 'v_d1_mfull_r2', ["stored eligibility flag says ineligible: ['structural variant d1_mfull (E5): never a headline']"])]
+Actual E4 control modes 352800 {('max-autotune', 'capture_scope=None|capture_adapter_active=None|compile_mode=max-autotune|stream_count=None')} sdr ('PASS', None)
+Actual E4 control modes 4410 {('max-autotune', 'capture_scope=None|capture_adapter_active=None|compile_mode=max-autotune|stream_count=None')} sdr ('PASS', None)
+Foreign runs []
+
+ succeeded in 1067ms:
+REPORT current regeneration identical True
+MISSING PAIRS - Registered prediction: 8 s **NOT confirmed** (UNRESOLVED ms vs [1.0, 4.48]); 4410 **NOT confirmed** (UNRESOLVED ms vs |Δ| ≤ 0.05)
+MISSING PAIRS - 352800: best realized UNRESOLVED UNRESOLVED ms vs registered ≥ 0.55 ms → **NOT confirmed**; X6a ceiling 0.9198 ms (LEDGER.md) → within the ceiling
+MISSING PAIRS - 4410: best realized UNRESOLVED UNRESOLVED ms vs registered ≥ 0.6 ms → **NOT confirmed**; X6a ceiling 0.8574 ms (LEDGER.md) → within the ceiling
+MISSING PAIRS - Registered prediction: 8 s ≥ 0.5 ms **NOT confirmed** (UNRESOLVED ms; X2a ceiling 1.1275 ms, LEDGER.md); 4410 |Δ| ≤ 0.1 ms **NOT confirmed** (UNRESOLVED ms)
+MISSING E7 ['- Registered prediction (prologue graph saving ≥ 0.5 µs/node): **NOT confirmed** (UNRESOLVED µs/node); overlap observed in at least one PDL segment: False → per the registration the 0.58 µs/node figure is withdrawn from the ledger']
+E7 two failed conjuncts ['- Registered prediction (prologue graph saving ≥ 0.5 µs/node): **confirmed** (+0.600 µs/node); overlap observed in at least one PDL segment: False → per the registration the 0.58 µs/node figure is withdrawn from the ledger']
+
+ succeeded in 1110ms:
+C3M template pointer dtypes 352800 Counter({(('arg_A', 'fp16'), ('arg_B', 'fp16'), ('in_ptr2', 'fp32'), ('out_ptr1', 'fp16')): 72, (('in_ptr0', 'fp16'), ('arg_A', 'fp16'), ('arg_B', 'fp16'), ('out_ptr0', 'fp16')): 70, (('arg_A', 'fp16'), ('arg_B', 'fp16'), ('out_ptr0', 'fp16')): 24, (('arg_B', 'fp16'), ('in_ptr1', 'fp16'), ('out_ptr0', 'fp16')): 12})
+to_copy named templates with fp32 input []
+C3M template pointer dtypes 4410 Counter({(('arg_A', 'fp16'), ('arg_B', 'fp16'), ('in_ptr2', 'fp32'), ('out_ptr1', 'fp16')): 132, (('in_ptr0', 'fp16'), ('arg_A', 'fp16'), ('arg_B', 'fp16'), ('out_ptr0', 'fp16')): 100, (('arg_A', 'fp16'), ('arg_B', 'fp16'), ('out_ptr0', 'fp16')): 36, (('arg_B', 'fp16'), ('in_ptr1', 'fp16'), ('out_ptr0', 'fp16')): 12})
+to_copy named templates with fp32 input []
+
+codex
+The clock issue affects the audit verdict: the sole 4,410-sample A/A restart is flagged, and C3 and C1 have no clean headline restart under the audit’s drift calculation. CPU counterexamples also show that the audit accepts missing trace payloads and E4a matched runs compiled in the wrong mode.
+exec
+/usr/bin/bash -lc 'git status --short' in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+ M docs/codex/10_analysis.log
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys,copy,io,contextlib
+from pathlib import Path
+from unittest.mock import patch
+from types import SimpleNamespace as NS
+sys.path.insert(0,'fullmodel');import completeness as c,e_tools as e
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');runs=c.load_runs(str(p));mid=c.load(str(p/'session_manifest.json'))['manifest_id']
+for arm in ['C3F','C3G','C3M','C3P','C3N']:
+ for O in (352800,4410):
+  r=runs[(arm,O)]['r1'];status,why=c.qualify.sdr_recomputed(r['sdr_gate']);assert status=='PASS',(arm,O,why)
+print('Actual intervention SDR gates recompute PASS')
+# Real traces: CSV payloads all exist and have required nonempty columns; graph verdicts agree with per-pass data.
+for f in (p/'traces').glob('trace_*_exports.json'):
+ d=json.loads(f.read_text());base=str(f)[:-len('_exports.json')]
+ for rep,cols in [('cuda_gpu_trace',('Start','Duration','CorrId','Name')),('cuda_gpu_kern_sum',('Total Time','Name')),('cuda_api_trace',('Start','CorrId','Name')),('nvtx_gpu_proj_trace',('Start','Name'))]:
+  assert c.csv_rows(f'{base}_{rep}.csv',cols),(f.name,rep)
+for f in (p/'traces').glob('graph_verify_*.json'):
+ d=json.loads(f.read_text());ps=d['per_pass'];assert len(ps)==50
+ fully=min(x['graph_launch_calls'] for x in ps)>=1 and min(x['captured_model_kernels'] for x in ps)>0 and max(x['uncaptured_model_kernels'] for x in ps)==0 and max(x['unresolved_kernels'] for x in ps)==0
+ derived='FULLY_GRAPHED' if fully else 'NOT_FULLY_GRAPHED' if min(x['graph_launch_calls'] for x in ps)>=1 else 'NO_REPLAY_EVIDENCE'
+ assert d['verdict']==derived and d['qualified'] and d['registered_protocol'] and d['pass_count_complete'],f.name
+print('Actual trace exports and graph verdicts pass payload checks omitted by the audit')
+# Check the stated single-term H counterfactual with the padding term frozen.
+reg=json.load(open('docs/phase3/e9/e9_cost_model.json'));d=json.load(open('docs/phase3/e9/e9_residual.json'))
+for L,r in d['held_out'].items():
+ t=r['terms_registered'];rh=r['to_absorb_alone']['rate_H_TFLOPS (registered -> needed)'][1];G=reg['inputs']['true_gflop_per_frame']*r['frames'];val=t['B']-t['nf']-t['mid']-t['pad']-G*(1/rh-1/t['rate_C3']);print('Efficiency-term-only H counterfactual',L,val,r['observed'])
+PY" in /home/muhit/ms/sm120-nulltest
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import sys,json,copy
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,'fullmodel');import completeness as c,qualify as q
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');ev=str(p);runs=c.load_runs(ev);matched=c.load_matched(ev);man=c.load(str(p/'session_manifest.json'));load=c.load
+c.collect_full.REQUIRED_RESTARTS=tuple(f'r{i}' for i in range(1,6))
+runs=copy.deepcopy(runs);r=runs[('C3M',352800)]['r1'];r['sdr_gate']['clips']=[]
+cells={f'{a}_{o}':c.collect_full.cell(rs) for (a,o),rs in runs.items()}
+pairs=c.collect_full.pair_summaries(ev,cells,runs)
+its=[];c.audit_session3(ev,its,man['manifest_id'],runs,matched,cells,pairs,[])
+print('SDR payload recomputes',q.sdr_recomputed(r['sdr_gate']))
+print('Recomputed C3M cell',cells['C3M_352800']['sdr_gate'])
+print('Audit accepts malformed gate despite rederived cells/pairs',[(i['item'],i['complete']) for i in its if i['item'].startswith('E2 SDR gate C3M@352800')])
+print('Mandatory failed in audit_session3',[(i['item'],i['reason']) for i in its if not i['optional'] and not i['complete']])
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 71ms:
+SDR payload recomputes (None, 'clip indices [] are not the registered 0..7')
+Recomputed C3M cell NONE
+Audit accepts malformed gate despite rederived cells/pairs [('E2 SDR gate C3M@352800 recorded (r1)', True)]
+Mandatory failed in audit_session3 []
+
+ succeeded in 912ms:
+Actual intervention SDR gates recompute PASS
+Actual trace exports and graph verdicts pass payload checks omitted by the audit
+Efficiency-term-only H counterfactual 176400 1.1288269888609646 1.1288269888609648
+Efficiency-term-only H counterfactual 264600 0.6722906837239863 0.6722906837239861
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import sys,hashlib,subprocess,json
+from pathlib import Path
+sys.path.insert(0,'fullmodel');import completeness as c
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');st=json.loads((p/'session_status.json').read_text())
+print('HEAD',subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip())
+print('reviewed analysis files changed since pod',[(f,st['analysis_tools_sha256'].get('fullmodel/'+f)"'!=hashlib.sha256(Path('"'fullmodel',f).read_bytes()).hexdigest()) for f in ('completeness.py','e_tools.py','session3_result.py','ledger.py','figures.py')])
+for n in ('fullmodel/session3_result.py','fullmodel/e_tools.py','fullmodel/ledger.py','fullmodel/completeness.py','fullmodel/figures.py'):
+ diff=subprocess.check_output(['git','diff','--',n],text=True);assert not diff,n
+print('All reviewed tool files match their working-tree HEAD content')
+# The C3G winner and ceiling exceedance survive removing drift-flagged restarts.
+print('published E7 actual qualifying PDL overlaps',[(k,v.get('overlap_count')) for k,v in json.loads((p/'boundary_bench_trace_analysis.json').read_text()).items() if '/pdl_' in k and v.get('status')=='ok' and v.get('overlap_observed')])
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+HEAD fce60a80318e255e3ec0ce0439833d5f7b2768aa
+reviewed analysis files changed since pod [('completeness.py', False), ('e_tools.py', True), ('session3_result.py', True), ('ledger.py', False), ('figures.py', False)]
+All reviewed tool files match their working-tree HEAD content
+published E7 actual qualifying PDL overlaps [('trivial/pdl_graph/N1000', 3), ('trivial/pdl_graph/N2000', 2)]
+
+codex
+The checks are complete. The E9 model curve, E5 arithmetic and units, ledger ratio calculations, and boundary figures reproduce their inputs. I’m separating defects in the published results from defects exposed only by CPU counterexamples; the latter concern eligibility checks, missing-input handling, and the registered E9 decision rule.
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import sys,copy,statistics as s
+from pathlib import Path
+sys.path.insert(0,'fullmodel');import completeness as c,qualify as q
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');ev=str(p);runs=c.load_runs(ev);matches=c.load_matched(ev);summ=c.load(str(p/'summary_full.json'));mid=c.load(str(p/'session_manifest.json'))['manifest_id']
+matches=copy.deepcopy(matches)
+for key,m in matches.items():
+ if key[0]"'!=('"'C3','C3M') or key[1]"'!=352800:continue
+ for b in m['"'blocks']:
+  if b['arm']"'!='"'C3M':continue
+  a=next(x for x in m['blocks'] if x['arm']=='C3' and x['repeat']==b['repeat'])
+  shift=s.median(a['latency_ms_per_iter'])-0.5-s.median(b['latency_ms_per_iter'])
+  b['latency_ms_per_iter']=[x+shift for x in b['latency_ms_per_iter']];b['latency_median_ms']=s.median(b['latency_ms_per_iter'])
+ for arm,r in m['arms'].items():
+  meds=[b['latency_median_ms'] for b in sorted(m['blocks'],key=lambda b:b['repeat']) if b['arm']==arm]
+  r.update(latency_medians_ms=meds,min_of_medians_ms=min(meds),median_spread_ms=max(meds)-min(meds))
+ m['matched_delta_ms']=q.recomputed_matched_delta(m)
+ assert not q.pair_problems(m),q.pair_problems(m)
+ print('CPU E2 valid pair',key[2],m['matched_delta_ms']['median'])
+its=[];c.audit_session3(ev,its,mid,runs,matches,summ['cells'],summ['matched_pairs'],[])
+print('Audit failed mandatory items with E2 only 0.5ms but C3M still E4a control',[(x['item'],x['reason']) for x in its if not x['complete'] and not x['optional']])
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 49ms:
+CPU E2 valid pair m1 0.5
+CPU E2 valid pair m2 0.5
+CPU E2 valid pair m3 0.5
+Audit failed mandatory items with E2 only 0.5ms but C3M still E4a control []
+
+codex
+139. **BLOCKER — Published aggregates include restarts rejected by the clock rule.** [session3_result.py:48](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:48), [ledger.py:609](/home/muhit/ms/sm120-nulltest/fullmodel/ledger.py:609). Both use `pair_eligible` without applying the audit’s drift exclusions. At 4410, excluding affected restarts changes C3G **0.665033 → 0.687026 ms**, C3P **0.549410 → 0.574450 ms**, and X2a **−0.012523 → −0.024271 ms**; their intervals also change. **Minimal fix:** exclude the entire affected restart before computing medians, bootstrap intervals, walls, and ledger ratios.
+
+140. **BLOCKER — COMPLETE 198/198 hides mandatory E6 clock failures.** [completeness.py:445](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:445), [completeness.py:451](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:451). E6 bypasses the clean-restart requirement: the sole 4410 A/A restart has **5.6% drift**, and every C3 and C1 headline restart at 4410 exceeds 5% within its blocks. Headline drift only becomes a note. Even under the final amendment’s relaxed rule, these comparisons have no clean restart. **Minimal fix:** enforce that rule for E6, mark the affected quantities UNRESOLVED, and propagate INCOMPLETE into the report.
+
+141. **BLOCKER — “Extern GEMM” counts double-count templates.** [e_tools.py:117](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:117). `ideal_costs.py` assigns Triton templates to class `GEMM`, so `ext` includes `tem`. The raw C3M traces contain **178 templates + 145 extern kernels** at 352800 and **280 + 30** at 4410; the report instead lists **323 and 310 extern kernels**. Extern timing totals likewise include template time. **Minimal fix:** exclude template rows from the extern subtotal while continuing to exclude SDPA.
+
+142. **BLOCKER — E2’s gains receive an unsupported X6a attribution.** [session3_result.py:163](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:163), [ledger.py:660](/home/muhit/ms/sm120-nulltest/fullmodel/ledger.py:660). `_to_copy` in a template name is treated as proof that weight casts were fused. Both C3M traces still execute **420 parameter-only casts**, taking **0.905352/0.852058 ms**. The named templates consume fp16 weights already converted by preceding wrapper calls. Thus the reported E2 gains are incorrectly attributed partly to removing X6a casts. **Minimal fix:** remove that attribution unless the wrapper dataflow demonstrates the claimed removal.
+
+143. **MAJOR — Analysis publishers bypass independent qualification and sample recomputation.** [session3_result.py:48](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:48), [ledger.py:609](/home/muhit/ms/sm120-nulltest/fullmodel/ledger.py:609), [e_tools.py:181](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:181). CPU counterexample: changing only a cached matched median to **123 ms** makes the report and ledger return 123, although `qualify.pair_problems` rejects the record. **Minimal fix:** use a shared reducer that validates the payload and manifest, joins applicable quality and clock eligibility, and recomputes differences from samples.
+
+144. **MAJOR — A/A pairing uses list position instead of repeat identity.** [e_tools.py:149](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:149). Reordering the second arm’s block entries while retaining repeat IDs, timestamps, and samples passes the existing validator but changes the computed 8-s A/A median from **−0.090795 to −0.095193 ms**. **Minimal fix:** join blocks by unique repeat ID and compute their medians from samples before bootstrapping.
+
+145. **MAJOR — Mandatory trace eligibility accepts absent or contradictory payloads.** [completeness.py:475](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:475), [completeness.py:482](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:482). CPU counterexamples leave all mandatory checks passing when every trace CSV is unreadable, or when `FULLY_GRAPHED` accompanies `qualified=False` and an empty `per_pass`. This permits mechanism numbers without qualifying evidence. **Minimal fix:** reuse the session-2 export-content checks and recompute graph qualification from all 50 passes.
+
+146. **MAJOR — Intervention SDR eligibility trusts labels.** [completeness.py:489](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:489). Removing every C3M r1 SDR clip while retaining `status=PASS` leaves all session-3 mandatory checks passing, even though the shared validator returns an unresolved gate and the recomputed cell has SDR `NONE`. **Minimal fix:** validate the eight-clip payload and join its qualification to dependent pairs, preserving the registered quality-failure branches.
+
+147. **MAJOR — E4a’s selected control and measured compile modes are not enforced.** [completeness.py:555](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:555), [completeness.py:562](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:562). CPU counterexamples pass when all valid E2 restarts show only **0.5 ms** improvement but E4a still selects C3M, or when matched C3N runs use `reduce-overhead` despite a `max-autotune` decision. Only the standalone r1 mode is compared. **Minimal fix:** rederive the decision from eligible E2 results and quality gates, then verify every matched and traced C3N mode.
+
+148. **MAJOR — Missing count inputs become measured zeros.** [e_tools.py:101](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:101), [e_tools.py:114](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:114). A missing ideal-cost file produces zero template/extern counts; a selected cast whose timing row is missing silently contributes zero. These zeros also satisfy the audit’s finite-number checks. **Minimal fix:** require a qualified inventory and complete wrapper-to-row joins; emit UNRESOLVED for missing inputs. Reserve zero for a verified empty set.
+
+149. **MAJOR — E9’s verdict mishandles ties and incomplete measurements.** [e_tools.py:193](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:193), [e_tools.py:199](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:199). CPU counterexamples produce **PASS** when the 264600 observation is exactly zero, incorrectly calling that “C3 faster,” and **FAIL** when one point passes but the other is missing. **Minimal fix:** require the registered strict sign at both points and both tolerance checks; return UNRESOLVED when a required observation is unavailable.
+
+150. **MAJOR — Missing experiments generate substantive verdicts.** [session3_result.py:187](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:187), [session3_result.py:286](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:286). With E1 pairs absent, the report says “within the ceiling.” With optional E7 evidence absent, it reports no overlap and withdraws the coefficient. Neither conclusion follows from missing evidence. **Minimal fix:** guard verdicts, ceiling comparisons, and withdrawal decisions with explicit input completeness; otherwise report UNRESOLVED.
+
+ANALYSIS-READY: no
+
+Raw sample checks reproduce E9 **+1.128826989/+0.672290684 ms**, E2 **+4.796455381/+0.198727590 ms**, and 8-s C3G/C3P **+1.403762493/+0.733635970 ms**. A/A medians reproduce **−0.050519593, −0.122959958, −0.090795103, −0.055970042 ms** at 176400, 264600, 352800, and 4410 respectively; the last lacks clock eligibility.
+
+The X6a exceedance flag fires correctly at 8 s (**1.526×**). E5 arithmetic and units, figure CSV transformations, E9 model signs and single-term residual algebra reproduce their inputs. Actual E7 qualifying overlap exists, so its withdrawal condition does not fire.
+
+Without `--phase3-dir`, all **38 Sep-20 ledger rows** remain identical to the pre-session-3 ledger.
+tokens used
+182,694
+139. **BLOCKER — Published aggregates include restarts rejected by the clock rule.** [session3_result.py:48](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:48), [ledger.py:609](/home/muhit/ms/sm120-nulltest/fullmodel/ledger.py:609). Both use `pair_eligible` without applying the audit’s drift exclusions. At 4410, excluding affected restarts changes C3G **0.665033 → 0.687026 ms**, C3P **0.549410 → 0.574450 ms**, and X2a **−0.012523 → −0.024271 ms**; their intervals also change. **Minimal fix:** exclude the entire affected restart before computing medians, bootstrap intervals, walls, and ledger ratios.
+
+140. **BLOCKER — COMPLETE 198/198 hides mandatory E6 clock failures.** [completeness.py:445](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:445), [completeness.py:451](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:451). E6 bypasses the clean-restart requirement: the sole 4410 A/A restart has **5.6% drift**, and every C3 and C1 headline restart at 4410 exceeds 5% within its blocks. Headline drift only becomes a note. Even under the final amendment’s relaxed rule, these comparisons have no clean restart. **Minimal fix:** enforce that rule for E6, mark the affected quantities UNRESOLVED, and propagate INCOMPLETE into the report.
+
+141. **BLOCKER — “Extern GEMM” counts double-count templates.** [e_tools.py:117](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:117). `ideal_costs.py` assigns Triton templates to class `GEMM`, so `ext` includes `tem`. The raw C3M traces contain **178 templates + 145 extern kernels** at 352800 and **280 + 30** at 4410; the report instead lists **323 and 310 extern kernels**. Extern timing totals likewise include template time. **Minimal fix:** exclude template rows from the extern subtotal while continuing to exclude SDPA.
+
+142. **BLOCKER — E2’s gains receive an unsupported X6a attribution.** [session3_result.py:163](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:163), [ledger.py:660](/home/muhit/ms/sm120-nulltest/fullmodel/ledger.py:660). `_to_copy` in a template name is treated as proof that weight casts were fused. Both C3M traces still execute **420 parameter-only casts**, taking **0.905352/0.852058 ms**. The named templates consume fp16 weights already converted by preceding wrapper calls. Thus the reported E2 gains are incorrectly attributed partly to removing X6a casts. **Minimal fix:** remove that attribution unless the wrapper dataflow demonstrates the claimed removal.
+
+143. **MAJOR — Analysis publishers bypass independent qualification and sample recomputation.** [session3_result.py:48](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:48), [ledger.py:609](/home/muhit/ms/sm120-nulltest/fullmodel/ledger.py:609), [e_tools.py:181](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:181). CPU counterexample: changing only a cached matched median to **123 ms** makes the report and ledger return 123, although `qualify.pair_problems` rejects the record. **Minimal fix:** use a shared reducer that validates the payload and manifest, joins applicable quality and clock eligibility, and recomputes differences from samples.
+
+144. **MAJOR — A/A pairing uses list position instead of repeat identity.** [e_tools.py:149](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:149). Reordering the second arm’s block entries while retaining repeat IDs, timestamps, and samples passes the existing validator but changes the computed 8-s A/A median from **−0.090795 to −0.095193 ms**. **Minimal fix:** join blocks by unique repeat ID and compute their medians from samples before bootstrapping.
+
+145. **MAJOR — Mandatory trace eligibility accepts absent or contradictory payloads.** [completeness.py:475](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:475), [completeness.py:482](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:482). CPU counterexamples leave all mandatory checks passing when every trace CSV is unreadable, or when `FULLY_GRAPHED` accompanies `qualified=False` and an empty `per_pass`. This permits mechanism numbers without qualifying evidence. **Minimal fix:** reuse the session-2 export-content checks and recompute graph qualification from all 50 passes.
+
+146. **MAJOR — Intervention SDR eligibility trusts labels.** [completeness.py:489](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:489). Removing every C3M r1 SDR clip while retaining `status=PASS` leaves all session-3 mandatory checks passing, even though the shared validator returns an unresolved gate and the recomputed cell has SDR `NONE`. **Minimal fix:** validate the eight-clip payload and join its qualification to dependent pairs, preserving the registered quality-failure branches.
+
+147. **MAJOR — E4a’s selected control and measured compile modes are not enforced.** [completeness.py:555](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:555), [completeness.py:562](/home/muhit/ms/sm120-nulltest/fullmodel/completeness.py:562). CPU counterexamples pass when all valid E2 restarts show only **0.5 ms** improvement but E4a still selects C3M, or when matched C3N runs use `reduce-overhead` despite a `max-autotune` decision. Only the standalone r1 mode is compared. **Minimal fix:** rederive the decision from eligible E2 results and quality gates, then verify every matched and traced C3N mode.
+
+148. **MAJOR — Missing count inputs become measured zeros.** [e_tools.py:101](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:101), [e_tools.py:114](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:114). A missing ideal-cost file produces zero template/extern counts; a selected cast whose timing row is missing silently contributes zero. These zeros also satisfy the audit’s finite-number checks. **Minimal fix:** require a qualified inventory and complete wrapper-to-row joins; emit UNRESOLVED for missing inputs. Reserve zero for a verified empty set.
+
+149. **MAJOR — E9’s verdict mishandles ties and incomplete measurements.** [e_tools.py:193](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:193), [e_tools.py:199](/home/muhit/ms/sm120-nulltest/fullmodel/e_tools.py:199). CPU counterexamples produce **PASS** when the 264600 observation is exactly zero, incorrectly calling that “C3 faster,” and **FAIL** when one point passes but the other is missing. **Minimal fix:** require the registered strict sign at both points and both tolerance checks; return UNRESOLVED when a required observation is unavailable.
+
+150. **MAJOR — Missing experiments generate substantive verdicts.** [session3_result.py:187](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:187), [session3_result.py:286](/home/muhit/ms/sm120-nulltest/fullmodel/session3_result.py:286). With E1 pairs absent, the report says “within the ceiling.” With optional E7 evidence absent, it reports no overlap and withdraws the coefficient. Neither conclusion follows from missing evidence. **Minimal fix:** guard verdicts, ceiling comparisons, and withdrawal decisions with explicit input completeness; otherwise report UNRESOLVED.
+
+ANALYSIS-READY: no
+
+Raw sample checks reproduce E9 **+1.128826989/+0.672290684 ms**, E2 **+4.796455381/+0.198727590 ms**, and 8-s C3G/C3P **+1.403762493/+0.733635970 ms**. A/A medians reproduce **−0.050519593, −0.122959958, −0.090795103, −0.055970042 ms** at 176400, 264600, 352800, and 4410 respectively; the last lacks clock eligibility.
+
+The X6a exceedance flag fires correctly at 8 s (**1.526×**). E5 arithmetic and units, figure CSV transformations, E9 model signs and single-term residual algebra reproduce their inputs. Actual E7 qualifying overlap exists, so its withdrawal condition does not fire.
+
+Without `--phase3-dir`, all **38 Sep-20 ledger rows** remain identical to the pre-session-3 ledger.

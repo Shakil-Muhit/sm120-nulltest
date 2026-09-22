@@ -10,18 +10,18 @@ Outcomes against the registered defaults (matched pairs, median over three eligi
 
 | experiment | pod result | registered default | verdict |
 |---|---|---|---|
-| E6 A/A (C3 vs C3) | −0.09 ms at 8 s, −0.06 ms at 100 ms, both intervals cover zero; 40 of 40 headline restarts eligible | ≤ 0.15 / ≤ 0.05 ms | 8 s confirmed; 100 ms 0.006 ms over the bound |
+| E6 A/A (C3 vs C3) | −0.09 ms at 8 s, −0.06 ms at 100 ms, both intervals cover zero; 40 of 40 headline restarts eligible, but the three compiled 100 ms headline cells are clock-flagged under the registered 5 % rule (SM clock 2572–2992 MHz across restarts) | ≤ 0.15 / ≤ 0.05 ms | 8 s confirmed; 100 ms 0.008 ms over the bound; 100 ms headlines published clock-flagged |
 | E3 graph partition (C1P vs C1, 8 s) | C1P 15.17 ms slower [15.06, 15.20]; 68 graph launches, 56 staging copies, 68 uncaptured kernels per pass | no material change | not confirmed: partition is a finding |
-| E2 max-autotune (C3M vs C3) | C3M faster by 4.80 ms [4.62, 4.81] at 8 s and 0.20 ms [0.19, 0.25] at 100 ms; 178 GEMMs per pass moved to Triton templates that fuse the weight cast | 1.0–4.48 ms; ≤ 0.05 ms | above both defaults |
+| E2 max-autotune (C3M vs C3) | C3M faster by 4.80 ms [4.62, 4.81] at 8 s and 0.20 ms [0.19, 0.25] at 100 ms; 178 of 323 GEMMs per pass moved to Triton templates (145 stay on cuBLAS); all 420 parameter casts still run | 1.0–4.48 ms; ≤ 0.05 ms | above both defaults |
 | E1 freezing (C3F) | 2.49 / 2.54 ms slower; all 420 cast kernels kept | ≥ 0.55 / ≥ 0.60 ms | not confirmed |
-| E1 freezing without nn-module inlining (C3G) | +1.40 ms [1.31, 1.42] at 8 s, +0.67 ms [0.66, 0.71] at 100 ms; zero cast kernels | ≥ 0.55 / ≥ 0.60 ms | confirmed; at 8 s exceeds the X6a ceiling of 0.92 ms |
+| E1 freezing without nn-module inlining (C3G) | +1.40 ms [1.31, 1.42] at 8 s, +0.67 ms [0.66, 0.71] at 100 ms (clock-clean repeats); zero cast kernels | ≥ 0.55 / ≥ 0.60 ms | confirmed; at 8 s exceeds the X6a ceiling of 0.92 ms |
 | E1 pre-cast (C3P) | +0.73 ms [0.71, 0.80] at 8 s, +0.55 ms [0.53, 0.60] at 100 ms; casts 420 → 60 | ≥ 0.55 / ≥ 0.60 ms | 8 s confirmed; 100 ms 0.05 ms under |
 | E9 held-out crossover (C3 vs H) | H faster by 1.13 ms [1.03, 1.22] at 4 s and 0.67 ms [0.59, 0.72] at 6 s; crossover between 6 s and 8 s | +0.37 ms and −0.02 ms, tolerance 0.4 ms | FAIL; the residual points at the kernel-efficiency term (`docs/phase3/e9/e9_residual.json`) |
-| E4a norm-fold wrapper (C3N vs C3M, max-autotune) | 2.30 ms slower [2.30, 2.48] at 8 s; −0.01 ms at 100 ms | ≥ 0.5 ms; ≤ 0.1 ms | 8 s not confirmed; 100 ms confirmed |
+| E4a norm-fold wrapper (C3N vs C3M, max-autotune) | 2.30 ms slower [2.30, 2.48] at 8 s; −0.05 ms at 100 ms (clock-clean repeats) | ≥ 0.5 ms; ≤ 0.1 ms | 8 s not confirmed; 100 ms confirmed |
 | E5 structural variants | cast time depth 6 / depth 1 = 1.11, boundary count 1.17; wall floor at 100 ms moves 3.6–3.7× faster than bytes/1.79 TB/s with mask-estimator bytes | invariant within 10 %; slope ≈ bytes/1.79 TB/s | (i) narrowly not confirmed; (ii) slope is 3.6–3.7× the bandwidth floor (fp32 read + fp16 write + fp16 read of the cast, not one fp16 read); (iii) reported |
 | E7 PDL | trivial chain 0.719 → 0.568 µs/node (saving 0.151, reproducing Sep 20 within 0.05); prologue chain graph saving 0.184 µs/node, stream saving 2.03 µs/node; overlap observed in PDL graph segments; SASS ACQBULK/PREEXIT | prologue graph saving ≥ 0.5 µs/node | not confirmed; the 0.58 µs/node figure stands (overlap observed) |
 
-Ledger (`LEDGER.md`, realized/ceiling filled from the pod pairs): X6a realized 1.40 ms against a 0.92 ms ceiling at 8 s, so the coverage check fires ("realized EXCEEDS its ceiling") and the X6a attribution is incomplete: freezing without inlining folds more than the parameter casts. At 100 ms X6a realized is 0.78 of its ceiling. X2a's wrapper realization is negative at both operating points. E2's 4.80 ms exceeds the X2a+X2b+X2c ceiling of 1.84 ms and is compared with the G1 union of 8.52 ms: max-autotune changes GEMM kernel selection and fuses the weight casts, mechanisms outside X2. Graph partition recovers none of the X1 break tax (−2.25 of it).
+Ledger (`LEDGER.md`, realized/ceiling filled from the pod pairs): X6a realized 1.40 ms against a 0.92 ms ceiling at 8 s, so the coverage check fires ("realized EXCEEDS its ceiling") and the X6a attribution is incomplete: freezing without inlining folds more than the parameter casts. At 100 ms X6a realized is 0.78 of its ceiling. X2a's wrapper realization is negative at both operating points. E2's 4.80 ms exceeds the X2a+X2b+X2c ceiling of 1.84 ms and is compared with the G1 union of 8.52 ms: max-autotune changes GEMM kernel selection (Triton templates), a mechanism outside X2; C3M keeps all 420 parameter casts, so none of it is X6a. Graph partition recovers none of the X1 break tax (−2.25 of it).
 
 Two registered predictions held as stated (E6 at 8 s; E1 through C3G and C3P), six did not; each failed prediction is reported with its number and its mechanism, and no prediction was revised after the fact.
 
@@ -80,7 +80,7 @@ See the summary table in §1; the verdict lines with the exact rule applied are 
 
 ## 8. Audit verdicts and corrections
 
-On-pod: COMPLETE 198/198, evidence grade pod, no optional item incomplete, clock-drift rule applied at 5 Hz sampling with no violation that removed a stage. Off-pod re-audit from the analysis commit: 197/198, the single difference being the manifest's tree identity (the analysis tools were committed after the measurement; `session_status_local_reaudit_940cd26.json` beside the on-pod record). No measuring code was changed after the session; the analysis tools were corrected before the session (gate 09) and the result generator's wording after it (E6 and E4a verdict lines, E5 (iii) wording), with recorded identity.
+On-pod: COMPLETE 198/198, evidence grade pod, no optional item incomplete. Codex gate 10 (`docs/codex/10_analysis.md`, findings 139–150, ANALYSIS-READY: no) then found that the publishers ignored the audit's clock flags, that the E6 items did not enforce the registered 5 % rule, that the extern-GEMM count included Triton templates, and that E2's gain had been attributed in part to cast fusion that the C3M traces contradict, plus eight eligibility and missing-input defects; all twelve were closed in the analysis tools with recorded identity (every publisher now goes through one reducer that validates the record, joins the manifest, recomputes differences from samples by repeat and excludes clock-flagged repeats). The corrected re-audit (`session_status_reaudit_gate10.json`) is INCOMPLETE 195/199: the tree-identity item (inapplicable off-pod) and the three compiled 100 ms headline cells (C3, H, C1), whose SM clock varied 2572–2992 MHz across restarts; those headlines are published clock-flagged, and every 100 ms pair value uses clock-clean repeats. The 8 s results are unaffected. No measuring code was changed after the session.
 
 ## 9. Owner decisions and deviations
 
@@ -92,7 +92,7 @@ On-pod: COMPLETE 198/198, evidence grade pod, no optional item incomplete, clock
 
 ## 10. Open items
 
-1. Codex gate 10 on the analysis tools (running at the time of writing; its verdict and any fixes are recorded in `docs/codex/10_analysis.md` and the closing commit).
+1. The registered 5 % clock rule at 100 ms: with 0.15 s blocks and a 5 Hz sampler it flags boost-clock variation (2572–2992 MHz) rather than thermal drift; the three compiled 100 ms headline cells are therefore not headlines under the rule as written. Whether the rule should distinguish boost variation from drift is an owner decision for the registration, not a change this report makes.
 2. X6a attribution: freezing without inlining realizes 1.40 ms at 8 s against a 0.92 ms cast ceiling; the remaining 0.48 ms is unattributed (constant folding beyond the casts; the C3G trace with 729 kernels versus C3's 1,142 is the place to look).
 3. E9: the cost model's rate curves need more than two trace points; the registered rule forbids refitting within this study, so the crossover between 6 s and 8 s stands as a measured bracket.
 4. E4a: the wrapper-class fold does not pay under either mode; the kernel-class epilogue (E4b) remains the owner's lane.

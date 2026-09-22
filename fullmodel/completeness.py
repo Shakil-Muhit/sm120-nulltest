@@ -278,35 +278,33 @@ def block_sm_median(series, a, b, window=3.0):
     return qualify._median(vals) if vals else None
 
 
-def audit_clock_drift(ev, items, session, runs, matched, gpu_uuid, limit=0.05):
-    """Registered rule (prereg v0.2, session plan): clocks may not drift more than 5 %
-    between COMPARED blocks (gate-09 f132). Matched pairs: the a-block vs the b-block of
-    each repeat (blocks shorter than the 1 Hz sampling interval use the nearest samples,
-    a proxy the note records). Headline cells: per-block SM medians across r1..rN.
-    Returns {'pairs': {(pair, chunk, tag): [violations]}, 'cells': {(arm, chunk): [..]}};
-    the caller scopes the consequence to the affected comparison (a pair restart or a
-    cell), and a mandatory stage fails only when no clean restart remains."""
+def drift_flags(ev, session, runs, matched, gpu_uuid, limit=0.05):
+    """Registered rule (prereg v0.2): clocks may not drift more than 5 % between COMPARED
+    blocks. Matched pairs: the a-block vs the b-block of each repeat; the flag is
+    REPEAT-scoped ({(pair, chunk, tag): {repeat: message}}). Headline cells: the per-block
+    SM medians across r1..rN ({(arm, chunk): message}). Blocks shorter than the sampling
+    interval use the nearest samples (block_sm_median). Shared by the audit and by every
+    publisher (gate-10 f139/f140), so published aggregates exclude exactly what the audit flags."""
     series = clock_series(ev, session, gpu_uuid)
-    flagged = {'pairs': {}, 'cells': {}}
-    unresolved, checked = [], 0
+    flagged = {'pairs': {}, 'cells': {}, 'unresolved': [], 'checked': 0}
     for (pair, c, t), m in matched.items():
         if m.get('status') not in ('VALID',):
             continue
         by_rep = {}
         for b in (m.get('blocks') or []):
             by_rep.setdefault(b.get('repeat'), []).append(b)
-        for rep, bs in by_rep.items():
+        for rep, bs in sorted(by_rep.items(), key=lambda kv: (kv[0] is None, kv[0])):
             if len(bs) != 2:
                 continue
             sa = block_sm_median(series, bs[0].get('unix_start'), bs[0].get('unix_end'))
             sb = block_sm_median(series, bs[1].get('unix_start'), bs[1].get('unix_end'))
             if sa is None or sb is None:
-                unresolved.append(f'matched {pair}@{c}/{t} rep {rep}')
+                flagged['unresolved'].append(f'matched {pair}@{c}/{t} rep {rep}')
                 continue
-            checked += 1
+            flagged['checked'] += 1
             drift = abs(sa - sb) / ((sa + sb) / 2)
             if drift > limit:
-                flagged['pairs'].setdefault((pair, c, t), []).append(f'rep {rep}: {sa:.0f} vs {sb:.0f} MHz ({drift * 100:.1f} %)')
+                flagged['pairs'].setdefault((pair, c, t), {})[rep] = f'{sa:.0f} vs {sb:.0f} MHz ({drift * 100:.1f} %)'
     for (a, c), rs in runs.items():
         meds = []
         for t, r in rs.items():
@@ -315,15 +313,22 @@ def audit_clock_drift(ev, items, session, runs, matched, gpu_uuid, limit=0.05):
             for b in ((r.get('timing') or {}).get('blocks') or []):
                 sm = block_sm_median(series, b.get('unix_start'), b.get('unix_end'))
                 if sm is None:
-                    unresolved.append(f'{a}@{c}/{t} block {b.get("repeat")}')
+                    flagged['unresolved'].append(f'{a}@{c}/{t} block {b.get("repeat")}')
                 else:
                     meds.append(sm)
         if len(meds) >= 2:
-            checked += 1
+            flagged['checked'] += 1
             drift = (max(meds) - min(meds)) / (sum(meds) / len(meds))
             if drift > limit:
-                flagged['cells'][(a, c)] = [f'restarts: {min(meds):.0f}–{max(meds):.0f} MHz ({drift * 100:.1f} %)']
+                flagged['cells'][(a, c)] = f'restarts: {min(meds):.0f}–{max(meds):.0f} MHz ({drift * 100:.1f} %)'
+    return flagged
+
+
+def audit_clock_drift(ev, items, session, runs, matched, gpu_uuid, limit=0.05):
+    """Adds the informational drift item; the consequences are scoped per comparison by the callers."""
+    flagged = drift_flags(ev, session, runs, matched, gpu_uuid, limit)
     n_bad = len(flagged['pairs']) + len(flagged['cells'])
+    unresolved, checked = flagged['unresolved'], flagged['checked']
     item(items, f'clock drift <= {limit * 100:.0f} % between compared blocks: {checked} comparisons, {n_bad} flagged (informational; consequences are scoped per comparison)',
          checked > 0 and not unresolved, [f'unresolved (no samples near block) {unresolved[:4]}'] if unresolved else ['no comparisons'],
          note=(('flagged: ' + '; '.join(f'{k}: {v}' for k, v in list(flagged['pairs'].items())[:8] + list(flagged['cells'].items())[:4])) if n_bad else 'no violations'),
@@ -420,6 +425,18 @@ def audit_prerequisites(ev, items, manifest_id, run_map):
     item(items, 'C3 operator qualification (every registered component per frame)', not probs, probs)
 
 
+def graph_verdict_rederived(gv):
+    """The graph-verification verdict re-derived from the 50 per-pass records (session-2 rule, gate-07 f97)."""
+    pp = gv.get('per_pass') or []
+    keys = ('graph_launch_calls', 'captured_model_kernels', 'uncaptured_model_kernels', 'unresolved_kernels')
+    well = len(pp) == 50 and all(all(isinstance(p.get(k), int) and p[k] >= 0 for k in keys) for p in pp)
+    if not well:
+        return None
+    fully = (min(p['graph_launch_calls'] for p in pp) >= 1 and min(p['captured_model_kernels'] for p in pp) > 0
+             and max(p['uncaptured_model_kernels'] for p in pp) == 0 and max(p['unresolved_kernels'] for p in pp) == 0)
+    return ('FULLY_GRAPHED' if fully else 'NOT_FULLY_GRAPHED' if min(p['graph_launch_calls'] for p in pp) >= 1 else 'NO_REPLAY_EVIDENCE')
+
+
 def _pair_ok(m, manifest_id):
     return bool(m and m.get('status') == 'VALID' and m.get('manifest_id') == manifest_id
                 and m.get('pair_eligible') and not qualify.pair_problems(m))
@@ -440,16 +457,25 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
     n_pair = int(cfg.get('pair_restarts') or 3)
     audit_prerequisites(ev, items, manifest_id, run_map)
     # ---- E6
+    n_pair_reps = int(qualify.REGISTERED_REPEATS)
+    def clean_reps(pair, c, t):
+        fl = drift['pairs'].get((pair, c, t)) or {}
+        return [r for r in range(n_pair_reps) if r not in fl]
     for c in OPS['session3']:
         m = matched.get((('C3', 'C3#2'), c, 'm1'))
-        item(items, f'E6 A/A matched C3 vs C3 @{c} (m1, block-alternating)', _pair_ok(m, manifest_id),
-             qualify.pair_problems(m) if m else ['no A/A record'])
+        fl = drift['pairs'].get((('C3', 'C3#2'), c, 'm1'))
+        ok = _pair_ok(m, manifest_id) and bool(clean_reps(('C3', 'C3#2'), c, 'm1'))
+        item(items, f'E6 A/A matched C3 vs C3 @{c} (m1, block-alternating; clock-clean repeats required)', ok,
+             (qualify.pair_problems(m) if m else ['no A/A record']) + ([f'clock-drift flagged repeats {fl}'] if fl else []),
+             note=(f'clock-drift flagged repeats (registered 5 % rule): {fl}' if fl else None))
     for a in ('C3', 'H', 'A', 'C1'):
         for c in OPS['session3']:
             cell = cells.get(f'{a}_{c}')
             fl = drift['cells'].get((a, c))
-            item(items, f'E6 headline {a}@{c} (r1..r{n_restart}, SDR in r1)', bool(cell and cell['headline_status'] == 'HEADLINE'),
-                 (cell or {}).get('reasons', ['no runs']), note=(f'clock-drift flagged across restarts (registered 5 % rule): {fl}' if fl else None))
+            ok = bool(cell and cell['headline_status'] == 'HEADLINE') and not fl
+            item(items, f'E6 headline {a}@{c} (r1..r{n_restart}, SDR in r1; clock drift across restarts <= 5 %)', ok,
+                 (cell or {}).get('reasons', ['no runs']) + ([f'clock-drift flagged across restarts (registered 5 % rule): {fl}'] if fl else []),
+                 note=(f'clock-drift flagged: {fl}; the headline is published as clock-flagged' if fl else None))
     aa = load(os.path.join(ev, 'aa_stats.json')) or {}
     aa_chunks = {v.get('chunk') for v in (aa.get('pairs') or {}).values() if 'median_ms' in v}
     need_aa = set(OPS['session3']) | (set(HELD_OUT_S3) if (cfg.get('session_pod') and not shakedown) else set())
@@ -463,11 +489,11 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
             fl = drift['pairs'].get(((a, b), c, t))
             ok = _pair_ok(m, manifest_id)
             item(items, f'{label} matched {a} vs {b} @{c} ({t})', ok, qualify.pair_problems(m) if m else ['record missing'],
-                 note=(f'clock-drift flagged (registered 5 % rule): {fl}' if fl else None))
-            if ok and not fl:
+                 note=(f'clock-drift flagged repeats (registered 5 % rule; excluded from published aggregates): {fl}' if fl else None))
+            if ok and clean_reps((a, b), c, t):
                 clean += 1
-        item(items, f'{label} {a} vs {b} @{c}: at least one eligible restart without a clock-drift flag', clean > 0,
-             [f'every eligible restart is clock-drift flagged: {[drift["pairs"].get(((a, b), c, t)) for t in tags]}'])
+        item(items, f'{label} {a} vs {b} @{c}: at least one eligible restart with clock-clean repeats', clean > 0,
+             [f'every eligible restart has every repeat clock-drift flagged: {[drift["pairs"].get(((a, b), c, t)) for t in tags]}'])
     def trace_items(label, a, c, sfx='', need_graphed=True, optional=False):
         base = os.path.join(ev, 'traces', f'trace_{a}_{c}_' + (sfx or 'trace'))
         exp = load(base + '_exports.json') or {}
@@ -476,22 +502,35 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
         probs += qualify.trace_problems(run)
         if run and run.get('manifest_id') != manifest_id:
             probs.append('foreign manifest')
+        for rep, cols in (('cuda_gpu_trace', ('Start', 'Duration', 'CorrId', 'Name')), ('cuda_gpu_kern_sum', ('Total Time', 'Name')),
+                          ('cuda_api_trace', ('Start', 'CorrId', 'Name')), ('nvtx_gpu_proj_trace', ('Start', 'Name'))):
+            if not csv_rows(f'{base}_{rep}.csv', cols):
+                probs.append(f'export {rep} missing, unparsable, or empty')
         item(items, f'{label} trace {a}@{c}' + (f' [{sfx}]' if sfx else ''), not probs, probs, optional=optional)
         gsfx = f'_{sfx}' if sfx else ''
         gv = load(os.path.join(ev, 'traces', f'graph_verify_{a}_{c}{gsfx}.json')) or {}
-        ok = gv.get('verdict') in (('FULLY_GRAPHED',) if need_graphed else ('FULLY_GRAPHED', 'NOT_FULLY_GRAPHED', 'NO_REPLAY_EVIDENCE'))
+        derived = graph_verdict_rederived(gv)
+        accepted = ('FULLY_GRAPHED',) if need_graphed else ('FULLY_GRAPHED', 'NOT_FULLY_GRAPHED', 'NO_REPLAY_EVIDENCE')
+        ok = (derived is not None and gv.get('verdict') == derived and derived in accepted and gv.get('qualified') is True
+              and gv.get('registered_protocol') is True and gv.get('pass_count_complete') is True)
         item(items, f'{label} graph verification {a}@{c}' + (f' [{sfx}]' if sfx else '') + (' FULLY_GRAPHED' if need_graphed else ' (verdict recorded)'),
-             ok, [f"verdict {gv.get('verdict', 'MISSING')}"], optional=optional)
+             ok, [f"verdict {gv.get('verdict', 'MISSING')} (re-derived {derived}) qualified={gv.get('qualified')} passes={len(gv.get('per_pass') or [])}"], optional=optional)
         names = [f'graph_verify_{a}_{c}{gsfx}', f'timing_views_{a}_{c}{gsfx}', f'cast_count_{a}_{c}{gsfx}', f'ideal_costs_{a}_{c}{gsfx}', f'template_count_{a}_{c}{gsfx}']
         dynamic_aux.extend(names)
         if optional:
             audit_session3.optional_aux = getattr(audit_session3, 'optional_aux', set()) | set(names)
+    def sdr_ok(a, c):
+        r = (run_map.get((a, c)) or {}).get('r1')
+        return r is not None and not qualify.sdr_problems(r, c, manifest_id, qualify.variant(r))
     def sdr_item(label, a, c):
         r = (run_map.get((a, c)) or {}).get('r1')
         g = (r or {}).get('sdr_gate') or {}
-        ok = bool(r and r.get('manifest_id') == manifest_id and g.get('status') in ('PASS', 'FAIL'))
-        item(items, f'{label} SDR gate {a}@{c} recorded (r1)', ok, ['no SDR gate record bound to this manifest'],
-             note=(f"SDR {g.get('status')} mean delta {g.get('mean_delta_sdr_ref_db')}" if ok else None))
+        probs = qualify.sdr_problems(r, c, manifest_id, qualify.variant(r)) if r else ['no r1 record']
+        recomputed = qualify.sdr_recomputed(g)[0] if g else 'NONE'
+        # a FAIL is a registered outcome (kill branches), so a validated FAIL payload is 'recorded'; a PASS must be a validated PASS
+        ok = bool(r and r.get('manifest_id') == manifest_id and ((not probs and recomputed == 'PASS') or (g.get('status') == 'FAIL' and recomputed == 'FAIL')))
+        item(items, f'{label} SDR gate {a}@{c} recorded and validated (r1; eight clips, lineage-hashed)', ok, probs or [f'recomputed {recomputed}'],
+             note=(f"SDR {recomputed} mean delta {g.get('mean_delta_sdr_ref_db')}" if ok else None))
     tags = [f'm{i}' for i in range(1, n_pair + 1)]
     # ---- E3
     pair_items('E3', 'C1', 'C1P', 352800, tags)
@@ -554,13 +593,37 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
     dec = load(os.path.join(ev, 'e4a_decision.json')) or {}
     item(items, 'E4a control/mode decision recorded (e4a_decision.json)', dec.get('control') in ('C3', 'C3M'), ['missing'])
     ctrl = dec.get('control') or 'C3'
+    # re-derive the registered decision from the ELIGIBLE E2 pairs (clock-clean repeats) and C3M's validated quality at both O
+    import statistics as _st
+    e2 = []
+    for t in tags:
+        m = matched.get((('C3', 'C3M'), 352800, t))
+        if _pair_ok(m, manifest_id):
+            rd = qualify.recomputed_matched_delta(m)
+            fl = drift['pairs'].get((('C3', 'C3M'), 352800, t)) or {}
+            if rd:
+                diffs = [d for i, d in enumerate(rd['a_minus_b_per_block']) if i not in fl]
+                if diffs:
+                    e2.append(qualify._median(diffs))
+    gain = _st.median(e2) if e2 else None
+    q_ok = all(sdr_ok('C3M', c) and graph_verdict_rederived(load(os.path.join(ev, 'traces', f'graph_verify_C3M_{c}.json')) or {}) == 'FULLY_GRAPHED'
+               and (((run_map.get(('C3M', c)) or {}).get('r1') or {}).get('status') == 'VALID') for c in OPS['session3'])
+    expect = 'C3M' if (gain is not None and gain >= 1.0 and q_ok) else 'C3'
+    item(items, f'E4a decision re-derived from eligible E2 pairs and validated C3M quality (expected control {expect}, gain {gain})',
+         dec.get('control') == expect and dec.get('mode') == ('max-autotune' if expect == 'C3M' else 'reduce-overhead'),
+         [f"recorded control {dec.get('control')} / mode {dec.get('mode')} vs re-derived {expect} (gain {gain}, quality_ok {q_ok})"])
     for c in OPS['session3']:
         pair_items('E4a', ctrl, 'C3N', c, tags)
         sdr_item('E4a', 'C3N', c)
         trace_items('E4a', 'C3N', c, need_graphed=True)
-        r = (run_map.get(('C3N', c)) or {}).get('r1') or {}
-        item(items, f'E4a C3N@{c} compile mode matches the decision ({dec.get("mode")})', r.get('compile_mode') == dec.get('mode'),
-             [f"run compile_mode {r.get('compile_mode')} vs decision {dec.get('mode')}"])
+        modes = {}
+        for t in tags:
+            m = matched.get(((ctrl, 'C3N'), c, t)) or {}
+            modes[f'matched {t}'] = ((m.get('arms') or {}).get('C3N') or {}).get('compile_mode')
+        for t in ('r1', 'trace'):
+            modes[t] = (((run_map.get(('C3N', c)) or {}).get(t)) or {}).get('compile_mode')
+        item(items, f'E4a C3N@{c} compile mode matches the decision ({dec.get("mode")}) in every matched, headline and traced record',
+             all(v == dec.get('mode') for v in modes.values()), [f'modes {modes} vs decision {dec.get("mode")}'])
     # ---- E5 (optional)
     variants_ = cfg.get('e5_variants') or []
     n_e5 = int(cfg.get('e5_restarts') or 2)

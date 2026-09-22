@@ -32,6 +32,12 @@ import json
 import os
 import random
 import statistics
+import sys
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+import qualify  # noqa: E402
 
 HOP = 441
 BOOT_N = 10000
@@ -91,7 +97,7 @@ def cast_count(a):
         res = {'status': 'UNRESOLVED', 'reason': 'no unique variant / dump wrapper order for this trace', 'ideal_costs': a.ideal_costs}
         json.dump(res, open(a.out, 'w'), indent=1); print(res); return
     rows = _row_by_name(ic)
-    seen, sel = set(), {}
+    sel, unjoined = {}, []
     for c in calls:
         if c.get('kind') != 'triton':
             continue
@@ -99,8 +105,14 @@ def cast_count(a):
         if ('_to_copy' in c['name'] and all(str(x.get('buf', '')).startswith('arg') for x in args if x.get('read'))
                 and any(x.get('read') for x in args)):
             r = rows.get(c['name'])
-            if r is not None:
+            if r is None:
+                unjoined.append(c['name'])
+            else:
                 sel[c['name']] = r
+    if unjoined or ic.get('measurement_status') != 'ok' or ic.get('passes_observed') != 50:
+        res = {'status': 'UNRESOLVED', 'reason': f"{len(unjoined)} selected cast calls have no timing row; measurement_status {ic.get('measurement_status')}; passes {ic.get('passes_observed')}",
+               'ideal_costs': a.ideal_costs, 'unjoined': unjoined[:10]}
+        json.dump(res, open(a.out, 'w'), indent=1); print(res); return
     res = {'ideal_costs': a.ideal_costs, 'dump_dir': a.dump_dir, 'passes': ic.get('passes_observed'),
            'cast_kernels_per_pass': sum((r.get('launches_per_pass') or 0) for r in sel.values()),
            'cast_time_ms_per_pass': sum((r.get('time_us_per_pass') or 0.0) for r in sel.values()) / 1e3,
@@ -111,10 +123,14 @@ def cast_count(a):
 
 
 def template_count(a):
-    ic = _load(a.ideal_costs) or {}
+    ic = _load(a.ideal_costs)
+    if not ic or ic.get('measurement_status') != 'ok' or ic.get('passes_observed') != 50:
+        res = {'status': 'UNRESOLVED', 'reason': 'ideal-cost inventory missing or not a qualified 50-pass measurement', 'ideal_costs': a.ideal_costs}
+        json.dump(res, open(a.out, 'w'), indent=1); print(res); return
     rows = ic.get('rows') or []
     tem = [r for r in rows if 'triton_tem_' in str(r.get('kernel_full') or r.get('kernel'))]
-    ext = [r for r in rows if r.get('class') == 'GEMM']
+    # ideal_costs assigns Triton GEMM templates to class GEMM as well (gate-10 f141): extern = class GEMM minus templates
+    ext = [r for r in rows if r.get('class') == 'GEMM' and 'triton_tem_' not in str(r.get('kernel_full') or r.get('kernel'))]
     sdpa = [r for r in rows if r.get('class') == 'SDPA']
     res = {'ideal_costs': a.ideal_costs, 'passes': ic.get('passes_observed'),
            'triton_template_kernels_per_pass': sum((r.get('launches_per_pass') or 0) for r in tem),
@@ -124,9 +140,77 @@ def template_count(a):
            'sdpa_kernels_per_pass (excluded from GEMM)': sum((r.get('launches_per_pass') or 0) for r in sdpa),
            'rope_kernels_per_pass': sum((r.get('launches_per_pass') or 0) for r in rows if 'rot' in str(r.get('kernel_full') or r.get('kernel')).lower()),
            'template_names': sorted({str(r.get('kernel_full') or r.get('kernel')) for r in tem})[:40],
-           'rule': 'extern GEMM = ideal-cost class GEMM (cuBLAS entry points); templates = Inductor kernel names containing triton_tem_; SDPA rows never counted as GEMM (gate-09 f130)'}
+           'rule': 'extern GEMM = ideal-cost class GEMM minus Triton templates (cuBLAS entry points); templates = kernel names containing triton_tem_; SDPA rows never counted as GEMM (gate-09 f130, gate-10 f141)'}
     json.dump(res, open(a.out, 'w'), indent=1)
     print(json.dumps({k: v for k, v in res.items() if k != 'template_names'}, indent=1))
+
+
+def drift_context(ev):
+    """Repeat-scoped clock-drift flags for the session-3 evidence (the audit's rule, shared with
+    every publisher: gate-10 f139). Returns (manifest_id, flags) where flags['pairs'] maps
+    (pair, chunk, tag) -> {repeat: message}."""
+    import completeness
+    man = _load(os.path.join(ev, 'session_manifest.json')) or {}
+    runs = completeness.load_runs(ev)
+    matched = completeness.load_matched(ev)
+    flags = completeness.drift_flags(ev, 'session3', runs, matched, (man.get('env') or {}).get('gpu_uuid'))
+    return man.get('manifest_id'), flags
+
+
+def pair_reduce(m, manifest_id=None, flags=None):
+    """The one reducer every publisher uses (gate-10 f143/f144): the record must pass the shared
+    validator (qualify.pair_problems) and belong to the session manifest; per-repeat a − b
+    differences are recomputed from the samples, joined by repeat identity (not list order);
+    repeats the clock rule flagged are excluded. Returns None (with a reason) when nothing
+    eligible remains."""
+    if m is None:
+        return None, ['record missing']
+    probs = qualify.pair_problems(m)
+    if probs:
+        return None, probs
+    if manifest_id and m.get('manifest_id') != manifest_id:
+        return None, ['foreign manifest']
+    a, b = m['pair']
+    reps = {}
+    for blk in m.get('blocks') or []:
+        lat = blk.get('latency_ms_per_iter') or []
+        if len(lat) != qualify.REGISTERED_ITERS:
+            return None, ['block sample count is not the registered 50']
+        reps.setdefault(blk.get('repeat'), {})[blk.get('arm')] = qualify._median(lat)
+    key = (tuple(m['pair']), int(m['chunk']), m.get('tag'))
+    fl = ((flags or {}).get('pairs') or {}).get(key) or {}
+    diffs, walls_a, walls_b, excluded = [], [], [], []
+    for rep in sorted(k for k in reps if k is not None):
+        pr = reps[rep]
+        if a not in pr or b not in pr:
+            return None, [f'repeat {rep} lacks both arms']
+        if rep in fl:
+            excluded.append(rep)
+            continue
+        diffs.append(pr[a] - pr[b]); walls_a.append(pr[a]); walls_b.append(pr[b])
+    if not diffs:
+        return None, [f'every repeat clock-drift flagged: {fl}']
+    return {'diffs': diffs, 'median': statistics.median(diffs), 'a_wall': min(walls_a), 'b_wall': min(walls_b),
+            'excluded_repeats': excluded, 'repeats_used': len(diffs), 'file': f"matched_{a}_{m['pair'][1]}_c{m['chunk']}_{m.get('tag')}.json"}, []
+
+
+def pair_series(ev, a, b, O, manifest_id=None, flags=None):
+    """All eligible restarts of a pair: medians per restart, pooled clean per-repeat differences, walls."""
+    meds, pooled, files, wa, wb, excluded, rejected = [], [], [], [], [], {}, {}
+    for f in sorted(glob.glob(os.path.join(ev, f'matched_{a}_{b}_c{O}_m*.json'))):
+        m = _load(f)
+        r, why = pair_reduce(m, manifest_id, flags)
+        if r is None:
+            rejected[os.path.basename(f)] = why
+            continue
+        meds.append(r['median']); pooled += r['diffs']; files.append(os.path.basename(f)); wa.append(r['a_wall']); wb.append(r['b_wall'])
+        if r['excluded_repeats']:
+            excluded[os.path.basename(f)] = r['excluded_repeats']
+    if not meds:
+        return None, rejected
+    return {'median_ms': statistics.median(meds), 'ci95_ms': _boot_ci(pooled), 'restarts': len(meds), 'repeats_used': len(pooled),
+            'files': files, 'excluded_repeats': excluded, 'rejected': rejected,
+            'a_wall_ms': statistics.median(wa), 'b_wall_ms': statistics.median(wb)}, rejected
 
 
 def _boot_ci(diffs, stat=statistics.median):
@@ -140,24 +224,22 @@ def _boot_ci(diffs, stat=statistics.median):
 
 
 def aa_stats(a):
-    out = {'pairs': {}, 'bootstrap': {'resamples': BOOT_N, 'seed': BOOT_SEED, 'level': 'per-block a-b differences'}}
+    manifest_id, flags = drift_context(a.evidence_dir)
+    out = {'pairs': {}, 'bootstrap': {'resamples': BOOT_N, 'seed': BOOT_SEED, 'level': 'per-repeat a-b differences recomputed from samples, joined by repeat; clock-flagged repeats excluded'}}
     for path in sorted(glob.glob(os.path.join(a.evidence_dir, 'matched_*.json'))):
         m = _load(path)
         if not m or not m.get('aa_pair'):
             continue
-        blocks = m.get('blocks') or []
-        pa, pb = m['pair']
-        da = [b['latency_median_ms'] for b in blocks if b['arm'] == pa]
-        db = [b['latency_median_ms'] for b in blocks if b['arm'] == pb]
-        if not da or len(da) != len(db):
-            out['pairs'][os.path.basename(path)] = {'status': 'UNRESOLVED: blocks missing'}
+        r, why = pair_reduce(m, manifest_id, flags)
+        if r is None:
+            out['pairs'][os.path.basename(path)] = {'status': 'UNRESOLVED: ' + '; '.join(why), 'chunk': m.get('chunk'), 'tag': m.get('tag')}
             continue
-        diffs = [x - y for x, y in zip(da, db)]
+        diffs = r['diffs']
         out['pairs'][os.path.basename(path)] = {
-            'chunk': m['chunk'], 'tag': m['tag'], 'pair_eligible': m.get('pair_eligible'),
+            'chunk': m['chunk'], 'tag': m['tag'], 'repeats_used': r['repeats_used'], 'excluded_repeats': r['excluded_repeats'],
             'a_minus_b_per_block_ms': diffs, 'median_ms': statistics.median(diffs),
             'ci95_median_ms': _boot_ci(diffs), 'mean_ms': statistics.mean(diffs),
-            'abs_max_ms': max(abs(d) for d in diffs), 'median_pct_of_a': statistics.median(diffs) / statistics.median(da) * 100}
+            'abs_max_ms': max(abs(d) for d in diffs), 'median_pct_of_a': statistics.median(diffs) / r['a_wall'] * 100}
     out['pairs_by_chunk'] = sorted({v.get('chunk') for v in out['pairs'].values() if 'median_ms' in v})
     json.dump(out, open(a.out, 'w'), indent=1)
     for k, v in out['pairs'].items():
@@ -171,35 +253,31 @@ def e9_check(a):
     tol = reg.get('tolerance_ms', 0.4)
     out = {'registration': a.registration, 'registered_variant': var, 'tolerance_ms': tol,
            'crossover_L_star_pred': reg['variants'][var].get('crossover_L_star'), 'held_out': {}}
+    manifest_id, flags = drift_context(a.evidence_dir)
+    def sgn(x):
+        return 'H faster' if x > 0 else ('C3 faster' if x < 0 else 'tie')
     for L, p in pred.items():
         L = int(L)
-        files = sorted(glob.glob(os.path.join(a.evidence_dir, f'matched_C3_H_c{L}_m*.json')))
-        meds = []
-        allblocks = []
-        for f in files:
-            m = _load(f)
-            if m and m.get('pair_eligible') and m.get('matched_delta_ms'):
-                meds.append(m['matched_delta_ms']['median'])
-                allblocks += m['matched_delta_ms']['a_minus_b_per_block']
-        rec = {'predicted_C3_minus_H_ms': p['D_C3_minus_H_ms'], 'terms': p['terms'],
-               'files': [os.path.basename(f) for f in files], 'eligible_restarts': len(meds)}
-        if meds:
-            obs = statistics.median(meds)
-            rec.update({'observed_C3_minus_H_ms (median over restarts of block medians)': obs,
-                        'observed_ci95_block_level_ms': _boot_ci(allblocks),
+        ser, rejected = pair_series(a.evidence_dir, 'C3', 'H', L, manifest_id, flags)
+        rec = {'predicted_C3_minus_H_ms': p['D_C3_minus_H_ms'], 'terms': p['terms'], 'rejected': rejected}
+        if ser:
+            obs = ser['median_ms']
+            rec.update({'files': ser['files'], 'eligible_restarts': ser['restarts'], 'repeats_used': ser['repeats_used'], 'excluded_repeats': ser['excluded_repeats'],
+                        'observed_C3_minus_H_ms (median over restarts of block medians)': obs,
+                        'observed_ci95_block_level_ms': ser['ci95_ms'],
                         'error_ms': obs - p['D_C3_minus_H_ms'],
-                        'sign_predicted': ('H faster' if p['D_C3_minus_H_ms'] > 0 else 'C3 faster'),
-                        'sign_observed': ('H faster' if obs > 0 else 'C3 faster'),
-                        'sign_correct': (obs > 0) == (p['D_C3_minus_H_ms'] > 0),
+                        'sign_predicted': sgn(p['D_C3_minus_H_ms']), 'sign_observed': sgn(obs),
+                        'sign_correct': (sgn(obs) == sgn(p['D_C3_minus_H_ms']) and sgn(obs) != 'tie'),   # strict signs (gate-10 f149)
                         'within_tolerance': abs(obs - p['D_C3_minus_H_ms']) <= tol,
                         'sign_test_informative': abs(p['D_C3_minus_H_ms']) > 0.1})
         else:
             rec['status'] = 'UNRESOLVED: no eligible matched C3/H pair at this length'
         out['held_out'][L] = rec
     verdicts = [r for r in out['held_out'].values() if 'sign_correct' in r]
-    out['verdict'] = ('PASS' if verdicts and all(r['sign_correct'] and r['within_tolerance'] for r in verdicts)
-                      and len(verdicts) == len(out['held_out']) else
-                      ('FAIL' if verdicts else 'UNRESOLVED'))
+    if len(verdicts) != len(out['held_out']) or not verdicts:
+        out['verdict'] = 'UNRESOLVED'                        # a required observation is unavailable (gate-10 f149)
+    else:
+        out['verdict'] = 'PASS' if all(r['sign_correct'] and r['within_tolerance'] for r in verdicts) else 'FAIL'
     json.dump(out, open(a.out, 'w'), indent=1)
     print(json.dumps({k: v for k, v in out.items() if k != 'held_out'}, indent=1))
     for L, r in out['held_out'].items():

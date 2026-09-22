@@ -562,7 +562,7 @@ def render(E, rows, out):
     for n in getattr(E, 'phase3_notes', []):
         L.append(f'- {n}')
     for r in real:
-        L.append(f"- realized source {r['X']} @{r['O']}: {r.get('realized_source')} (CI95 {r.get('realized_ci95_ms')})")
+        L.append(f"- realized source {r['X']} @{r['O']}: {r.get('realized_source')} (CI95 {r.get('realized_ci95_ms')}; clock-excluded repeats {r.get('realized_excluded_repeats') or 'none'})")
     L.append('- notation: f_recoverable is the fraction of T_attributable removed; a class speed-up s gives f = 1 − 1/s; the remaining-time fraction is never written in the f column.')
     L.append('')
     L.append('## Stacking note (mandatory)')
@@ -599,20 +599,24 @@ def _boot_ci(vals, n=10000, seed=20260921):
     return [out[int(0.025 * n)], out[int(0.975 * n) - 1]]
 
 
+_P3CTX = {}
+
+
 def matched_realized(p3, a, b, O):
-    """median over ELIGIBLE restarts of the matched block-median difference a − b
-    (ms), with a block-level bootstrap interval over all eligible blocks."""
-    import glob, os
-    meds, blocks, files = [], [], []
-    for f in sorted(glob.glob(os.path.join(p3, f'matched_{a}_{b}_c{O}_m*.json'))):
-        m = _load_json(f)
-        if m and m.get('pair_eligible') and m.get('matched_delta_ms'):
-            meds.append(m['matched_delta_ms']['median'])
-            blocks += m['matched_delta_ms']['a_minus_b_per_block']
-            files.append(os.path.basename(f))
-    if not meds:
+    """median over ELIGIBLE restarts of the per-repeat a − b differences (ms), recomputed from
+    samples through e_tools.pair_series (shared validator; clock-flagged repeats excluded)."""
+    import sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import e_tools
+    if 'flags' not in _P3CTX:
+        _P3CTX['manifest_id'], _P3CTX['flags'] = e_tools.drift_context(p3)
+    ser, rejected = e_tools.pair_series(p3, a, b, O, _P3CTX['manifest_id'], _P3CTX['flags'])
+    if not ser:
         return None
-    return {'realized_ms': statistics.median(meds), 'ci95_ms': _boot_ci(blocks), 'restarts': len(meds), 'files': files}
+    return {'realized_ms': ser['median_ms'], 'ci95_ms': ser['ci95_ms'], 'restarts': ser['restarts'], 'files': ser['files'],
+            'excluded_repeats': ser['excluded_repeats']}
 
 
 def fill_realized(E, rows, p3):
@@ -643,11 +647,11 @@ def fill_realized(E, rows, p3):
                 if rec2:
                     E.phase3_notes.append(f"E1 @{O}: C3 − {arm} realized {rec2['realized_ms']:+.4f} ms {rec2['ci95_ms']} ({rec2['restarts']} restarts)")
             if rec:
-                r['realized_ms'], r['realized_ci95_ms'], r['realized_source'] = rec['realized_ms'], rec['ci95_ms'], f"{src}: {rec['files']}"
+                r['realized_ms'], r['realized_ci95_ms'], r['realized_source'], r['realized_excluded_repeats'] = rec['realized_ms'], rec['ci95_ms'], f"{src}: {rec['files']}", rec['excluded_repeats']
         if r['X'].startswith('X2a'):
             rec = matched_realized(p3, ctrl, 'C3N', O)
             if rec:
-                r['realized_ms'], r['realized_ci95_ms'], r['realized_source'] = rec['realized_ms'], rec['ci95_ms'], f"E4a {ctrl} − C3N ({dec.get('mode')}): {rec['files']}"
+                r['realized_ms'], r['realized_ci95_ms'], r['realized_source'], r['realized_excluded_repeats'] = rec['realized_ms'], rec['ci95_ms'], f"E4a {ctrl} − C3N ({dec.get('mode')}): {rec['files']}", rec['excluded_repeats']
     for O in OPS:
         x2 = [r for r in rows if r['O'] == O and r['status'] == 'ok' and r['X'][:3] in ('X2a', 'X2b', 'X2c')]
         rec = matched_realized(p3, 'C3', 'C3M', O)
@@ -656,11 +660,12 @@ def fill_realized(E, rows, p3):
             g1 = next((r for r in rows if r['O'] == O and r['status'] == 'ok' and r['X'].startswith('G1')), None)
             g1_txt = f"; G1 union (X2 ∪ X6 ∪ X6a ∪ X13) attributable time {g1['T_attributable_ms']:.4f} ms" if g1 else ''
             tc = _load_json(os.path.join(p3, 'traces', f'template_count_C3M_{O}.json')) or {}
+            cc = _load_json(os.path.join(p3, 'traces', f'cast_count_C3M_{O}.json')) or {}
             tc_txt = (f"; C3M trace: {tc.get('triton_template_kernels_per_pass')} Triton template GEMMs/pass ({(tc.get('triton_template_time_ms_per_pass') or 0):.3f} ms), "
-                      f"{tc.get('extern_gemm_kernels_per_pass')} extern GEMMs/pass; template names carry _to_copy (weight cast fused into the template), so E2 also realizes part of X6a"
-                      if tc else '')
+                      f"{tc.get('extern_gemm_kernels_per_pass')} extern GEMMs/pass; C3M still runs {cc.get('cast_kernels_per_pass')} parameter casts/pass ({(cc.get('cast_time_ms_per_pass') or 0):.3f} ms), "
+                      "so none of E2's gain is X6a (gate-10 f142)" if tc else '')
             E.phase3_notes.append(f"E2 @{O}: C3 − C3M realized {rec['realized_ms']:+.4f} ms {rec['ci95_ms']} ({rec['restarts']} restarts) vs X2a+X2b+X2c ceiling {ceil:.4f} ms "
-                                  f"→ {'EXCEEDS the X2 ceiling: max-autotune changes GEMM kernel selection and fuses weight casts, mechanisms outside X2' if rec['realized_ms'] > ceil + 1e-9 else f'{rec['realized_ms'] / ceil:.2f} of ceiling'}"
+                                  f"→ {'EXCEEDS the X2 ceiling: max-autotune changes GEMM kernel selection (Triton templates), a mechanism outside X2' if rec['realized_ms'] > ceil + 1e-9 else f'{rec['realized_ms'] / ceil:.2f} of ceiling'}"
                                   f"{g1_txt}{tc_txt}; files {rec['files']}")
         if O == 352800:
             rec = matched_realized(p3, 'C1', 'C1P', O)
