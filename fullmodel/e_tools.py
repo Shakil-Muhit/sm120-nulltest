@@ -383,7 +383,7 @@ def matched_trace(a):
     cd = _col(head, 'Duration (ns)', 'Duration')
     windows = {}
     for r in rows:
-        nm = r[cn].strip().strip('"')
+        nm = r[cn].strip().strip('"').lstrip(':')          # nsys prefixes push/pop range names with ':'
         for arm in arms:
             if nm.startswith(f'{arm}_pass_'):
                 try:
