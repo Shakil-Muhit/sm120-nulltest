@@ -115,6 +115,8 @@ def main():
     ap.add_argument('--ref-dir', default=None)
     ap.add_argument('--no-manifest', action='store_true')
     ap.add_argument('--variant', default=None, help='E5 structural variant (both arms); never a headline')
+    ap.add_argument('--profile-repeat', type=int, default=None,
+                    help='Phase 4 (PB): wrap this repeat (a-block then b-block) in ONE cudaProfilerApi capture with per-arm NVTX pass ranges; the record is a trace record, never a headline')
     args = ap.parse_args()
     arms_mod.held_out_guard(args.chunk)                 # E9: held-out lengths run only in the pod session
     if (args.iters, args.repeats) != (50, 5):
@@ -203,10 +205,20 @@ def main():
             prev = after_val
             block_stable = True
             for r in range(args.repeats):
+                profiled = (args.profile_repeat is not None and r == args.profile_repeat)
+                if profiled:
+                    torch.cuda.synchronize()
+                    torch.cuda.profiler.start()
                 for arm in (a, b):
                     t0 = time.time()
-                    lat, thr = tm.timed_run(built[arm]['step'], built[arm]['x'],
-                                            built[arm]['ctx'], args.iters)
+                    if profiled:
+                        torch.cuda.nvtx.range_push(f'matched_{arm}_rep{r}')
+                        lat, thr = tm.timed_run(built[arm]['step'], built[arm]['x'], built[arm]['ctx'], args.iters,
+                                                nvtx_pass=True, profiler=False, nvtx_prefix=f'{arm}_pass')
+                        torch.cuda.nvtx.range_pop()
+                    else:
+                        lat, thr = tm.timed_run(built[arm]['step'], built[arm]['x'],
+                                                built[arm]['ctx'], args.iters)
                     t1 = time.time()
                     cur = tm.recording_state()
                     stable = tm.recording_stable(prev, cur)
@@ -219,6 +231,12 @@ def main():
                     result['blocks'].append(blk)
                     per[arm].append(blk['latency_median_ms'])
                     print(f'  block {r} {arm}: median {blk["latency_median_ms"]:.4f} ms')
+                if profiled:
+                    torch.cuda.synchronize()
+                    torch.cuda.profiler.stop()
+            if args.profile_repeat is not None:
+                result['profiled_repeat'] = args.profile_repeat
+                reasons.append('profiled matched run (trace record; never a headline)')
             if not block_stable:
                 reasons.append('compile/recording counters changed during the blocks')
             for arm in (a, b):

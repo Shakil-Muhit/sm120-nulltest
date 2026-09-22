@@ -37,9 +37,10 @@ ATTN_CASES = [f'c{c}_{ax}_{lay}' for c in (352800, 4410) for ax in ('time', 'fre
 BOUNDARY_CHAINS_S3 = [f'prologue/{m}/N{n}' for m in ('stream', 'graph', 'pdl_stream', 'pdl_graph') for n in (100, 1000)]
 BOUNDARY_CHAINS = [f'trivial/{m}/N{n}' for m in ('stream', 'graph', 'pdl_stream', 'pdl_graph') for n in (10, 100, 1000, 2000)] + \
                   [f'{ch}/{m}/N{n}' for ch in ('elem37', 'gemm') for m in ('stream', 'graph') for n in (10, 100)]
-OPS = {'session1': (352800, 4410), 'session2': (352800, 4410, 22050, 88200), 'session3': (352800, 4410)}
+OPS = {'session1': (352800, 4410), 'session2': (352800, 4410, 22050, 88200), 'session3': (352800, 4410), 'session4': (352800, 4410, 44100, 176400, 264600)}
+SDR_OPS = {'session4': (352800, 4410)}          # sessions without an entry: SDR clip references at every OPS point
 HELD_OUT_S3 = (176400, 264600)
-ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py', 'e_tools.py', 'session_result_v2.py', 'session3_result.py', 'figures.py',
+ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py', 'e_tools.py', 'session_result_v2.py', 'session3_result.py', 'figures.py', 'session4_result.py', 'stats_v2.py',
                   'ideal_costs.py', 'graph_verify.py', 'timing_views.py', 'perturbation.py', 'kernel_map.py', 'classify.py')
 MANIFEST_FIELDS = ('manifest_id', 'session', 'created_utc', 'repo_commit', 'registration_sha256',
                    'clips_manifest_sha256', 'code', 'provenance', 'runtime', 'env')
@@ -48,6 +49,7 @@ STATIC_AUX = {
     'session2': ['attn_backend_bench', 'boundary_bench', 'boundary_bench_trace', 'boundary_bench_export',
                  'boundary_bench_analysis', 'perturbation', 'collect'],
     'session3': ['c3_operator_qualification', 'aa_stats', 'collect'],
+    'session4': ['c3_operator_qualification', 'aa_stats', 'stats_v2', 'collect'],
 }
 OPTIONAL_AUX_S3 = ('boundary_bench', 'boundary_bench_trace', 'boundary_bench_export', 'boundary_bench_analysis', 'e5_summary')
 
@@ -149,7 +151,7 @@ def audit_references(ev, items, manifest_id, session, runs, matched):
                 bad.append(os.path.basename(f) + ' (hash)')
                 continue
             hashes[key] = h
-        for i in range(qualify.SDR_CLIPS):
+        for i in (range(qualify.SDR_CLIPS) if chunk in SDR_OPS.get(session, OPS[session]) else ()):
             f = os.path.join(ref, f'sdr_A_c{chunk}_clip{i:02d}.pt')
             key = ('clip', chunk, i)
             side = load(f + '.lineage.json')
@@ -161,7 +163,7 @@ def audit_references(ev, items, manifest_id, session, runs, matched):
                 bad.append(os.path.basename(f) + ' (hash)')
                 continue
             hashes[key] = h
-    n_req = len(OPS[session]) * (len(qualify.VALIDATION_SEEDS) + qualify.SDR_CLIPS)
+    n_req = len(OPS[session]) * len(qualify.VALIDATION_SEEDS) + len(SDR_OPS.get(session, OPS[session])) * qualify.SDR_CLIPS
     item(items, f'required reference inventory ({n_req} artifacts, bound and re-hashed)', not bad,
          [f'missing/unbound/changed: {bad[:8]}'])
     # Phase-3 namespaces (gate-09 f133): held-out validation references (pod) and the
@@ -228,7 +230,9 @@ def session_blocks(session, runs, matched):
                 out += [(b.get('unix_start'), b.get('unix_end'), f'{a}@{c}/{t}') for b in blocks]
             if session == 'session3' and c in OPS['session3'] + HELD_OUT_S3:
                 out += [(b.get('unix_start'), b.get('unix_end'), f'{a}@{c}/{t}') for b in blocks]
-    if session in ('session1', 'session3'):
+            if session == 'session4' and c in OPS['session4']:
+                out += [(b.get('unix_start'), b.get('unix_end'), f'{a}@{c}/{t}') for b in blocks]
+    if session in ('session1', 'session3', 'session4'):
         for (pair, c, t), m in matched.items():
             out += [(b.get('unix_start'), b.get('unix_end'), f'matched {pair}/{t}') for b in (m.get('blocks') or [])]
     return out
@@ -413,6 +417,8 @@ def audit_prerequisites(ev, items, manifest_id, run_map):
     want = set(C3_FRAMES)
     if cfg3 and cfg3.get('session_pod') and not cfg3.get('shakedown'):
         want = want | {'401', '601'}                     # E9 held-out frame counts, pod only
+    if os.path.exists(os.path.join(ev, 'session4_config.json')):
+        want = {'11', '51', '201', '801', '401', '601', '101'}
     if set(q) != want:
         probs.append(f'frame set {sorted(q)} != registered {sorted(want)}')
     for T, v in q.items():
@@ -659,6 +665,104 @@ def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
     # ---- references at the held-out lengths are audited above; the standard inventory covers OPS['session3']
 
 
+def audit_session4(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux, drift=None):
+    """Phase-4 plan (docs/phase4/PLAN.md): P0 A/A, PA C3–H at four lengths, PB C1P diagnostics, PC1–PC4 pairs
+    (mandatory); PQ gates/traces mandatory for the SDR gates and the 4410 traces, optional for the 8 s traces
+    of the max-autotune arm; statistics files present."""
+    cfg = load(os.path.join(ev, 'session4_config.json')) or {}
+    drift = drift or {'pairs': {}, 'cells': {}}
+    n_pair = int(cfg.get('pair_restarts') or 3)
+    tags = [f'm{i}' for i in range(1, n_pair + 1)]
+    audit_prerequisites(ev, items, manifest_id, run_map)
+    def clean_reps(pair, c, t):
+        fl = drift['pairs'].get((pair, c, t)) or {}
+        return [r for r in range(int(qualify.REGISTERED_REPEATS)) if r not in fl]
+    def pair_items(label, a, b, c, tags_, min_clean=1):
+        clean = 0
+        for t in tags_:
+            m = matched.get(((a, b), c, t)); fl = drift['pairs'].get(((a, b), c, t))
+            ok = _pair_ok(m, manifest_id)
+            item(items, f'{label} matched {a} vs {b} @{c} ({t})', ok, qualify.pair_problems(m) if m else ['record missing'],
+                 note=(f'clock-drift flagged repeats (excluded from published aggregates): {fl}' if fl else None))
+            if ok and clean_reps((a, b), c, t):
+                clean += 1
+        item(items, f'{label} {a} vs {b} @{c}: at least {min_clean} eligible restart(s) with clock-clean repeats', clean >= min_clean,
+             [f'clean eligible restarts {clean}'])
+    def trace_items(label, a, c, need_graphed=True, optional=False):
+        base = os.path.join(ev, 'traces', f'trace_{a}_{c}_trace')
+        exp = load(base + '_exports.json') or {}
+        run = (run_map.get((a, c)) or {}).get('trace')
+        probs = [] if exp.get('complete') is True and exp.get('graph_trace_mode') == 'node' else ['node-level exports incomplete']
+        probs += qualify.trace_problems(run)
+        if run and run.get('manifest_id') != manifest_id:
+            probs.append('foreign manifest')
+        for rep, cols in (('cuda_gpu_trace', ('Start', 'Duration', 'CorrId', 'Name')), ('cuda_gpu_kern_sum', ('Total Time', 'Name')),
+                          ('cuda_api_trace', ('Start', 'CorrId', 'Name')), ('nvtx_gpu_proj_trace', ('Start', 'Name'))):
+            if not csv_rows(f'{base}_{rep}.csv', cols):
+                probs.append(f'export {rep} missing, unparsable, or empty')
+        item(items, f'{label} trace {a}@{c}', not probs, probs, optional=optional)
+        gv = load(os.path.join(ev, 'traces', f'graph_verify_{a}_{c}.json')) or {}
+        derived = graph_verdict_rederived(gv)
+        accepted = ('FULLY_GRAPHED',) if need_graphed else ('FULLY_GRAPHED', 'NOT_FULLY_GRAPHED', 'NO_REPLAY_EVIDENCE')
+        ok = (derived is not None and gv.get('verdict') == derived and derived in accepted and gv.get('qualified') is True
+              and gv.get('registered_protocol') is True and gv.get('pass_count_complete') is True)
+        item(items, f'{label} graph verification {a}@{c}' + (' FULLY_GRAPHED' if need_graphed else ' (verdict recorded)'), ok,
+             [f"verdict {gv.get('verdict', 'MISSING')} (re-derived {derived}) qualified={gv.get('qualified')} passes={len(gv.get('per_pass') or [])}"], optional=optional)
+        names = [f'graph_verify_{a}_{c}', f'timing_views_{a}_{c}', f'cast_count_{a}_{c}', f'ideal_costs_{a}_{c}', f'template_count_{a}_{c}']
+        dynamic_aux.extend(names)
+        if optional:
+            audit_session4.optional_aux = getattr(audit_session4, 'optional_aux', set()) | set(names)
+    def sdr_item(label, a, c):
+        r = (run_map.get((a, c)) or {}).get('r1')
+        g = (r or {}).get('sdr_gate') or {}
+        probs = qualify.sdr_problems(r, c, manifest_id, qualify.variant(r)) if r else ['no r1 record']
+        recomputed = qualify.sdr_recomputed(g)[0] if g else 'NONE'
+        ok = bool(r and r.get('manifest_id') == manifest_id and ((not probs and recomputed == 'PASS') or (g.get('status') == 'FAIL' and recomputed == 'FAIL')))
+        item(items, f'{label} SDR gate {a}@{c} recorded and validated (r1)', ok, probs or [f'recomputed {recomputed}'],
+             note=(f"SDR {recomputed} mean delta {g.get('mean_delta_sdr_ref_db')}" if ok else None))
+    # P0
+    for c in [int(x) for x in (cfg.get('aa_lengths') or [44100, 176400, 264600, 352800, 4410])]:
+        m = matched.get((('C3', 'C3#2'), c, 'm1')); fl = drift['pairs'].get((('C3', 'C3#2'), c, 'm1'))
+        item(items, f'P0 A/A matched C3 vs C3 @{c} (m1; clock-clean repeats required)', _pair_ok(m, manifest_id) and bool(clean_reps(('C3', 'C3#2'), c, 'm1')),
+             (qualify.pair_problems(m) if m else ['no A/A record']) + ([f'flagged {fl}'] if fl else []))
+    # PA
+    for c in [int(x) for x in (cfg.get('pa_lengths') or [44100, 176400, 264600, 352800])]:
+        pair_items('PA', 'C3', 'H', c, tags, min_clean=2)
+    # PB
+    cell = cells.get('C1P_352800')
+    fl = drift['cells'].get(('C1P', 352800))
+    item(items, 'PB standalone unprofiled C1P @352800 (r1..r3 HEADLINE-grade cell; clock drift across restarts <= 5 %)', bool(cell and cell['headline_status'] == 'HEADLINE') and not fl,
+         (cell or {}).get('reasons', ['no runs']) + ([f'clock-drift flagged: {fl}'] if fl else []))
+    pair_items('PB', 'C1', 'C1P', 352800, tags, min_clean=2)
+    pair_items('PB (order swapped)', 'C1P', 'C1', 352800, ['m1', 'm2'], min_clean=1)
+    m = matched.get((('C1', 'C1P'), 352800, 'p1'))
+    mt = load(os.path.join(ev, 'traces', 'matched_trace_C1_C1P_352800_p1.json')) or {}
+    exp = load(os.path.join(ev, 'traces', 'trace_matched_C1_C1P_352800_p1_exports.json')) or {}
+    ok = bool(m and m.get('status') == 'VALID' and m.get('manifest_id') == manifest_id and m.get('profiled_repeat') == 0 and exp.get('complete') is True
+              and mt.get('status') == 'ok' and all(a_ in (mt.get('arms') or {}) and (mt['arms'][a_].get('passes') or 0) == 50 for a_ in ('C1', 'C1P')))
+    item(items, 'PB profiled matched C1/C1P process (repeat 0 captured; exports complete; aligned analysis for both arms, 50 passes each)', ok,
+         [f"record {bool(m)} profiled_repeat {(m or {}).get('profiled_repeat')} exports {exp.get('complete')} analysis {mt.get('status')}"])
+    dynamic_aux.append('matched_trace_C1_C1P_352800_p1')
+    trace_items('PB', 'C1P', 352800, need_graphed=False)
+    trace_items('PB', 'C1', 352800, need_graphed=False)
+    # PC1–PC4
+    for c in [int(x) for x in (cfg.get('pc_ops') or [4410, 352800])]:
+        pair_items('PC1', 'C3', 'C3I', c, tags, min_clean=2)
+        pair_items('PC2', 'C3I', 'C3G', c, tags, min_clean=2)
+        pair_items('PC3', 'C3M', 'C3MG', c, tags, min_clean=2)
+        pair_items('PC4', 'H', 'HG', c, tags, min_clean=2)
+        for a in ('C3I', 'C3MG', 'HG'):
+            sdr_item('PQ', a, c)
+    # PQ traces: mandatory at 4410 for C3I/HG/C3G/C3 and at 352800 for C3I/HG/C3G/C3; C3MG optional at both
+    for a in ('C3I', 'HG', 'C3G', 'C3'):
+        for c in (4410, 352800):
+            trace_items('PQ', a, c, need_graphed=True)
+    for c in (4410, 352800):
+        trace_items('PQ', 'C3MG', c, need_graphed=True, optional=True)
+    for name in ('aa_stats.json', 'stats_v2.json'):
+        item(items, f'statistics file {name} present', bool(load(os.path.join(ev, name))), ['missing'])
+
+
 def csv_rows(path, required_cols):
     """Parse an export: header must contain the required columns; returns row count."""
     import csv
@@ -690,7 +794,7 @@ def audit_aux(ev, items, session, dynamic):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--evidence-dir', required=True)
-    ap.add_argument('--session', choices=['session1', 'session2', 'session3'], required=True)
+    ap.add_argument('--session', choices=['session1', 'session2', 'session3', 'session4'], required=True)
     args = ap.parse_args()
     ev = args.evidence_dir
     items = []
@@ -704,6 +808,8 @@ def main():
         cfg3 = load(os.path.join(ev, 'session3_config.json')) or {}
         n3 = int(cfg3.get('headline_restarts') or 5)
         collect_full.REQUIRED_RESTARTS = tuple(f'r{i}' for i in range(1, n3 + 1))
+    if args.session == 'session4':
+        collect_full.REQUIRED_RESTARTS = ('r1', 'r2', 'r3')
     mprov = (manifest.get('provenance') or {})
     foreign = []
     for (a, c), tr in run_map.items():
@@ -741,6 +847,9 @@ def main():
     if args.session == 'session3':
         drift = audit_clock_drift(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
         audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux, drift)
+    elif args.session == 'session4':
+        drift = audit_clock_drift(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
+        audit_session4(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux, drift)
     elif args.session == 'session1':
         for a, c in MATRIX_S1:
             cell = cells.get(f'{a}_{c}')
@@ -896,8 +1005,8 @@ def main():
              [f"qualification {qual}"])
     audit_clock(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
     audit_aux(ev, items, args.session, dynamic_aux)
-    if args.session == 'session3':                      # registered optional experiments never block the verdict
-        opt_aux = set(OPTIONAL_AUX_S3) | set(getattr(audit_session3, 'optional_aux', set()))
+    if args.session in ('session3', 'session4'):        # registered optional experiments never block the verdict
+        opt_aux = set(OPTIONAL_AUX_S3) | set(getattr(audit_session3, 'optional_aux', set())) | set(getattr(audit_session4, 'optional_aux', set()))
         for i in items:
             if i['item'].startswith('auxiliary step '):
                 nm = i['item'].split(' ', 2)[2]
@@ -910,21 +1019,21 @@ def main():
         analysis_commit = provenance._git(root, 'rev-parse', 'HEAD')
     except Exception:
         analysis_commit = None
-    cfg3 = load(os.path.join(ev, 'session3_config.json')) or {}
+    cfg3 = load(os.path.join(ev, 'session3_config.json')) or load(os.path.join(ev, 'session4_config.json')) or {}
     status = {'session': args.session, 'manifest_id': manifest_id, 'items': items,
               'complete_items': n_ok, 'total_items': len(mandatory),
               'optional_items': [{'item': i['item'], 'complete': i['complete'], 'reason': i['reason']} for i in items if i.get('optional')],
               'verdict': 'COMPLETE' if n_ok == len(mandatory) else 'INCOMPLETE',
-              'shakedown': (bool(cfg3.get('shakedown')) or not bool(cfg3.get('session_pod'))) if args.session == 'session3' else None,
+              'shakedown': (bool(cfg3.get('shakedown')) or not bool(cfg3.get('session_pod'))) if args.session in ('session3', 'session4') else None,
               'evidence_grade': (('pod' if (cfg3.get('session_pod') and not cfg3.get('shakedown')) else 'engineering (off-pod or shakedown: never session evidence)')
-                                 if args.session == 'session3' else 'pod'),
+                                 if args.session in ('session3', 'session4') else 'pod'),
               'qualify_version': qualify.QUALIFY_VERSION,
               'analysis_tools_commit': analysis_commit,
               'analysis_tools_sha256': {k: v for k, v in provenance.code_hashes().items() if os.path.basename(k) in ANALYSIS_TOOLS}}
     with open(os.path.join(ev, 'session_status.json'), 'w') as f:
         json.dump(status, f, indent=1)
     print(f"[completeness] {args.session}: {status['verdict']} ({n_ok}/{len(mandatory)} mandatory items"
-          + (f"; shakedown={status['shakedown']}; evidence grade: {status['evidence_grade']}" if args.session == 'session3' else '') + ')')
+          + (f"; shakedown={status['shakedown']}; evidence grade: {status['evidence_grade']}" if args.session in ('session3', 'session4') else '') + ')')
     for i in items:
         if not i['complete']:
             print(f"   {'optional-incomplete' if i.get('optional') else 'INCOMPLETE'} {i['item']}: {i['reason']}")

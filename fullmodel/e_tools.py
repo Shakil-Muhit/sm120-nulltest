@@ -14,6 +14,13 @@ post-session with recorded identity). Subcommands:
   e9_check       --evidence-dir E --registration docs/phase3/e9/e9_cost_model.json --out J
                  : E9 held-out predictions vs the matched C3-H results; sign and
                    magnitude verdicts under the registered tolerance
+  matched_trace  --base <export basename> --record <matched json> --out J
+                 : Phase 4 (PB): per-arm, per-pass alignment of the CPU pass window (host NVTX
+                   range <arm>_pass_<i>), the GPU kernel/memop intervals inside it, the graph
+                   launches and memcpy API calls, and the union of CUDA API call intervals.
+                   Reports GPU-busy, GPU-idle-within-window and API-union fractions per arm;
+                   overlapping API durations are unioned, never summed, and no quantity is
+                   labelled "host-side" by subtraction
   e9_residual    --check J --registration R --out J
                  : E9 post-hoc attribution (registered: "report which term the residual points
                    at; do not refit and re-run"): the observed − predicted residual at each
@@ -329,6 +336,132 @@ def e9_residual(a):
         print(L, {k: v for k, v in h.items() if k in ('observed', 'predicted', 'residual_obs_minus_pred_ms', 'to_absorb_alone')})
 
 
+def _read_csv(path):
+    with open(path, newline='') as f:
+        rows = list(csv.reader(f))
+    return rows[0], rows[1:]
+
+
+def _col(head, *cands):
+    for c in cands:
+        for i, h in enumerate(head):
+            if h.strip().strip('"').lower() == c.lower():
+                return i
+    for c in cands:
+        for i, h in enumerate(head):
+            if c.lower() in h.strip().strip('"').lower():
+                return i
+    return None
+
+
+def _union(intervals):
+    ivs = sorted(intervals)
+    tot, cur_s, cur_e = 0, None, None
+    for s_, e_ in ivs:
+        if cur_e is None or s_ > cur_e:
+            if cur_e is not None:
+                tot += cur_e - cur_s
+            cur_s, cur_e = s_, e_
+        else:
+            cur_e = max(cur_e, e_)
+    if cur_e is not None:
+        tot += cur_e - cur_s
+    return tot
+
+
+def matched_trace(a):
+    rec = _load(a.record) or {}
+    arms = list(rec.get('pair') or [])
+    prof_rep = rec.get('profiled_repeat')
+    out = {'record': a.record, 'base': a.base, 'profiled_repeat': prof_rep, 'arms': {}, 'status': 'ok'}
+    try:
+        head, rows = _read_csv(a.base + '_nvtx_pushpop_trace.csv')
+    except FileNotFoundError:
+        out['status'] = 'UNRESOLVED: nvtx_pushpop_trace export missing (host pass windows unavailable)'
+        json.dump(out, open(a.out, 'w'), indent=1); print(out['status']); return
+    cs, ce, cn = _col(head, 'Start (ns)', 'Start'), _col(head, 'End (ns)', 'End'), _col(head, 'Name')
+    cd = _col(head, 'Duration (ns)', 'Duration')
+    windows = {}
+    for r in rows:
+        nm = r[cn].strip().strip('"')
+        for arm in arms:
+            if nm.startswith(f'{arm}_pass_'):
+                try:
+                    st = int(float(r[cs].replace(',', '')))
+                    en = int(float(r[ce].replace(',', ''))) if ce is not None else st + int(float(r[cd].replace(',', '')))
+                except (ValueError, TypeError, IndexError):
+                    continue
+                windows.setdefault(arm, []).append((int(nm.rsplit('_', 1)[1]), st, en))
+    head, rows = _read_csv(a.base + '_cuda_gpu_trace.csv')
+    gs, gd, gn = _col(head, 'Start (ns)', 'Start'), _col(head, 'Duration (ns)', 'Duration'), _col(head, 'Name')
+    gpu = []
+    for r in rows:
+        try:
+            st = int(float(r[gs].replace(',', ''))); du = int(float(r[gd].replace(',', '')))
+        except (ValueError, IndexError):
+            continue
+        gpu.append((st, st + du, r[gn]))
+    gpu.sort()
+    try:
+        head, rows = _read_csv(a.base + '_cuda_api_trace.csv')
+        as_, ad, an = _col(head, 'Start (ns)', 'Start'), _col(head, 'Duration (ns)', 'Duration'), _col(head, 'Name')
+        api = []
+        for r in rows:
+            try:
+                st = int(float(r[as_].replace(',', ''))); du = int(float(r[ad].replace(',', '')))
+            except (ValueError, IndexError):
+                continue
+            api.append((st, st + du, r[an]))
+        api.sort()
+    except FileNotFoundError:
+        api = None
+    import bisect
+    gstarts = [g[0] for g in gpu]
+    astarts = [x[0] for x in api] if api else []
+    for arm, ws in windows.items():
+        per = []
+        for i, st, en in sorted(ws):
+            lo = bisect.bisect_left(gstarts, st); hi = bisect.bisect_right(gstarts, en)
+            ks = [g for g in gpu[lo:hi]]
+            kern = [g for g in ks if 'memcpy' not in g[2].lower() and 'memset' not in g[2].lower()]
+            mem = [g for g in ks if g not in kern]
+            wall = en - st
+            busy = _union([(g[0], min(g[1], en)) for g in ks])
+            span = (max(g[1] for g in ks) - min(g[0] for g in ks)) if ks else 0
+            row = {'pass': i, 'wall_us': wall / 1e3, 'gpu_busy_us (union of kernel+memop intervals in window)': busy / 1e3,
+                   'gpu_span_us (first start to last end)': span / 1e3, 'gpu_idle_within_window_us': (wall - busy) / 1e3,
+                   'kernels': len(kern), 'memops': len(mem)}
+            if api is not None:
+                alo = bisect.bisect_left(astarts, st); ahi = bisect.bisect_right(astarts, en)
+                calls = api[alo:ahi]
+                row['api_calls'] = len(calls)
+                row['graph_launches'] = sum(1 for c in calls if 'cudaGraphLaunch' in c[2])
+                row['memcpy_api_calls'] = sum(1 for c in calls if 'Memcpy' in c[2] or 'memcpy' in c[2])
+                row['sync_api_calls'] = sum(1 for c in calls if 'Synchronize' in c[2] or 'StreamWait' in c[2] or 'EventSynchronize' in c[2])
+                row['api_union_us (overlapping call intervals unioned)'] = _union([(c[0], min(c[1], en)) for c in calls]) / 1e3
+                row['api_sum_us (not additive; for reference)'] = sum(min(c[1], en) - c[0] for c in calls) / 1e3
+            per.append(row)
+        def med(k):
+            v = [p[k] for p in per if k in p]
+            return statistics.median(v) if v else None
+        out['arms'][arm] = {'passes': len(per), 'median_wall_us': med('wall_us'), 'median_gpu_busy_us': med('gpu_busy_us (union of kernel+memop intervals in window)'),
+                            'median_gpu_span_us': med('gpu_span_us (first start to last end)'), 'median_gpu_idle_within_window_us': med('gpu_idle_within_window_us'),
+                            'median_kernels': med('kernels'), 'median_memops': med('memops'), 'median_graph_launches': med('graph_launches'),
+                            'median_memcpy_api_calls': med('memcpy_api_calls'), 'median_sync_api_calls': med('sync_api_calls'),
+                            'median_api_union_us': med('api_union_us (overlapping call intervals unioned)'), 'per_pass': per}
+        blk = next((b for b in (rec.get('blocks') or []) if b.get('arm') == arm and b.get('repeat') == prof_rep), None)
+        if blk:
+            out['arms'][arm]['unprofiled_context_note'] = 'this block ran under the profiler; compare with the same arm\'s other repeats in the record for perturbation'
+            others = [b['latency_median_ms'] for b in (rec.get('blocks') or []) if b.get('arm') == arm and b.get('repeat') != prof_rep]
+            out['arms'][arm]['profiled_block_median_ms'] = blk.get('latency_median_ms')
+            out['arms'][arm]['unprofiled_blocks_median_ms'] = statistics.median(others) if others else None
+    out['note'] = ('GPU idle within the CPU pass window is reported as such; it is not labelled host-side. API union is the union of CUDA API call intervals in the window '
+                   '(calls can overlap GPU work or wait). Windows come from host NVTX ranges; GPU and API rows use the same nsys clock.')
+    json.dump(out, open(a.out, 'w'), indent=1)
+    for arm, v in out['arms'].items():
+        print(arm, {k: (round(x, 1) if isinstance(x, float) else x) for k, x in v.items() if k != 'per_pass'})
+
+
 def e5_summary(a):
     out = {'cells': {}, 'checks': {}}
     for path in sorted(glob.glob(os.path.join(a.evidence_dir, 'full_*_v_*.json'))):
@@ -368,6 +501,7 @@ def main():
     s = sub.add_parser('e9_check'); s.add_argument('--evidence-dir', required=True); s.add_argument('--registration', required=True); s.add_argument('--out', required=True)
     s = sub.add_parser('e5_summary'); s.add_argument('--evidence-dir', required=True); s.add_argument('--out', required=True)
     s = sub.add_parser('e9_residual'); s.add_argument('--check', required=True); s.add_argument('--registration', required=True); s.add_argument('--out', required=True)
+    s = sub.add_parser('matched_trace'); s.add_argument('--base', required=True); s.add_argument('--record', required=True); s.add_argument('--out', required=True)
     a = ap.parse_args()
     globals()[a.cmd](a)
 

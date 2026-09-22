@@ -18,10 +18,23 @@ def inventory(arm, O):
     rows = {(r.get('kernel_full') or r.get('kernel')): r for r in ic['rows']}
     dump = os.path.join(EV, 'traces', f'dump_{arm}_{O}_trace')
     sel = set((ic.get('variant_selection') or {}).get('selected') or [])
-    calls = []
+    calls, kmeta = [], {}
     for g in parse_output_code(dump):
         if os.path.relpath(g['path'], dump) in sel:
             calls += g['calls']
+            kmeta.update(g.get('kernels') or {})
+    # attach the fused-op provenance (aten comment in the generated kernel source) to each call
+    import ast as _ast
+    for c in calls:
+        km = kmeta.get(c['name']) or {}
+        ops = km.get('ops')
+        if isinstance(ops, str):
+            try:
+                ops = _ast.literal_eval(ops)
+            except Exception:
+                ops = []
+        c['ops'] = list(ops or [])
+        c['ops_source'] = km.get('ops_source')
     return ic, rows, calls
 
 def class_totals(ic):
@@ -39,11 +52,12 @@ icM, rowsM, callsM = inventory('C3M', 352800)
 e2 = {'class_totals_ms_per_pass': {'C3': class_totals(icC3), 'C3M': class_totals(icM)}}
 e2['class_deltas_ms (C3 - C3M)'] = {k: round(class_totals(icC3).get(k, 0) - class_totals(icM).get(k, 0), 4) for k in set(class_totals(icC3)) | set(class_totals(icM))}
 e2['sum_of_class_deltas_ms'] = round(sum(e2['class_deltas_ms (C3 - C3M)'].values()), 4)
-tem = []
+tem, seen = [], set()
 for c in callsM:
-    if c['kind'] == 'triton' and 'triton_tem_' in c['name']:
+    if c['kind'] == 'triton' and 'triton_tem_' in c['name'] and c['name'] not in seen:
+        seen.add(c['name'])
         r = rowsM.get(c['name']) or {}
-        tem.append({'kernel': c['name'], 'fused_ops': sorted(set(c.get('ops') or [])), 'time_us_per_pass': r.get('time_us_per_pass'), 'launches_per_pass': r.get('launches_per_pass')})
+        tem.append({'kernel': c['name'], 'fused_ops': sorted(set(c.get('ops') or [])), 'ops_source': c.get('ops_source'), 'time_us_per_pass': r.get('time_us_per_pass'), 'launches_per_pass': r.get('launches_per_pass')})
 by_ops = collections.defaultdict(lambda: {'kernels': 0, 'launches': 0, 'time_ms': 0.0})
 for t in tem:
     k = ','.join(t['fused_ops']); by_ops[k]['kernels'] += 1; by_ops[k]['launches'] += t['launches_per_pass'] or 0; by_ops[k]['time_ms'] += (t['time_us_per_pass'] or 0) / 1e3
@@ -52,9 +66,11 @@ e2['template_count'] = len(tem)
 # which fused-op signatures present in C3 (triton kernels) are absent in C3M, and vice versa (moved into templates or elsewhere)
 def sig_table(calls, rows):
     d = collections.defaultdict(lambda: {'kernels': 0, 'launches': 0, 'time_ms': 0.0})
+    seen = set()
     for c in calls:
-        if c['kind'] != 'triton':
+        if c['kind'] != 'triton' or c['name'] in seen:
             continue
+        seen.add(c['name'])
         r = rows.get(c['name']) or {}
         s = signature(c); k = f"{s[0]}|{','.join(s[1])}|{s[2]}"
         d[k]['kernels'] += 1; d[k]['launches'] += r.get('launches_per_pass') or 0; d[k]['time_ms'] += (r.get('time_us_per_pass') or 0) / 1e3

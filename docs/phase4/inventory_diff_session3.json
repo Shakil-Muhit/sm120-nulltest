@@ -20,23 +20,70 @@
   },
   "class_deltas_ms (C3 - C3M)": {
    "FFT": -0.0004,
-   "OTHER": -0.0007,
    "GEMM": 2.3836,
+   "OTHER": -0.0007,
    "SDPA": 0.0334,
-   "INDUCTOR_FUSED": 2.5713,
-   "COPY": 0.0005
+   "COPY": 0.0005,
+   "INDUCTOR_FUSED": 2.5713
   },
   "sum_of_class_deltas_ms": 4.9877,
   "templates_by_fused_ops": {
-   "": {
-    "kernels": 178,
-    "launches": 4240.0,
-    "time_ms": 98.3981
+   "aten._to_copy,aten.bmm,aten.div,aten.mul": {
+    "kernels": 4,
+    "launches": 24.0,
+    "time_ms": 3.5141
+   },
+   "aten.addmm,aten.gelu": {
+    "kernels": 1,
+    "launches": 12.0,
+    "time_ms": 3.4842
+   },
+   "aten.mm": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 1.0338
+   },
+   "aten.addmm,aten.tanh": {
+    "kernels": 1,
+    "launches": 60.0,
+    "time_ms": 0.4779
+   },
+   "aten._to_copy,aten.addmm": {
+    "kernels": 48,
+    "launches": 70.0,
+    "time_ms": 0.2831
    }
   },
-  "template_count": 178,
-  "triton_signatures_gone_in_C3M": {},
-  "triton_signatures_new_in_C3M": {},
+  "template_count": 56,
+  "triton_signatures_gone_in_C3M": {
+   "triton|aten.gelu|": {
+    "kernels": 1,
+    "launches": 12.0,
+    "time_ms": 2.1268
+   }
+  },
+  "triton_signatures_new_in_C3M": {
+   "triton|aten._to_copy,aten.bmm,aten.div,aten.mul|": {
+    "kernels": 4,
+    "launches": 24.0,
+    "time_ms": 3.5141
+   },
+   "triton|aten.addmm,aten.gelu|": {
+    "kernels": 1,
+    "launches": 12.0,
+    "time_ms": 3.4842
+   },
+   "triton|aten.addmm,aten.tanh|": {
+    "kernels": 1,
+    "launches": 60.0,
+    "time_ms": 0.4779
+   },
+   "triton|aten._to_copy,aten.addmm|": {
+    "kernels": 48,
+    "launches": 70.0,
+    "time_ms": 0.2831
+   }
+  },
   "note": "class totals are node-level traced device time per pass (perturbed); their deltas are descriptive and need not sum to the unprofiled 4.80 ms; templates fuse the listed ops"
  },
  "E1_C3_vs_C3G_352800": {
@@ -60,11 +107,11 @@
   },
   "class_deltas_ms (C3 - C3G)": {
    "FFT": -0.0005,
-   "OTHER": -0.0007,
    "GEMM": -0.1235,
+   "OTHER": -0.0007,
    "SDPA": 0.0118,
-   "INDUCTOR_FUSED": 1.2133,
-   "COPY": 0.0131
+   "COPY": 0.0131,
+   "INDUCTOR_FUSED": 1.2133
   },
   "kernel_launches_per_pass": {
    "C3": 1143.0,
@@ -72,18 +119,39 @@
   },
   "param_only_casts": {
    "C3": {
-    "triton||param-only": {
-     "kernels": 420,
-     "launches": 17542.0,
-     "time_ms": 50.3506
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.9152
     }
    },
    "C3G": {}
   },
-  "signatures_gone_in_C3G (non-cast)": {},
-  "signatures_new_in_C3G": {},
+  "signatures_gone_in_C3G (non-cast)": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.cos,aten.mul,aten.sin|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 1.352
+   }
+  },
+  "signatures_new_in_C3G": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.mul|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 1.3838
+   },
+   "triton|aten.sigmoid|": {
+    "kernels": 12,
+    "launches": 12.0,
+    "time_ms": 0.0096
+   }
+  },
   "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {
-   "triton||": 2.3987
+   "triton|aten._to_copy,aten.div,aten.linalg_vector_norm,aten.mul|": 0.0264,
+   "triton|aten.mul,aten.sigmoid|": 0.0246,
+   "triton|aten.mm|": -0.0213,
+   "triton|aten._to_copy,aten.add,aten.div,aten.linalg_vector_norm,aten.mul|": 0.3549,
+   "triton|aten.gelu|": -0.0704
   },
   "sum_of_class_deltas_ms": 1.1135
  },
@@ -108,11 +176,11 @@
   },
   "class_deltas_ms (C3 - C3G)": {
    "FFT": -0.0001,
-   "OTHER": 0.0002,
    "GEMM": -0.368,
+   "OTHER": 0.0002,
    "SDPA": 0.0001,
-   "INDUCTOR_FUSED": 0.8598,
-   "COPY": 0.0023
+   "COPY": 0.0023,
+   "INDUCTOR_FUSED": 0.8598
   },
   "kernel_launches_per_pass": {
    "C3": 1151.0,
@@ -120,19 +188,34 @@
   },
   "param_only_casts": {
    "C3": {
-    "triton||param-only": {
-     "kernels": 420,
-     "launches": 17542.0,
-     "time_ms": 46.5631
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.8532
     }
    },
    "C3G": {}
   },
-  "signatures_gone_in_C3G (non-cast)": {},
-  "signatures_new_in_C3G": {},
-  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {
-   "triton||": 0.1999
+  "signatures_gone_in_C3G (non-cast)": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.cos,aten.mul,aten.sin|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 0.0159
+   }
   },
+  "signatures_new_in_C3G": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.mul|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 0.0152
+   },
+   "triton|aten.sigmoid|": {
+    "kernels": 12,
+    "launches": 12.0,
+    "time_ms": 0.0064
+   }
+  },
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {},
   "sum_of_class_deltas_ms": 0.4943
  }
 }

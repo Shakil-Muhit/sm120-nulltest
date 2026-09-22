@@ -27,7 +27,7 @@ case "$CMD" in
     $SSH "tmux has-session -t run 2>/dev/null && { echo 'FATAL: a session is running'; exit 1; }
           set -e; cd /root/sm120-nulltest && git fetch -q /root/sm120.bundle HEAD && git checkout -q $COMMIT && git status --porcelain --untracked-files=no | wc -l && git rev-parse HEAD"
     ;;
-  session1|session2|session3)
+  session1|session2|session3|session4)
     $SSH "cd /root/sm120-nulltest && mkdir -p evidence && { [ -e evidence/.terminating ] && { echo 'FATAL: termination lock present'; exit 1; }; tmux has-session -t run 2>/dev/null && { echo 'FATAL: a tmux session named run already exists'; exit 1; }; }
           export MSST_DIR=/root/work/msst CLIPS_DIR=/root/work/sdr_clips PYTHONDONTWRITEBYTECODE=1 SESSION_POD=1 ${SESSION_ENV:-}
           tmux new -d -s run \"export SESSION_POD=1 ${SESSION_ENV:-PYTHONDONTWRITEBYTECODE=1}; bash scripts/$CMD.sh > evidence/${CMD}.log 2>&1; echo EXIT=\\\$? >> evidence/${CMD}.log\"
@@ -83,5 +83,5 @@ case "$CMD" in
     echo "terminating pod $POD_ID (melband_profiling) — production pods untouched; evidence at $D"
     runpodctl pod delete "$POD_ID"
     ;;
-  *) echo "usage: $0 ship|session1|session2|session3|tail [name]|status|extract|terminate"; exit 2 ;;
+  *) echo "usage: $0 ship|session1|session2|session3|session4|tail [name]|status|extract|terminate"; exit 2 ;;
 esac

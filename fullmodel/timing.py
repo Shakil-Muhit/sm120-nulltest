@@ -185,25 +185,30 @@ def graph_gate(require_zero_breaks):
     return rec
 
 
-def timed_run(step, x, ctx, iters=50, nvtx_pass=False):
+def timed_run(step, x, ctx, iters=50, nvtx_pass=False, profiler=True, nvtx_prefix='pass'):
     """PREREG 5a — PRIMARY per-iteration latency (sync every pass) inside the
     cudaProfilerApi capture range; SECONDARY one free-running block outside it.
     nvtx_pass=True pushes an OUTER eager NVTX range per pass (traced runs:
-    pass windows for the exports; never inside compiled code)."""
+    pass windows for the exports; never inside compiled code).
+    profiler=False (Phase 4, matched-process profiling): the caller owns the
+    cudaProfilerApi start/stop so that one capture can span both arms of a repeat;
+    nvtx_prefix names the pass ranges per arm ('<arm>_pass_<i>')."""
     with torch.no_grad(), ctx():
         torch.cuda.synchronize()
-        torch.cuda.profiler.start()
+        if profiler:
+            torch.cuda.profiler.start()
         latency_ms = []
         for i in range(iters):
             if nvtx_pass:
-                torch.cuda.nvtx.range_push(f'pass_{i}')
+                torch.cuda.nvtx.range_push(f'{nvtx_prefix}_{i}')
             t0 = time.perf_counter()
             step(x)
             torch.cuda.synchronize()
             latency_ms.append((time.perf_counter() - t0) * 1e3)
             if nvtx_pass:
                 torch.cuda.nvtx.range_pop()
-        torch.cuda.profiler.stop()
+        if profiler:
+            torch.cuda.profiler.stop()
 
         torch.cuda.synchronize()
         t0 = time.perf_counter()
