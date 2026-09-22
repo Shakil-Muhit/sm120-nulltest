@@ -17,6 +17,9 @@ One note per source, in the sweep's reading order (`Related work for the SM120 s
 | 11 | `11_hoefler_belli_kalibera_jones.md` | Hoefler & Belli (SC '15) with Kalibera & Jones (ISMM 2013) |
 | 12 | `12_taxbreak_ispass2026.md` | TaxBreak (ISPASS 2026) |
 | 13 | `13_pygraph.md` | PyGraph (arXiv 2503.19779v2) |
+| 14 | `14_abdelfattah_batched_gemm_isc2016.md` | Abdelfattah et al., batched/vbatched GEMM (ISC 2016) — contribution-test source |
+| 15 | `15_llamacpp_pr27637_moe_matmul_by_batch_size.md` | llama.cpp PR #27637, kernel choice by batch size (2026-09-15) — contribution-test source |
+| 16 | `16_tensorrt_optimization_profiles.md` | TensorRT 11.3 dynamic shapes / optimization profiles — contribution-test source |
 
 Sources read for the F-table but not given a full note (facts recorded in the table rows with their identifiers): PyTorch 2 (ASPLOS 2024), TorchBench, Framework Tax (EMNLP 2023; `scratchpad` extraction), RTX Blackwell whitepaper Table 3, Luo et al. (arXiv 2501.12084v2), pytorch #123558, vLLM #28234, torch v2.8.0 `Blas.cpp`, MegaBlocks, TMA-Adaptive, python-audio-separator PR #298, FlashInfer PR #5315, NVIDIA GB10 forum thread (Feb 2026), NVIDIA constant-time launch post (2024-09-11), CUDA programming guide (PDL).
 

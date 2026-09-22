@@ -5952,3 +5952,1250 @@ e4a_decision.json
 {'C3_minus_C3M_8s_median_ms': 4.796455381438136, 'eligible_restarts': 3, 'C3M_qualification': {'352800': {'sdr': 'PASS', 'run_status': 'VALID', 'validation': 'PASS', 'graph_verify': 'FULLY_GRAPHED'}, '4410': {'sdr': 'PASS', 'run_status': 'VALID', 'validation': 'PASS', 'graph_verify': 'FULLY_GRAPHED'}}, 'quality_ok': True, 'rule': 'registered E4a (gate-09 f131): control = C3M and mode = max-autotune iff C3M beat C3 at 8 s by >= 1.0 ms (E2 prediction floor) AND C3M is quality-eligible at both operating points (r1 VALID, validation PASS, SDR PASS, FULLY_GRAPHED); else control = C3, mode = reduce-overhead', 'control': 'C3M', 'mode': 'max-autotune'}
 Ledger sources {'X': 'X1 graph-break removal', 'O': 352800, 'status': 'ok', 'T_attributable_ms': 6.741192773915827, 'f_recoverable': 1.0, 'Y_ms': 6.741192773915827, 'Z_pct': 23.34902723812758, 'T_wall_ms': 28.87140738312155, 'conf': 'A', 'effort': 'wrapper', 'quality_risk': 'none (validated)', 'group': '—', 'evidence': 'matched_C1_C3_c352800_m1..m3.json (median over alternating blocks)', 'would_be_lower_if': 'C1 recovered part of its breaks without the vendored repair', 'label': 'MEASURED', 'caveats': [], 'note': ''}
 
+exec
+/usr/bin/bash -lc 'cat docs/phase3/e9/e9_residual.json' in /home/muhit/ms/sm120-nulltest
+exec
+/usr/bin/bash -lc "rg -n '"'^def |pair_eligible|matched_delta_ms|latency_median_ms|latency_ms|repeat|sdr'"' fullmodel/qualify.py fullmodel/collect_full.py" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+{
+ "registered_variant": "sweep_refit_THNone_TCNone",
+ "in_sample_residuals_ms (pred - obs)": {
+  "352800": 0.09291909328568515,
+  "4410": 0.17880192046810084,
+  "22050": 0.13986987858544708,
+  "88200": -0.41800027847450494
+ },
+ "held_out": {
+  "176400": {
+   "frames": 401,
+   "observed": 1.1288269888609648,
+   "predicted": 0.368239512112225,
+   "residual_obs_minus_pred_ms": 0.7605874767487397,
+   "terms_registered": {
+    "rate_H": 108.24977759559428,
+    "rate_C3": 70.78606129575306,
+    "pad": 0.5961817533621114,
+    "eff": -0.8011046230692712,
+    "nf": 0.32320347468354416,
+    "mid": 0.08028013291139309,
+    "B": 0.5668002500000024
+   },
+   "to_absorb_alone": {
+    "rate_C3_TFLOPS (registered -> needed)": [
+     70.78606129575306,
+     53.279406929341675
+    ],
+    "rate_H_TFLOPS (registered -> needed)": [
+     108.24977759559428,
+     217.58090139853655
+    ],
+    "padding_cost_ms (registered -> needed)": [
+     0.5961817533621114,
+     -0.1644057233866283
+    ],
+    "fixed_B_ms (registered -> needed)": [
+     0.5668002500000024,
+     1.3273877267487422
+    ]
+   },
+   "note": "B is fixed by the two traces (0.552/0.582 ms), so a B change of this size is excluded; the padding term is bounded by the extra FLOPs and cannot go negative; the residual therefore points at the rate curves (kernel-efficiency term)"
+  },
+  "264600": {
+   "frames": 601,
+   "observed": 0.6722906837239861,
+   "predicted": -0.014920697301044394,
+   "residual_obs_minus_pred_ms": 0.6872113810250305,
+   "terms_registered": {
+    "rate_H": 114.31943502043337,
+    "rate_C3": 81.84589456567727,
+    "pad": 0.8460883645087256,
+    "eff": -0.852306721005148,
+    "nf": 0.46756448734177203,
+    "mid": 0.12037481645569723,
+    "B": 0.5668002500000024
+   },
+   "to_absorb_alone": {
+    "rate_C3_TFLOPS (registered -> needed)": [
+     81.84589456567727,
+     66.59356256034938
+    ],
+    "rate_H_TFLOPS (registered -> needed)": [
+     114.31943502043337,
+     168.0944509649221
+    ],
+    "padding_cost_ms (registered -> needed)": [
+     0.8460883645087256,
+     0.15887698348369506
+    ],
+    "fixed_B_ms (registered -> needed)": [
+     0.5668002500000024,
+     1.2540116310250329
+    ]
+   },
+   "note": "B is fixed by the two traces (0.552/0.582 ms), so a B change of this size is excluded; the padding term is bounded by the extra FLOPs and cannot go negative; the residual therefore points at the rate curves (kernel-efficiency term)"
+  }
+ },
+ "residual_by_length_ms (pred - obs)": [
+  [
+   4410,
+   0.17880192046810084
+  ],
+  [
+   22050,
+   0.13986987858544708
+  ],
+  [
+   88200,
+   -0.41800027847450494
+  ],
+  [
+   176400,
+   -0.7605874767487397
+  ],
+  [
+   264600,
+   -0.6872113810250305
+  ],
+  [
+   352800,
+   0.09291909328568515
+  ]
+ ],
+ "reading": "the residual (pred \u2212 obs) is near zero at 4,410 and 22,050, negative from 88,200 through 264,600 (the model under-predicts H's advantage at mid lengths) and positive at 352,800: a shape that the two-point saturating rate curves cannot follow; the efficiency term (per-band C3 GEMM rate vs batched H rate as a function of frames) is where the model is wrong. No refit is performed."
+}
+ succeeded in 0ms:
+fullmodel/collect_full.py:10:Matched pairs: a pair headline requires m1, m2 AND m3 all pair_eligible with
+fullmodel/collect_full.py:33:def bind_restarts(evidence_dir):
+fullmodel/collect_full.py:48:def load(evidence_dir):
+fullmodel/collect_full.py:57:def variant(r):
+fullmodel/collect_full.py:62:def sdr_from_r1(tag_runs, chunk, manifest_id, var):
+fullmodel/collect_full.py:66:    probs = qualify.sdr_problems(r1, chunk, manifest_id, var)
+fullmodel/collect_full.py:67:    g = (r1 or {}).get('sdr_gate') or {}
+fullmodel/collect_full.py:68:    return (g.get('status', 'NONE') if not probs else 'NONE'), g.get('mean_delta_sdr_ref_db'), ('; '.join(probs) or None)
+fullmodel/collect_full.py:71:def cell(tag_runs):
+fullmodel/collect_full.py:80:    sdr, sdr_delta, sdr_note = sdr_from_r1(tag_runs, chunk, manifest_id, var)
+fullmodel/collect_full.py:85:         'sdr_gate': sdr, 'mean_delta_sdr_ref_db': sdr_delta, 'sdr_note': sdr_note,
+fullmodel/collect_full.py:109:    if sdr != 'PASS':
+fullmodel/collect_full.py:110:        c['reasons'].append(f'SDR qualification (r1) at this operating point: {sdr}' + (f' ({sdr_note})' if sdr_note else ''))
+fullmodel/collect_full.py:131:def fmt(v, spec='.4f'):
+fullmodel/collect_full.py:135:def pair_summaries(evidence_dir, cells, runs, verbose=False):
+fullmodel/collect_full.py:169:            if not ca or ca['sdr_gate'] != 'PASS':
+fullmodel/collect_full.py:170:                reasons.append(f'{arm}: SDR qualification at {chunk} is {(ca or {}).get("sdr_gate", "NONE")}')
+fullmodel/collect_full.py:179:            if m and rec_d.get(t) and (m.get('matched_delta_ms') or {}).get('median') is not None:
+fullmodel/collect_full.py:180:                if abs(rec_d[t]['median'] - m['matched_delta_ms']['median']) > 1e-9:
+fullmodel/collect_full.py:183:        entry = {'required': {t: (m or {}).get('pair_eligible') for t, m in req.items()},
+fullmodel/collect_full.py:196:def main():
+fullmodel/collect_full.py:211:            print(f"| {arm} | {chunk} | {st} | {'/'.join(c['tier'])} | {c['sdr_gate']} "
+fullmodel/collect_full.py:212:                  f"({fmt(c['mean_delta_sdr_ref_db'], '+.3f')}) | {c['headline_status']} | "
+fullmodel/qualify.py:20:def base(arm):
+fullmodel/qualify.py:29:def compile_stable(before, after):
+fullmodel/qualify.py:43:def snapshot_complete(x):
+fullmodel/qualify.py:74:def recording_stable(a, b):
+fullmodel/qualify.py:87:def _finite(x):
+fullmodel/qualify.py:91:def _close(a, b, rel=1e-9, ab=1e-9):
+fullmodel/qualify.py:95:def _median(xs):
+fullmodel/qualify.py:101:def recomputed_timing(timing, iters, repeats):
+fullmodel/qualify.py:106:    if len(blocks) != repeats:
+fullmodel/qualify.py:108:    if [b.get('repeat') for b in blocks] != list(range(repeats)):
+fullmodel/qualify.py:112:        lat = b.get('latency_ms_per_iter') or []
+fullmodel/qualify.py:118:        if not (_close(b.get('latency_median_ms'), _median(lat), 1e-9, 1e-9)
+fullmodel/qualify.py:130:    if lm is not None and not (isinstance(lm, list) and len(lm) == repeats
+fullmodel/qualify.py:134:    if sd is not None and not (isinstance(sd, list) and len(sd) == repeats and all(_finite(x) for x in sd)):
+fullmodel/qualify.py:140:    if t.get('repeats') != repeats or t.get('iters_per_block') != iters:
+fullmodel/qualify.py:145:def variant(rec):
+fullmodel/qualify.py:151:def _blocks_ok(timing, iters, repeats):
+fullmodel/qualify.py:154:    if timing.get('repeats') != repeats or timing.get('iters_per_block') != iters:
+fullmodel/qualify.py:155:        return (f"protocol {timing.get('repeats')}x{timing.get('iters_per_block')} "
+fullmodel/qualify.py:156:                f"is not the registered {repeats}x{iters}")
+fullmodel/qualify.py:158:    if len(blocks) != repeats:
+fullmodel/qualify.py:159:        return f'{len(blocks)} blocks recorded, {repeats} required'
+fullmodel/qualify.py:161:        if len(b.get('latency_ms_per_iter') or []) != iters:
+fullmodel/qualify.py:168:def reference_hashes(rec, include_clips=False):
+fullmodel/qualify.py:177:        for row in (rec.get('sdr_gate') or {}).get('clips') or []:
+fullmodel/qualify.py:183:def validation_problems(rec):
+fullmodel/qualify.py:231:def sdr_recomputed(gate):
+fullmodel/qualify.py:244:        a, b = r.get('sdr_ref_db'), r.get('sdr_ref_A_db')
+fullmodel/qualify.py:247:        if not _close(r.get('delta_sdr_ref_db'), a - b, 1e-9, 1e-9):
+fullmodel/qualify.py:254:    if gate.get('mean_delta_sdr_ref_db') is None or not _close(gate['mean_delta_sdr_ref_db'], mean, 1e-9, 1e-9):
+fullmodel/qualify.py:261:def required_phases(rec):
+fullmodel/qualify.py:266:    if rec.get('sdr_gate'):
+fullmodel/qualify.py:267:        phases.append('after_sdr')
+fullmodel/qualify.py:271:def stability_recomputed(rec):
+fullmodel/qualify.py:284:def gate_problems(arm, gate, snapshot_after_settle):
+fullmodel/qualify.py:310:def run_problems(rec, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS,
+fullmodel/qualify.py:328:        b = _blocks_ok(rec.get('timing'), iters, repeats)
+fullmodel/qualify.py:343:        rt = recomputed_timing(rec['timing'], iters, repeats)
+fullmodel/qualify.py:351:    if rec.get('sdr_gate') and rec['sdr_gate'].get('status') != 'REFERENCE_SAVED':
+fullmodel/qualify.py:352:        st, why = sdr_recomputed(rec['sdr_gate'])
+fullmodel/qualify.py:361:def trace_problems(rec, iters=REGISTERED_ITERS):
+fullmodel/qualify.py:389:def sdr_problems(rec, chunk, manifest_id, var):
+fullmodel/qualify.py:392:    if not rec or not rec.get('sdr_gate'):
+fullmodel/qualify.py:395:    g = rec['sdr_gate']
+fullmodel/qualify.py:402:    st, why = sdr_recomputed(g)
+fullmodel/qualify.py:410:def pair_problems(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
+fullmodel/qualify.py:418:    if (m.get('iters'), m.get('repeats')) != (iters, repeats):
+fullmodel/qualify.py:419:        problems.append(f"protocol {m.get('repeats')}x{m.get('iters')} is not the registered {repeats}x{iters}")
+fullmodel/qualify.py:432:    if rounds < 1 or len(jsn) != rounds + 2 or len(list(sn.get('blocks') or [])) != repeats * 2 \
+fullmodel/qualify.py:447:    if m.get('pair_eligible') is False and not problems:
+fullmodel/qualify.py:466:        blocks = sorted((b for b in (m.get('blocks') or []) if b.get('arm') == arm), key=lambda b: b.get('repeat', -1))
+fullmodel/qualify.py:467:        if len(blocks) != repeats or any(len(b.get('latency_ms_per_iter') or []) != iters for b in blocks) \
+fullmodel/qualify.py:468:                or [b.get('repeat') for b in blocks] != list(range(repeats)):
+fullmodel/qualify.py:469:            problems.append(f'{arm}: blocks do not hold the registered {repeats}x{iters} with unique repeat ids')
+fullmodel/qualify.py:473:            meds = [_median(b['latency_ms_per_iter']) for b in blocks]
+fullmodel/qualify.py:474:            if not (all(_close(b.get('latency_median_ms'), mm, 1e-9, 1e-9) for b, mm in zip(blocks, meds))
+fullmodel/qualify.py:475:                    and isinstance(a.get('latency_medians_ms'), list) and len(a['latency_medians_ms']) == repeats
+fullmodel/qualify.py:481:    # timestamps whose (repeat, arm) order is exactly (0,a),(0,b),(1,a),(1,b),...
+fullmodel/qualify.py:488:        expected = [(r, arm) for r in range(repeats) for arm in (a_, b_)]
+fullmodel/qualify.py:489:        if [(x.get('repeat'), x.get('arm')) for x in order] != expected:
+fullmodel/qualify.py:495:    d = m.get('matched_delta_ms') or {}
+fullmodel/qualify.py:496:    rd = recomputed_matched_delta(m, iters, repeats)
+fullmodel/qualify.py:500:        ok = (isinstance(d.get('a_minus_b_per_block'), list) and len(d['a_minus_b_per_block']) == repeats
+fullmodel/qualify.py:505:        elif not all(all(_finite(x) and x > 0 for x in b['latency_ms_per_iter']) for b in blocks):
+fullmodel/qualify.py:507:        elif not all(_close(b.get('latency_median_ms'), _median(b['latency_ms_per_iter']), 1e-9, 1e-9) for b in blocks):
+fullmodel/qualify.py:515:def recomputed_matched_delta(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
+fullmodel/qualify.py:520:        blocks = sorted((x for x in (m.get('blocks') or []) if x.get('arm') == arm), key=lambda x: x.get('repeat', 0))
+fullmodel/qualify.py:521:        if len(blocks) != repeats or [x.get('repeat') for x in blocks] != list(range(repeats)):
+fullmodel/qualify.py:523:        if any(len(x.get('latency_ms_per_iter') or []) != iters or
+fullmodel/qualify.py:524:               not all(_finite(v) and v > 0 for v in x['latency_ms_per_iter']) for x in blocks):
+fullmodel/qualify.py:526:        per[arm] = [_median(x['latency_ms_per_iter']) for x in blocks]
+
+exec
+/usr/bin/bash -lc "git log -5 --format='%h %s'" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+11509bb Phase 3 execution report (2026-09-22): results, ledger, audits, deviations, open items
+463c923 Phase 3 session-3 outputs: SESSION3_RESULT.md, LEDGER.md/json with realized/ceiling from the pod pairs, figure CSVs, E9 residual attribution; gate-10 prompt; result generator fixes (E6/E4a verdict lines, E5 wording)
+940cd26 e_tools: E9 post-hoc residual attribution (which term the residual points at; no refit); Phase-3 execution report skeleton
+ed3ea3d session 3: 5 Hz clock sampler; analysis tools list; final-shakedown note in the registration
+5109c8c completeness: clock-drift consequences scoped per comparison (flagged restarts noted; a stage fails only with no clean restart)
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json
+from pathlib import Path
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence')
+s=json.loads((p/'session_status.json').read_text())
+for i in s['items']:
+ if i.get('note') and ('clock' in i['note'] or 'clock' in i['item']): print(i['item'], i['complete'], i['note'])
+print('CONFIG',json.loads((p/'session3_config.json').read_text()))
+m=json.loads((p/'matched_C3_C3G_c4410_m3.json').read_text())
+print('PAIR STRUCTURE', {k: (list(v.keys()) if isinstance(v,dict) else (('len',len(v)) if isinstance(v,list) else v)) for k,v in m.items()})
+print('FIRST BLOCK', {k: (list(v.keys()) if isinstance(v,dict) else ('len',len(v)) if isinstance(v,list) else v) for k,v in m['blocks'][0].items()})
+print('ARMS STRUCTURE', {a: {k:(list(v.keys()) if isinstance(v,dict) else ('len',len(v)) if isinstance(v,list) else v) for k,v in r.items()} for a,r in m['arms'].items()})
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+clock drift <= 5 % between compared blocks: 233 comparisons, 11 flagged (informational; consequences are scoped per comparison) True flagged: (('C3M', 'C3N'), 4410, 'm1'): ['rep 0: 2572 vs 2771 MHz (7.4 %)']; (('C3', 'C3F'), 4410, 'm1'): ['rep 0: 2572 vs 2940 MHz (13.4 %)']; (('C3', 'C3F'), 4410, 'm3'): ['rep 0: 2617 vs 2977 MHz (12.9 %)']; (('C3', 'C3G'), 4410, 'm3'): ['rep 0: 2572 vs 2977 MHz (14.6 %)']; (('C3', 'C3P'), 4410, 'm3'): ['rep 1: 2820 vs 2977 MHz (5.4 %)']; (('C3', 'C3#2'), 4410, 'm1'): ['rep 0: 2662 vs 2816 MHz (5.6 %)']; ('C1', 4410): ['restarts: 2580–2970 MHz (13.4 %)']; ('C3G', 4410): ['restarts: 2572–2977 MHz (14.4 %)']; ('C3P', 4410): ['restarts: 2595–2977 MHz (13.5 %)']; ('C3', 4410): ['restarts: 2572–2970 MHz (13.9 %)']
+E6 headline C3@4410 (r1..r5, SDR in r1) True clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2572–2970 MHz (13.9 %)']
+E6 headline H@4410 (r1..r5, SDR in r1) True clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2602–2992 MHz (13.6 %)']
+E6 headline C1@4410 (r1..r5, SDR in r1) True clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2580–2970 MHz (13.4 %)']
+E1 matched C3 vs C3F @4410 (m1) True clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2940 MHz (13.4 %)']
+E1 matched C3 vs C3F @4410 (m3) True clock-drift flagged (registered 5 % rule): ['rep 0: 2617 vs 2977 MHz (12.9 %)']
+E1(a') matched C3 vs C3G @4410 (m3) True clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2977 MHz (14.6 %)']
+E1(b) matched C3 vs C3P @4410 (m3) True clock-drift flagged (registered 5 % rule): ['rep 1: 2820 vs 2977 MHz (5.4 %)']
+E4a matched C3M vs C3N @4410 (m1) True clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2771 MHz (7.4 %)']
+CONFIG {'shakedown': False, 'session_pod': True, 'headline_restarts': 5, 'pair_restarts': 3, 'e5_variants': ['d1_mfull', 'd1_mquarter', 'd6_mfull', 'd6_mquarter'], 'e5_restarts': 2, 'e9_registration': '/root/sm120-nulltest/docs/phase3/e9/e9_cost_model.json', 'e9_registration_sha256': '49aab56ff7c52683f59f50fdd03c872ff47669241c2b7ff433d0d58b3581d4a6'}
+PAIR STRUCTURE {'pair': ('len', 2), 'chunk': 4410, 'tag': 'm3', 'status': 'VALID', 'aa_pair': False, 'variant': None, 'error': None, 'env': ['torch', 'triton', 'cuda_build', 'driver', 'gpu', 'gpu_uuid', 'l2_cache_bytes', 'sm_count', 'total_memory_bytes', 'capability', 'python', 'hostname', 'cuda_visible_devices', 'timestamp_utc'], 'arms': ['C3', 'C3G'], 'blocks': ('len', 10), 'iters': 50, 'repeats': 5, 'torch_logs_env': 'graph_breaks,recompiles,cudagraphs', 'manifest_id': 'f79ad489-ef18-4316-a3b2-a07c21812e3d', 'pair_eligible': True, 'ineligibility_reasons': ('len', 0), 'provenance': ['msst_commit', 'msst_clean', 'ckpt_sha256', 'config', 'config_sha256', 'torch', 'triton'], 'joint_settle': ['stable', 'new_breaks_during_joint_settle', 'rounds', 'rounds_executed', 'warmup_rounds', 'policy', 'transition_verdicts', 'snapshots'], 'snapshots': ['joint_settle', 'before_validation', 'after_validation', 'blocks'], 'matched_delta_ms': ['a_minus_b_per_block', 'median', 'min', 'max', 'median_pct_of_a'], 'effective_variants': ['C3', 'C3G'], 'qualify_version': 5}
+FIRST BLOCK {'repeat': 0, 'arm': 'C3', 'latency_median_ms': 3.3018625108525157, 'throughput_ms_per_pass': 3.077179817482829, 'latency_ms_per_iter': ('len', 50), 'unix_start': 1790043734.7447047, 'unix_end': 1790043735.0767174, 'counters_stable': True}
+ARMS STRUCTURE {'C3': {'build_status': 'OK', 'settle': ['settle_iters', 'settle_stable_tail', 'settle_capped', 'settle_wall_s', 'dynamo_counters'], 'graph_gate': ['graph_break_count', 'unimplemented_count', 'unique_graphs', 'cudagraph_counters', 'suppress_errors', 'require_zero_breaks', 'graph_break_reasons', 'status'], 'gate_snapshot': ['counters', 'tree'], 'capture_scope': None, 'capture_adapter_active': None, 'compile_mode': 'reduce-overhead', 'stream_count': None, 'validation': ['status', 'tier', 'rtol', 'atol', 'passes'], 'latency_medians_ms': ('len', 5), 'min_of_medians_ms': 3.2380030024796724, 'median_spread_ms': 0.06385950837284327}, 'C3G': {'build_status': 'OK', 'settle': ['settle_iters', 'settle_stable_tail', 'settle_capped', 'settle_wall_s', 'dynamo_counters'], 'graph_gate': ['graph_break_count', 'unimplemented_count', 'unique_graphs', 'cudagraph_counters', 'suppress_errors', 'require_zero_breaks', 'graph_break_reasons', 'status'], 'gate_snapshot': ['counters', 'tree'], 'capture_scope': None, 'capture_adapter_active': None, 'compile_mode': 'reduce-overhead+freezing+noinline', 'stream_count': None, 'validation': ['status', 'tier', 'rtol', 'atol', 'passes'], 'latency_medians_ms': ('len', 5), 'min_of_medians_ms': 2.5697144446894526, 'median_spread_ms': 0.07679371628910303}}
+
+codex
+The pod audit flagged clock drift in several 4,410-sample restarts, including the only A/A restart, but the report still uses them. I’m calculating the effect of excluding them and checking whether the audit enforces the amended “at least one clean restart” rule.
+exec
+/usr/bin/bash -lc "nl -ba fullmodel/qualify.py | sed -n '310,410p;410,538p'" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+   310	def run_problems(rec, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS,
+   311	                 require_manifest=True, require_timing=True):
+   312	    """All reasons a single-arm record is NOT a qualified measurement."""
+   313	    problems = []
+   314	    if rec is None:
+   315	        return ['record missing']
+   316	    if rec.get('status') != 'VALID':
+   317	        problems.append(f"status {rec.get('status')}")
+   318	    if rec.get('arm') == 'ANVTX':
+   319	        problems.append('attribution arm')
+   320	    if rec.get('nvtx_pass'):
+   321	        problems.append('traced/attribution run')
+   322	    if rec.get('planted_fault') or rec.get('planted_fault_const') is not None:
+   323	        problems.append('planted fault run')
+   324	    problems += validation_problems(rec)
+   325	    if require_manifest and not rec.get('manifest_id'):
+   326	        problems.append('not bound to a session manifest')
+   327	    if require_timing:
+   328	        b = _blocks_ok(rec.get('timing'), iters, repeats)
+   329	        if b:
+   330	            problems.append(b)
+   331	    if not rec.get('effective_variant') and any(k in rec for k in VARIANT_FIELDS):
+   332	        problems.append('effective variant not recorded')
+   333	    if base(rec.get('arm')) in COMPILE_ARMS:
+   334	        st = stability_recomputed(rec)
+   335	        if rec.get('counters_stable') is not True or st is not True:
+   336	            problems.append('recording stability not affirmatively established from the stored snapshots')
+   337	        s = rec.get('settle') or {}
+   338	        if s.get('settle_capped') or s.get('stable') is False:
+   339	            problems.append('compile settle capped or unstable')
+   340	        problems += gate_problems(rec.get('arm'), rec.get('graph_gate'),
+   341	                                  (rec.get('counter_snapshots') or {}).get('after_settle'))
+   342	    if require_timing and rec.get('timing'):
+   343	        rt = recomputed_timing(rec['timing'], iters, repeats)
+   344	        if rt is None:
+   345	            problems.append('timing samples incomplete or non-finite')
+   346	        else:
+   347	            for k_rec, k_rt in (('min_of_medians_ms', 'min_of_medians_ms'), ('median_spread_ms', 'median_spread_ms'),
+   348	                                ('throughput_ms_per_pass_best', 'throughput_best_ms')):
+   349	                if not _close(rec.get(k_rec), rt[k_rt], 1e-9, 1e-9):
+   350	                    problems.append(f'stored {k_rec} differs from the value recomputed from samples')
+   351	    if rec.get('sdr_gate') and rec['sdr_gate'].get('status') != 'REFERENCE_SAVED':
+   352	        st, why = sdr_recomputed(rec['sdr_gate'])
+   353	        if st != 'PASS':
+   354	            problems.append(f"SDR gate {why or st}")
+   355	    # stored-flag contradictions in BOTH directions (gate-05 f62)
+   356	    if rec.get('headline_eligible') is False and not problems:
+   357	        problems.append(f"stored eligibility flag says ineligible: {rec.get('ineligibility_reasons')}")
+   358	    return problems
+   359	
+   360	
+   361	def trace_problems(rec, iters=REGISTERED_ITERS):
+   362	    """A one-block traced or perturbation run (never a headline): everything a
+   363	    measurement needs except the multi-block protocol; nvtx is allowed."""
+   364	    if rec is None:
+   365	        return ['record missing']
+   366	    problems = []
+   367	    if rec.get('status') != 'VALID':
+   368	        problems.append(f"status {rec.get('status')}")
+   369	    if rec.get('planted_fault') or rec.get('planted_fault_const') is not None:
+   370	        problems.append('planted fault run')
+   371	    problems += validation_problems(rec)
+   372	    if not rec.get('manifest_id'):
+   373	        problems.append('not bound to a session manifest')
+   374	    if recomputed_timing(rec.get('timing'), iters, 1) is None:
+   375	        problems.append('one-block timing samples incomplete, non-finite, or contradicting stored summaries')
+   376	    if not rec.get('effective_variant'):
+   377	        problems.append('effective variant not recorded')
+   378	    if base(rec.get('arm')) in COMPILE_ARMS:
+   379	        st = stability_recomputed(rec)
+   380	        if rec.get('counters_stable') is not True or st is not True:
+   381	            problems.append('recording stability not affirmatively established from the stored snapshots')
+   382	        if (rec.get('settle') or {}).get('settle_capped'):
+   383	            problems.append('compile settle capped')
+   384	        problems += gate_problems(rec.get('arm'), rec.get('graph_gate'),
+   385	                                  (rec.get('counter_snapshots') or {}).get('after_settle'))
+   386	    return problems
+   387	
+   388	
+   389	def sdr_problems(rec, chunk, manifest_id, var):
+   390	    """The registered SDR qualification record for a cell: r1, same manifest,
+   391	    same variant, gate PASS at that operating point, clip outputs lineage-hashed."""
+   392	    if not rec or not rec.get('sdr_gate'):
+   393	        return ['no SDR record in r1']
+   394	    out = []
+   395	    g = rec['sdr_gate']
+   396	    if manifest_id and rec.get('manifest_id') != manifest_id:
+   397	        out.append('r1 SDR record belongs to another manifest')
+   398	    if var and variant(rec) != var:
+   399	        out.append('r1 SDR record has another effective variant')
+   400	    if rec.get('chunk') != chunk:
+   401	        out.append('r1 SDR record operating point mismatch')
+   402	    st, why = sdr_recomputed(g)
+   403	    if st != 'PASS':
+   404	        out.append(f"SDR gate {why or st}")
+   405	    if g.get('operating_point') != chunk:
+   406	        out.append('SDR record operating point mismatch')
+   407	    return out
+   408	
+   409	
+   410	def pair_problems(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
+   410	def pair_problems(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
+   411	    problems = []
+   412	    if m is None:
+   413	        return ['record missing']
+   414	    if m.get('status') != 'VALID':
+   415	        problems.append(f"status {m.get('status')}")
+   416	    if not m.get('manifest_id'):
+   417	        problems.append('not bound to a session manifest')
+   418	    if (m.get('iters'), m.get('repeats')) != (iters, repeats):
+   419	        problems.append(f"protocol {m.get('repeats')}x{m.get('iters')} is not the registered {repeats}x{iters}")
+   420	    js = m.get('joint_settle') or {}
+   421	    if js.get('stable') is not True:
+   422	        problems.append('joint settle not affirmatively stable')
+   423	    if js.get('new_breaks_during_joint_settle'):
+   424	        problems.append('new graph breaks during the joint settle')
+   425	    # every required phase transition recomputed from the stored snapshots (gate-05 f62)
+   426	    sn = m.get('snapshots') or {}
+   427	    rounds = int(js.get('rounds') or 0)
+   428	    jsn = list(sn.get('joint_settle') or [])
+   429	    chain = jsn + [sn.get('before_validation'), sn.get('after_validation')] + list(sn.get('blocks') or [])
+   430	    # exact schema (gate-06 f82): rounds+2 joint-settle snapshots, the two validation
+   431	    # snapshots, and one snapshot per timed block — every one complete
+   432	    if rounds < 1 or len(jsn) != rounds + 2 or len(list(sn.get('blocks') or [])) != repeats * 2 \
+   433	            or any(not snapshot_complete(x) for x in chain):
+   434	        problems.append('matched recording snapshots incomplete or malformed')
+   435	    else:
+   436	        # joint settle: the LAST two alternation rounds must be affirmatively stable (plan 1.2
+   437	        # "stable across two full alternation rounds"); earlier rounds are warm-up (Phase 3,
+   438	        # C1P recorded additional cudagraph paths in its first alternation round). Every
+   439	        # transition after the joint settle (validation, every timed block) must be stable.
+   440	        jv = [recording_stable(a, b) for a, b in zip(jsn, jsn[1:])]
+   441	        tail = [jsn[-1]] + chain[len(jsn):]
+   442	        tv = [recording_stable(a, b) for a, b in zip(tail, tail[1:])]
+   443	        if len(jv) < 2 or any(v is None for v in jv[-2:]) or not all(jv[-2:]):
+   444	            problems.append('joint settle: the last two alternation rounds are not affirmatively stable')
+   445	        if any(v is None for v in tv) or not all(tv):
+   446	            problems.append('recording state changed (or unresolved) across a matched phase transition after the joint settle')
+   447	    if m.get('pair_eligible') is False and not problems:
+   448	        problems.append(f"stored pair flag says ineligible: {m.get('ineligibility_reasons')}")
+   449	    # exactly the two declared arms, each with its full numerical validation
+   450	    # payload and stable blocks (gate-08 f112)
+   451	    if sorted((m.get('arms') or {}).keys()) != sorted(x for x in (m.get('pair') or []) if x):
+   452	        problems.append('matched record does not carry exactly the two declared arms')
+   453	    for arm, a in (m.get('arms') or {}).items():
+   454	        if a.get('build_status') != 'OK':
+   455	            problems.append(f'{arm}: build {a.get("build_status")}')
+   456	            continue
+   457	        problems += [f'{arm}: {x}' for x in validation_problems({'arm': arm, 'validation': a.get('validation')})]
+   458	        arm_blocks = [b for b in (m.get('blocks') or []) if b.get('arm') == arm]
+   459	        if not arm_blocks or not all(b.get('counters_stable') is True for b in arm_blocks):
+   460	            problems.append(f'{arm}: recording not affirmatively stable during every block')
+   461	        # each arm reconciles its gate against the snapshot taken right after its own
+   462	        # gate (the next arm's build clears the global counters)
+   463	        problems += [f'{arm}: {x}' for x in gate_problems(arm, a.get('graph_gate'), a.get('gate_snapshot'))]
+   464	        if (a.get('settle') or {}).get('settle_capped'):
+   465	            problems.append(f'{arm}: settle capped')
+   466	        blocks = sorted((b for b in (m.get('blocks') or []) if b.get('arm') == arm), key=lambda b: b.get('repeat', -1))
+   467	        if len(blocks) != repeats or any(len(b.get('latency_ms_per_iter') or []) != iters for b in blocks) \
+   468	                or [b.get('repeat') for b in blocks] != list(range(repeats)):
+   469	            problems.append(f'{arm}: blocks do not hold the registered {repeats}x{iters} with unique repeat ids')
+   470	        elif not all(_finite(b.get('throughput_ms_per_pass')) and b['throughput_ms_per_pass'] > 0 for b in blocks):
+   471	            problems.append(f'{arm}: a block throughput is non-finite')
+   472	        else:
+   473	            meds = [_median(b['latency_ms_per_iter']) for b in blocks]
+   474	            if not (all(_close(b.get('latency_median_ms'), mm, 1e-9, 1e-9) for b, mm in zip(blocks, meds))
+   475	                    and isinstance(a.get('latency_medians_ms'), list) and len(a['latency_medians_ms']) == repeats
+   476	                    and all(_close(x, y, 1e-9, 1e-9) for x, y in zip(a['latency_medians_ms'], meds))
+   477	                    and _close(a.get('min_of_medians_ms'), min(meds), 1e-9, 1e-9)
+   478	                    and _close(a.get('median_spread_ms'), max(meds) - min(meds), 1e-9, 1e-9)):
+   479	                problems.append(f'{arm}: a stored matched summary differs from its samples')
+   480	    # chronological alternation (gate-07 f103): finite, strictly increasing block
+   481	    # timestamps whose (repeat, arm) order is exactly (0,a),(0,b),(1,a),(1,b),...
+   482	    a_, b_ = (m.get('pair') or [None, None])[:2]
+   483	    allb = list(m.get('blocks') or [])
+   484	    if allb and all(_finite(x.get('unix_start')) and _finite(x.get('unix_end')) and x['unix_end'] >= x['unix_start'] for x in allb):
+   485	        order = sorted(allb, key=lambda x: x['unix_start'])
+   486	        starts = [x['unix_start'] for x in order]
+   487	        ends = [x['unix_end'] for x in order]
+   488	        expected = [(r, arm) for r in range(repeats) for arm in (a_, b_)]
+   489	        if [(x.get('repeat'), x.get('arm')) for x in order] != expected:
+   490	            problems.append('matched blocks are not in the registered alternating order')
+   491	        if any(starts[i + 1] < ends[i] for i in range(len(order) - 1)):
+   492	            problems.append('matched block timestamps overlap')
+   493	    elif allb:
+   494	        problems.append('a matched block lacks finite timestamps')
+   495	    d = m.get('matched_delta_ms') or {}
+   496	    rd = recomputed_matched_delta(m, iters, repeats)
+   497	    if rd is None:
+   498	        problems.append('matched delta cannot be recomputed from samples')
+   499	    else:
+   500	        ok = (isinstance(d.get('a_minus_b_per_block'), list) and len(d['a_minus_b_per_block']) == repeats
+   501	              and all(_close(x, y, 1e-9, 1e-9) for x, y in zip(d['a_minus_b_per_block'], rd['a_minus_b_per_block']))
+   502	              and all(_close(d.get(k), rd[k], 1e-9, 1e-9) for k in ('median', 'min', 'max', 'median_pct_of_a')))
+   503	        if not ok:
+   504	            problems.append('a stored matched delta summary differs from the value recomputed from samples')
+   505	        elif not all(all(_finite(x) and x > 0 for x in b['latency_ms_per_iter']) for b in blocks):
+   506	            problems.append(f'{arm}: a latency sample is non-finite or non-positive')
+   507	        elif not all(_close(b.get('latency_median_ms'), _median(b['latency_ms_per_iter']), 1e-9, 1e-9) for b in blocks):
+   508	            problems.append(f'{arm}: a stored block median differs from its samples')
+   509	        if not all(b.get('counters_stable') is True for b in blocks):
+   510	            problems.append(f'{arm}: recording not affirmatively stable during a block')
+   511	        problems += [f'{arm}: {x}' for x in validation_problems({'arm': arm, 'validation': a.get('validation')})]
+   512	    return problems
+   513	
+   514	
+   515	def recomputed_matched_delta(m, iters=REGISTERED_ITERS, repeats=REGISTERED_REPEATS):
+   516	    """Matched delta (a - b per block, median, % of a) recomputed from samples."""
+   517	    a, b = m.get('pair') or (None, None)
+   518	    per = {}
+   519	    for arm in (a, b):
+   520	        blocks = sorted((x for x in (m.get('blocks') or []) if x.get('arm') == arm), key=lambda x: x.get('repeat', 0))
+   521	        if len(blocks) != repeats or [x.get('repeat') for x in blocks] != list(range(repeats)):
+   522	            return None
+   523	        if any(len(x.get('latency_ms_per_iter') or []) != iters or
+   524	               not all(_finite(v) and v > 0 for v in x['latency_ms_per_iter']) for x in blocks):
+   525	            return None
+   526	        per[arm] = [_median(x['latency_ms_per_iter']) for x in blocks]
+   527	    diffs = [pa - pb for pa, pb in zip(per[a], per[b])]
+   528	    return {'a_minus_b_per_block': diffs, 'median': _median(diffs), 'min': min(diffs), 'max': max(diffs),
+   529	            'median_pct_of_a': _median(diffs) / _median(per[a]) * 100.0}
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,csv,hashlib,math,sys
+sys.path.insert(0,'fullmodel')
+import figures
+reg=json.load(open('docs/phase3/e9/e9_cost_model.json'));res=json.load(open('docs/phase3/e9/e9_residual.json'));i=reg['inputs']
+print('REGISTERED',reg['registered_variant'],reg['variants'][reg['registered_variant']]['params']);print('REG_SHA',hashlib.sha256(open('docs/phase3/e9/e9_cost_model.json','rb').read()).hexdigest())
+for L,r in res['held_out'].items():
+ t=r['terms_registered'];f=r['frames'];rh=r['to_absorb_alone']['rate_H_TFLOPS (registered -> needed)'][1];rc=r['to_absorb_alone']['rate_C3_TFLOPS (registered -> needed)'][1]
+ d=lambda h,c: t['B']-t['nf']-t['mid']-i['pad_gflop_per_frame']*f/h-i['true_gflop_per_frame']*f*(1/h-1/c)
+ need=1/(1/t['rate_H']-r['residual_obs_minus_pred_ms']/((i['true_gflop_per_frame']+i['pad_gflop_per_frame'])*f))
+ print('RESIDUAL',L,'target',r['observed'],'change rC ->',d(t['rate_H'],rc),'change rH ->',d(rh,t['rate_C3']),'correct rH',need,'gives',d(need,t['rate_C3']))
+rows=list(csv.reader(open('docs/phase3/figures/fig_e9_crossover.csv')))
+regen=figures.e9_curve(reg,'/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence')
+print('FIGURE E9 equality',rows[1:]==[[str(x) for x in r] for r in regen],len(regen))
+for L in [176400,264600]:print('FIG POINT',L,[x for x in regen if x[0]==L])
+led=json.load(open('LEDGER.json'));real=[r for r in led if isinstance(r.get('realized_ms'),(float,int))]
+for r in real:print('LEDGER ratio',r['X'][:3],r['O'],r['realized_ms']/r['Y_ms'],[v/r['Y_ms'] for v in r['realized_ci95_ms']])
+for g in ['A','B','C']:
+ rs=[r for r in led if r['status']=='ok' and r['conf']==g and isinstance(r.get('Y_ms'),(float,int))];vs=[r['realized_ms']/r['Y_ms'] for r in rs if isinstance(r.get('realized_ms'),(float,int)) and r['Y_ms']>0]
+ import statistics
+ print('GRADE',g,len(rs),len(vs),[min(vs),statistics.median(vs),max(vs)] if vs else [])
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+REGISTERED sweep_refit_THNone_TCNone {'RH': 128.79932008327776, 'hH': 76.12363480640035, 'RC': 119.18160739369605, 'hC': 274.158692121488, 'TH': None, 'TC': None}
+REG_SHA 49aab56ff7c52683f59f50fdd03c872ff47669241c2b7ff433d0d58b3581d4a6
+RESIDUAL 176400 target 1.1288269888609648 change rC -> 1.1288269888609646 change rH -> 1.428399334902944 correct rH 169.27155496011625 gives 1.1288269888609648
+RESIDUAL 264600 target 0.6722906837239861 change rC -> 0.672290683723986 change rH -> 0.9429624104271938 correct rH 148.3727245865521 gives 0.6722906837239858
+FIGURE E9 equality True 86
+FIG POINT 176400 [[176400, 401, 0.3682, 'model', 0.5668, -0.3232, -0.0803, -0.5962, 0.8011], [176400, 401, 1.1288, 'observed_held_out (matched C3 − H; CI95 [1.0285230819135904, 1.2235394679009914])', '', '', '', '', '']]
+FIG POINT 264600 [[264600, 601, -0.0149, 'model', 0.5668, -0.4676, -0.1204, -0.8461, 0.8523], [264600, 601, 0.6723, 'observed_held_out (matched C3 − H; CI95 [0.5866006249561906, 0.7177315419539809])', '', '', '', '', '']]
+LEDGER ratio X2a 352800 -2.0411745256248 [-2.201736120414539, -2.039249786704177]
+LEDGER ratio X6a 352800 1.5262371650251076 [1.428701720908952, 1.5413450830783844]
+LEDGER ratio X2a 4410 -0.8145537254301964 [-6.021586995500003, 4.0946061632340935]
+LEDGER ratio X6a 4410 0.7756781190509475 [0.7664578382541183, 0.8339543291891657]
+GRADE A 4 0 []
+GRADE B 18 4 [-2.0411745256248, -0.01943780318962446, 1.5262371650251076]
+GRADE C 12 0 []
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys,statistics as s
+from pathlib import Path
+sys.path.insert(0,'fullmodel')
+import completeness as c, qualify as q, session3_result as sr
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence')
+load=lambda n:json.loads((p/n).read_text())
+runs=c.load_runs(str(p));matched=c.load_matched(str(p));man=load('session_manifest.json')
+items=[];drift=c.audit_clock_drift(str(p),items,'session3',runs,matched,man['env']['gpu_uuid'])
+print('DRIFT PAIRS',drift['pairs']);print('DRIFT CELLS',drift['cells'])
+for a,b,O in [('C3','H',176400),('C3','H',264600),('C3','C3M',352800),('C3','C3M',4410),('C3','C3G',352800),('C3','C3G',4410),('C3','C3P',352800),('C3','C3P',4410),('C3','C3F',352800),('C3','C3F',4410),('C3M','C3N',352800),('C3M','C3N',4410)]:
+ meds=[];blocks=[];clean=[];cleanblocks=[]
+ for f in sorted(p.glob(f'matched_{a}_{b}_c{O}_m*.json')):
+  m=json.loads(f.read_text());bad=q.pair_problems(m);raw=q.recomputed_matched_delta(m)
+  assert not bad,(f.name,bad)
+  assert abs(raw['median']-m['matched_delta_ms']['median'])<1e-9
+  med=raw['median'];meds.append(med);blocks+=raw['a_minus_b_per_block']
+  flag=drift['pairs'].get((tuple(m['pair']),O,m['tag']))
+  if not flag:clean.append(med);cleanblocks+=raw['a_minus_b_per_block']
+  print(f.name,'raw median',round(med,9),'drift',bool(flag))
+ r=sr.pair_result(str(p),a,b,O)
+ assert r['median_ms']==s.median(meds)
+ print('TOTAL',a,b,O,round(s.median(meds),9),'CI',r['ci95_ms'],'walls',r['a_wall_ms'],r['b_wall_ms'])
+ if len(clean)"'!=len(meds):print('"'CLEAN',len(clean),round(s.median(clean),9),sr.boot_ci(cleanblocks))
+for O in [4410,176400,264600,352800]:
+ m=load(f'matched_C3_C3_c{O}_m1.json');raw=q.recomputed_matched_delta(m);old=load('aa_stats.json')['pairs'][f'matched_C3_C3_c{O}_m1.json']
+ print('AA',O,'validation',q.pair_problems(m),'raw blocks',raw['a_minus_b_per_block'],'raw median',raw['median'],'CI',sr.boot_ci(raw['a_minus_b_per_block']),'stored',old['median_ms'],old['ci95_median_ms'])
+series=c.clock_series(str(p),'session3',man['env']['gpu_uuid'])
+for a in ('C3','H','C1','A'):
+ for t,r in runs[(a,4410)].items():
+  if t not in [f'r{i}' for i in range(1,6)]:continue
+  ms=[c.block_sm_median(series,b['unix_start'],b['unix_end']) for b in r['timing']['blocks']]
+  print('HEADLINE CLOCK',a,t,ms,'drift',(max(ms)-min(ms))/s.mean(ms))
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 1862ms:
+DRIFT PAIRS {(('C3M', 'C3N'), 4410, 'm1'): ['rep 0: 2572 vs 2771 MHz (7.4 %)'], (('C3', 'C3F'), 4410, 'm1'): ['rep 0: 2572 vs 2940 MHz (13.4 %)'], (('C3', 'C3F'), 4410, 'm3'): ['rep 0: 2617 vs 2977 MHz (12.9 %)'], (('C3', 'C3G'), 4410, 'm3'): ['rep 0: 2572 vs 2977 MHz (14.6 %)'], (('C3', 'C3P'), 4410, 'm3'): ['rep 1: 2820 vs 2977 MHz (5.4 %)'], (('C3', 'C3#2'), 4410, 'm1'): ['rep 0: 2662 vs 2816 MHz (5.6 %)']}
+DRIFT CELLS {('C1', 4410): ['restarts: 2580–2970 MHz (13.4 %)'], ('C3G', 4410): ['restarts: 2572–2977 MHz (14.4 %)'], ('C3P', 4410): ['restarts: 2595–2977 MHz (13.5 %)'], ('C3', 4410): ['restarts: 2572–2970 MHz (13.9 %)'], ('H', 4410): ['restarts: 2602–2992 MHz (13.6 %)']}
+matched_C3_H_c176400_m1.json raw median 1.042359509 drift False
+matched_C3_H_c176400_m2.json raw median 1.147638075 drift False
+matched_C3_H_c176400_m3.json raw median 1.128826989 drift False
+TOTAL C3 H 176400 1.128826989 CI [1.0285230819135904, 1.2235394679009914] walls 15.248532523401082 14.21225443482399
+matched_C3_H_c264600_m1.json raw median 0.674299547 drift False
+matched_C3_H_c264600_m2.json raw median 0.672290684 drift False
+matched_C3_H_c264600_m3.json raw median 0.642144005 drift False
+TOTAL C3 H 264600 0.672290684 CI [0.5866006249561906, 0.7177315419539809] walls 22.360756527632475 21.70632896013558
+matched_C3_C3M_c352800_m1.json raw median 4.570666817 drift False
+matched_C3_C3M_c352800_m2.json raw median 4.796455381 drift False
+matched_C3_C3M_c352800_m3.json raw median 4.80830844 drift False
+TOTAL C3 C3M 352800 4.796455381 CI [4.622398992069066, 4.808308440260589] walls 29.670007876120508 25.023748981766403
+matched_C3_C3M_c4410_m1.json raw median 0.190967927 drift False
+matched_C3_C3M_c4410_m2.json raw median 0.19872759 drift False
+matched_C3_C3M_c4410_m3.json raw median 0.237115077 drift False
+TOTAL C3 C3M 4410 0.19872759 CI [0.19096792675554752, 0.2549134660512209] walls 3.249689470976591 3.0519795836880803
+matched_C3_C3G_c352800_m1.json raw median 1.403762493 drift False
+matched_C3_C3G_c352800_m2.json raw median 1.314053894 drift False
+matched_C3_C3G_c352800_m3.json raw median 1.417658059 drift False
+TOTAL C3 C3G 352800 1.403762493 CI [1.314053894020617, 1.4176580589264631] walls 29.5760000590235 28.296116972342134
+matched_C3_C3G_c4410_m1.json raw median 0.657127472 drift False
+matched_C3_C3G_c4410_m2.json raw median 0.716924435 drift False
+matched_C3_C3G_c4410_m3.json raw median 0.665032538 drift True
+TOTAL C3 C3G 4410 0.665032538 CI [0.6571274716407061, 0.7149960147216916] walls 3.25888697989285 2.5852430844679475
+CLEAN 2 0.687025953 (0.6427877233363688, 0.7218539831228554)
+matched_C3_C3P_c352800_m1.json raw median 0.713097514 drift False
+matched_C3_C3P_c352800_m2.json raw median 0.73363597 drift False
+matched_C3_C3P_c352800_m3.json raw median 0.774822314 drift False
+TOTAL C3 C3P 352800 0.73363597 CI [0.7111835293471813, 0.7970950100570917] walls 29.7616058960557 29.0244979551062
+matched_C3_C3P_c4410_m1.json raw median 0.599489664 drift False
+matched_C3_C3P_c4410_m2.json raw median 0.54941047 drift False
+matched_C3_C3P_c4410_m3.json raw median 0.530690071 drift True
+TOTAL C3 C3P 4410 0.54941047 CI [0.5252193659543991, 0.5994896637275815] walls 3.2579200342297554 2.6912569301202893
+CLEAN 2 0.574450067 (0.5373149178922176, 0.6063670152798295)
+matched_C3_C3F_c352800_m1.json raw median -2.592982491 drift False
+matched_C3_C3F_c352800_m2.json raw median -2.487875521 drift False
+matched_C3_C3F_c352800_m3.json raw median -2.447139472 drift False
+TOTAL C3 C3F 352800 -2.487875521 CI [-2.650601207278669, -2.415465540252626] walls 29.69478047452867 32.19456353690475
+matched_C3_C3F_c4410_m1.json raw median -2.540354966 drift True
+matched_C3_C3F_c4410_m2.json raw median -2.530611353 drift False
+matched_C3_C3F_c4410_m3.json raw median -2.585529233 drift True
+TOTAL C3 C3F 4410 -2.540354966 CI [-2.6198829291388392, -2.5238586822524667] walls 3.24911845382303 5.760733503848314
+CLEAN 1 -2.530611353 (-2.6198829291388392, -2.51770147588104)
+matched_C3M_C3N_c352800_m1.json raw median -2.439149539 drift False
+matched_C3M_C3N_c352800_m2.json raw median -2.301376429 drift False
+matched_C3M_C3N_c352800_m3.json raw median -2.281344146 drift False
+TOTAL C3M C3N 352800 -2.301376429 CI [-2.482405863702297, -2.299206331372261] walls 24.75035807583481 27.194306487217546
+matched_C3M_C3N_c4410_m1.json raw median -0.012523378 drift True
+matched_C3M_C3N_c4410_m2.json raw median 0.064766034 drift False
+matched_C3M_C3N_c4410_m3.json raw median -0.113308197 drift False
+TOTAL C3M C3N 4410 -0.012523378 CI [-0.09257905185222626, 0.06295263301581144] walls 3.013601526618004 3.0694014858454466
+CLEAN 2 -0.024271081 (-0.11330819688737392, 0.0647660344839096)
+AA 4410 validation [] raw blocks [-0.016611069440841675, -0.09473762474954128, -0.060312915593385696, 0.020072446204721928, -0.05597004201263189] raw median -0.05597004201263189 CI (-0.09473762474954128, 0.020072446204721928) stored -0.05597004201263189 [-0.09473762474954128, 0.020072446204721928]
+AA 176400 validation [] raw blocks [0.25011005345731974, 0.12643204536288977, -0.14551752246916294, -0.14532741624861956, -0.05051959306001663] raw median -0.05051959306001663 CI (-0.14551752246916294, 0.25011005345731974) stored -0.05051959306001663 [-0.14551752246916294, 0.25011005345731974]
+AA 264600 validation [] raw blocks [0.04011509008705616, -0.20455848425626755, 0.147281214594841, -0.12295995838940144, -0.15527091454714537] raw median -0.12295995838940144 CI (-0.20455848425626755, 0.147281214594841) stored -0.12295995838940144 [-0.20455848425626755, 0.147281214594841]
+AA 352800 validation [] raw blocks [-0.34038396552205086, -0.09079510346055031, -0.32447860576212406, 0.06738700903952122, 0.03465462941676378] raw median -0.09079510346055031 CI (-0.34038396552205086, 0.06738700903952122) stored -0.09079510346055031 [-0.34038396552205086, 0.06738700903952122]
+HEADLINE CLOCK C3 r1 [2572.0, 2771.0, 2970.0, 2970.0, 2970.0] drift 0.1396197291798218
+HEADLINE CLOCK C3 r2 [2595.0, 2962.0, 2966.0, 2970.0, 2970.0] drift 0.12964115328769965
+HEADLINE CLOCK C3 r3 [2595.0, 2857.0, 2962.0, 2962.0, 2970.0] drift 0.13069845253032206
+HEADLINE CLOCK C3 r4 [2718.5, 2842.0, 2902.0, 2966.0, 2970.0] drift 0.08733548633538216
+HEADLINE CLOCK C3 r5 [2670.0, 2670.0, 2970.0, 2970.0, 2970.0] drift 0.10526315789473684
+HEADLINE CLOCK H r1 [2992.0, 2962.0, 2962.0, 2955.0, 2955.0] drift 0.012478079050317012
+HEADLINE CLOCK H r2 [2602.5, 2610.0, 2955.0, 2955.0, 2955.0] drift 0.12519978689397976
+HEADLINE CLOCK H r3 [2647.0, 2647.0, 2917.0, 2955.0, 2955.0] drift 0.10905743219318746
+HEADLINE CLOCK H r4 [2625.0, 2625.0, 2625.0, 2955.0, 2955.0] drift 0.11969532100108814
+HEADLINE CLOCK H r5 [2880.0, 2880.0, 2955.0, 2955.0, 2955.0] drift 0.02564102564102564
+HEADLINE CLOCK C1 r1 [2625.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.1189245087900724
+HEADLINE CLOCK C1 r2 [2580.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.13485477178423236
+HEADLINE CLOCK C1 r3 [2617.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.121749327447058
+HEADLINE CLOCK C1 r4 [2775.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.06653019447287616
+HEADLINE CLOCK C1 r5 [2580.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.13485477178423236
+HEADLINE CLOCK A r1 [2985.0, 2985.0, 2985.0, 2985.0, 2985.0] drift 0.0
+HEADLINE CLOCK A r2 [2977.5, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.002523977788995457
+HEADLINE CLOCK A r3 [2962.0, 2985.0, 2985.0, 2985.0, 2985.0] drift 0.007717084955039592
+HEADLINE CLOCK A r4 [2872.5, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.03304524656837824
+HEADLINE CLOCK A r5 [2970.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.0
+
+exec
+/usr/bin/bash -lc "rg -n 'template|triton_tem|GEMM' fullmodel/ideal_costs.py fullmodel/attrib/classify.py docs/phase3/probes/e9_cost_model.py fullmodel/boundary_bench.py" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+fullmodel/boundary_bench.py:11:    gemm    : alternating dependent GEMMs 660x384x1536 / 660x1536x384 fp16 into
+fullmodel/ideal_costs.py:13:  GEMM   : per call site (M, N, K, dtype) from extern mm/addmm/bmm args;
+fullmodel/ideal_costs.py:66:    """ORDERED per-pass Triton kernel sequence + SDPA/GEMM class counts; every
+fullmodel/ideal_costs.py:180:    # count; GEMM class events must be >= extern mm/bmm/addmm calls (cuBLAS may
+fullmodel/ideal_costs.py:187:    if cc.get('GEMM', 0) < n_gemm:
+fullmodel/ideal_costs.py:188:        return None, f'GEMM reconciliation failed: trace {cc.get("GEMM", 0)} events < {n_gemm} extern calls'
+fullmodel/ideal_costs.py:191:                    f'SDPA {n_sdpa} reconciled; GEMM events {cc.get("GEMM", 0)} >= {n_gemm} extern calls; '
+fullmodel/ideal_costs.py:399:                                                          'reason': 'GEMM shapes/dtypes unresolved'})
+fullmodel/ideal_costs.py:411:        template_gemm = name.startswith('triton_tem_')
+fullmodel/ideal_costs.py:412:        if template_gemm:
+fullmodel/ideal_costs.py:413:            cls = 'GEMM'          # Inductor GEMM templates (max-autotune) are GEMMs, not fused pointwise
+fullmodel/ideal_costs.py:417:        if template_gemm:
+fullmodel/ideal_costs.py:418:            row['resolution'] = ('UNRESOLVED: Inductor GEMM template kernel (max-autotune); not priced '
+fullmodel/ideal_costs.py:419:                                 'by the byte model — GEMM class only')
+fullmodel/ideal_costs.py:444:        elif cls == 'GEMM':
+fullmodel/ideal_costs.py:450:                                       for c in ('GEMM', 'SDPA', 'INDUCTOR_FUSED', 'COPY', 'FFT', 'OTHER')}
+fullmodel/ideal_costs.py:461:                             'measured_us_per_pass': out['class_totals_us_per_pass']['GEMM']}
+docs/phase3/probes/e9_cost_model.py:10:       - NF(F)                  non-GEMM front/tail delta (H - C3): linear in F through the two traces
+docs/phase3/probes/e9_cost_model.py:43:NF = lin(d1['non_GEMM_front_tail_delta_ms (H - C3)'], d8['non_GEMM_front_tail_delta_ms (H - C3)'])
+docs/phase3/probes/e9_cost_model.py:48:rH1, rH8 = d1['H_fronttail_GEMM_rate_TFLOPS'], d8['H_fronttail_GEMM_rate_TFLOPS']
+docs/phase3/probes/e9_cost_model.py:49:rC1, rC8 = d1['C3_fronttail_GEMM_rate_TFLOPS'], d8['C3_fronttail_GEMM_rate_TFLOPS']
+fullmodel/attrib/classify.py:6:Classes: GEMM, SDPA, INDUCTOR_FUSED, COPY, FFT, OTHER.
+fullmodel/attrib/classify.py:9:then SDPA, GEMM, FFT, COPY, OTHER.
+fullmodel/attrib/classify.py:26:        return 'GEMM'
+
+exec
+/usr/bin/bash -lc 'ls -d /home/muhit/ms/evidence_pod/*' in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1755
+/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1756
+/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1851
+/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855
+/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031
+
+exec
+/usr/bin/bash -lc "nl -ba docs/phase3/probes/e9_cost_model.py | sed -n '1,210p'" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+     1	"""E9 cost model: wall(C3, L) - wall(H, L) as a function of chunk length L.
+     2	
+     3	Inputs (ONLY): the two node-level trace decompositions (docs/phase3/padbatch/
+     4	decomposition_table.json, from the 8 s and 100 ms traces) and the four existing
+     5	sweep points (SESSION_RESULT_v2.md headline walls at 4410, 22050, 88200, 352800).
+     6	Frames per chunk F(L) = L/441 + 1 (hop 441; 352800 -> 801, 4410 -> 11).
+     7	
+     8	Term structure (all in ms, sign: + means H faster than C3):
+     9	  D(L) = B                      batching benefit (gap/launch floor removed): fixed, mean of the two traces
+    10	       - NF(F)                  non-GEMM front/tail delta (H - C3): linear in F through the two traces
+    11	       - MID(F)                 transformer-middle delta (H - C3): linear in F through the two traces
+    12	       - PAD(F)                 padded FLOPs (0.16094 GFLOP/frame) at rate_H(F)
+    13	       - EFF(F)                 true work (0.4083 GFLOP/frame) x (1/rate_H(F) - 1/rate_C3(F))
+    14	  rate_X(F) = R_X * F / (F + h_X) * q_X(F), q = tile-quantization factor F / (T ceil(F/T)) or 1.
+    15	Model variants differ in q and in whether (R, h) come from the two traces alone
+    16	(variant "traces_only") or are refit on the four sweep walls with the trace
+    17	rates as soft constraints (variant "sweep_refit"). Every variant's in-sample
+    18	residuals at the four sweep points are printed and stored; the registered
+    19	variant is chosen by the smallest max |residual| and the choice is recorded
+    20	BEFORE any held-out measurement. Held-out lengths: 176400 (F=401) and 264600
+    21	(F=601). Never run those lengths on the shakedown host.
+    22	"""
+    23	import json, math, sys, itertools
+    24	import numpy as np
+    25	from scipy.optimize import least_squares
+    26	
+    27	ROOT = __file__.rsplit('/docs/', 1)[0]
+    28	dec = json.load(open(f'{ROOT}/docs/phase3/padbatch/decomposition_table.json'))
+    29	d8 = next(d for d in dec if d['O'] == 352800); d1 = next(d for d in dec if d['O'] == 4410)
+    30	HOP = 441
+    31	def F(L): return L // HOP + 1
+    32	F8, F1 = F(352800), F(4410)
+    33	
+    34	# sweep walls (SESSION_RESULT_v2.md arms table: headline = median over restarts of min-of-medians)
+    35	walls = {'C3': {352800: 28.8714, 4410: 3.2752, 22050: 4.2173, 88200: 8.6252},
+    36	         'H':  {352800: 29.3624, 4410: 2.3386, 22050: 3.3184, 88200: 7.4558}}
+    37	obs = {L: walls['C3'][L] - walls['H'][L] for L in walls['C3']}   # + = H faster
+    38	matched = {352800: -0.4953803727403283, 4410: 0.936683383770287}  # matched-pair medians (same sign convention)
+    39	
+    40	B = 0.5 * (d8['batching_benefit_ms (gap/launch floor removed)'] + d1['batching_benefit_ms (gap/launch floor removed)'])
+    41	def lin(y1, y8):
+    42	    a = (y8 - y1) / (F8 - F1); return (y1 - a * F1, a)
+    43	NF = lin(d1['non_GEMM_front_tail_delta_ms (H - C3)'], d8['non_GEMM_front_tail_delta_ms (H - C3)'])
+    44	MID = lin(d1['transformer_middle_delta_ms (H - C3)'], d8['transformer_middle_delta_ms (H - C3)'])
+    45	pad_gflop_per_frame = d8['extra_padded_GFLOP'] / F8
+    46	eff1 = d1['kernel_efficiency_change_ms (true work at H rate vs C3 rate; + = H slower)']
+    47	eff8 = d8['kernel_efficiency_change_ms (true work at H rate vs C3 rate; + = H slower)']
+    48	rH1, rH8 = d1['H_fronttail_GEMM_rate_TFLOPS'], d8['H_fronttail_GEMM_rate_TFLOPS']
+    49	rC1, rC8 = d1['C3_fronttail_GEMM_rate_TFLOPS'], d8['C3_fronttail_GEMM_rate_TFLOPS']
+    50	true_gflop_per_frame = (eff8 / (1 / rH8 - 1 / rC8)) / F8       # ms / (ms/GFLOP)
+    51	chk = (eff1 / (1 / rH1 - 1 / rC1)) / F1
+    52	assert abs(true_gflop_per_frame - chk) / true_gflop_per_frame < 0.02, (true_gflop_per_frame, chk)
+    53	
+    54	def q_tile(T):
+    55	    return (lambda f: f / (T * math.ceil(f / T))) if T else (lambda f: 1.0)
+    56	
+    57	def fit_rate_two_points(r1, r8, q):
+    58	    # r = R F/(F+h) q(F) through (F1, r1), (F8, r8)
+    59	    a1, a8 = r1 / q(F1), r8 / q(F8)
+    60	    # a1 (F1+h)/F1 = a8 (F8+h)/F8  ->  h = (a8 F1 - a1 F8) / (a1 - a8) * ... solve linear
+    61	    # a1*(F1+h)*F8 = a8*(F8+h)*F1 -> a1 F1 F8 + a1 F8 h = a8 F8 F1 + a8 F1 h -> h (a1 F8 - a8 F1) = F1 F8 (a8 - a1)
+    62	    h = F1 * F8 * (a8 - a1) / (a1 * F8 - a8 * F1)
+    63	    R = a1 * (F1 + h) / F1
+    64	    return R, h
+    65	
+    66	def model_D(f, RH, hH, RC, hC, qH, qC):
+    67	    rH = RH * f / (f + hH) * qH(f); rC = RC * f / (f + hC) * qC(f)
+    68	    pad = pad_gflop_per_frame * f / rH
+    69	    eff = true_gflop_per_frame * f * (1 / rH - 1 / rC)
+    70	    return B - (NF[0] + NF[1] * f) - (MID[0] + MID[1] * f) - pad - eff, dict(rate_H=rH, rate_C3=rC, pad=pad, eff=eff,
+    71	            nf=NF[0] + NF[1] * f, mid=MID[0] + MID[1] * f, B=B)
+    72	
+    73	variants = {}
+    74	for TH, TC in itertools.product([None, 64, 128], [None, 64, 128]):
+    75	    qH, qC = q_tile(TH), q_tile(TC)
+    76	    RH, hH = fit_rate_two_points(rH1, rH8, qH); RC, hC = fit_rate_two_points(rC1, rC8, qC)
+    77	    if min(RH, hH, RC, hC) <= 0: continue
+    78	    name = f'traces_only_TH{TH}_TC{TC}'
+    79	    pred = {L: model_D(F(L), RH, hH, RC, hC, qH, qC)[0] for L in obs}
+    80	    res = {L: pred[L] - obs[L] for L in obs}
+    81	    variants[name] = dict(params=dict(RH=RH, hH=hH, RC=RC, hC=hC, TH=TH, TC=TC), pred=pred, res=res,
+    82	                          max_abs_res=max(abs(v) for v in res.values()))
+    83	    # sweep refit: (RC, hC) free, H curve kept from traces; soft constraint on the two trace rates for C3
+    84	    def resid(p):
+    85	        RCx, hCx = p
+    86	        r = [model_D(F(L), RH, hH, RCx, hCx, qH, qC)[0] - obs[L] for L in obs]
+    87	        r += [0.2 * (RCx * F1 / (F1 + hCx) * qC(F1) - rC1) / rC1, 0.2 * (RCx * F8 / (F8 + hCx) * qC(F8) - rC8) / rC8]
+    88	        return r
+    89	    sol = least_squares(resid, x0=[RC, hC], bounds=([1, 0.1], [419, 5000]))
+    90	    RCx, hCx = sol.x
+    91	    pred = {L: model_D(F(L), RH, hH, RCx, hCx, qH, qC)[0] for L in obs}
+    92	    res = {L: pred[L] - obs[L] for L in obs}
+    93	    variants[name.replace('traces_only', 'sweep_refit')] = dict(params=dict(RH=RH, hH=hH, RC=RCx, hC=hCx, TH=TH, TC=TC),
+    94	        pred=pred, res=res, max_abs_res=max(abs(v) for v in res.values()),
+    95	        trace_rate_check=dict(rC1_model=RCx * F1 / (F1 + hCx) * qC(F1), rC1=rC1, rC8_model=RCx * F8 / (F8 + hCx) * qC(F8), rC8=rC8))
+    96	
+    97	for name, v in sorted(variants.items(), key=lambda kv: kv[1]['max_abs_res']):
+    98	    print(f"{name:32s} max|res| {v['max_abs_res']:.3f}  res " + ' '.join(f"{L}:{v['res'][L]:+.3f}" for L in sorted(v['res'])))
+    99	
+   100	HELD = [176400, 264600]
+   101	def crossover(v):
+   102	    p = v['params']; qH, qC = q_tile(p['TH']), q_tile(p['TC'])
+   103	    Ls = np.arange(4410, 352801, 441)
+   104	    Ds = np.array([model_D(F(int(L)), p['RH'], p['hH'], p['RC'], p['hC'], qH, qC)[0] for L in Ls])
+   105	    sign_changes = np.where(np.diff(np.sign(Ds)) != 0)[0]
+   106	    return [int(Ls[i]) for i in sign_changes], Ls, Ds
+   107	best_name = min(variants, key=lambda k: variants[k]['max_abs_res'])
+   108	out = {'tolerance_ms': 0.4, 'pass_rule': 'sign correct at both held-out lengths and |observed - predicted| <= tolerance_ms at both (prereg v0.2 E9)',
+   109	       'inputs': dict(B=B, NF=NF, MID=MID, pad_gflop_per_frame=pad_gflop_per_frame, true_gflop_per_frame=true_gflop_per_frame,
+   110	                      trace_rates=dict(rH1=rH1, rH8=rH8, rC1=rC1, rC8=rC8), sweep_obs_C3_minus_H=obs, matched=matched, hop=HOP),
+   111	       'variants': variants, 'registered_variant': best_name, 'held_out': {}}
+   112	for name in [best_name, 'traces_only_THNone_TCNone']:
+   113	    v = variants[name]; p = v['params']; qH, qC = q_tile(p['TH']), q_tile(p['TC'])
+   114	    xs, Ls, Ds = crossover(v)
+   115	    v['crossover_L_star'] = xs
+   116	    v['held_out_pred'] = {L: model_D(F(L), p['RH'], p['hH'], p['RC'], p['hC'], qH, qC) for L in HELD}
+   117	    v['held_out_pred'] = {L: dict(D_C3_minus_H_ms=val[0], terms=val[1]) for L, val in v['held_out_pred'].items()}
+   118	    print(f"\n{name}: L* = {xs}  held-out: " + ' '.join(f"{L}:{v['held_out_pred'][L]['D_C3_minus_H_ms']:+.3f}" for L in HELD))
+   119	json.dump(out, open(f'{ROOT}/docs/phase3/e9/e9_cost_model.json', 'w'), indent=1, default=float)
+   120	print('written docs/phase3/e9/e9_cost_model.json')
+
+exec
+/usr/bin/bash -lc "rg -n 'phase3-dir|ledger.py|evidence-dir|e9_residual|E5|clock|drift' docs/phase3/00_first_message.md docs/*phase* docs/codex/10* scripts/session3.sh" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+scripts/session3.sh:3:# Order (handoff §4): E6 → E3 → E2 → E1 → E9 → E4a → E5 → E7, then post-processing,
+scripts/session3.sh:5:# rules as sessions 1–2 (scripts/session_lib.sh). E5 and E7 are optional under the
+scripts/session3.sh:13:E5_BUDGET_S="${E5_BUDGET_S:-3600}"
+scripts/session3.sh:14:E5_VARIANTS="${E5_VARIANTS:-d1_mfull d1_mquarter d6_mfull d6_mquarter}"
+scripts/session3.sh:15:E5_RESTARTS="${E5_RESTARTS:-2}"
+scripts/session3.sh:26:python3 -c "import json;json.dump({'shakedown': '$SHAKEDOWN'=='1', 'session_pod': '${SESSION_POD:-0}'=='1', 'headline_restarts': $HEADLINE_RESTARTS, 'pair_restarts': $RESTARTS, 'e5_variants': '$E5_VARIANTS'.split(), 'e5_restarts': $E5_RESTARTS, 'e9_registration': '$REG', 'e9_registration_sha256': __import__('hashlib').sha256(open('$REG','rb').read()).hexdigest()}, open('$EVID/session3_config.json','w'), indent=1)"
+scripts/session3.sh:56:export CLOCK_LMS="${CLOCK_LMS:-200}"          # 5 Hz clock samples: 100 ms timing blocks (0.15 s) get their own samples for the drift rule
+scripts/session3.sh:57:clocks_start "$EVID/clocks_session3.csv"
+scripts/session3.sh:165:run_aux aa_stats 120 -- python "$REPO_DIR/fullmodel/e_tools.py" aa_stats --evidence-dir "$EVID" --out "$EVID/aa_stats.json" || true
+scripts/session3.sh:263:    run_aux aa_stats 120 -- python "$REPO_DIR/fullmodel/e_tools.py" aa_stats --evidence-dir "$EVID" --out "$EVID/aa_stats.json" || true
+scripts/session3.sh:265:    run_aux e9_check 120 -- python "$REPO_DIR/fullmodel/e_tools.py" e9_check --evidence-dir "$EVID" --registration "$REG" --out "$EVID/e9_check.json" || true
+scripts/session3.sh:322:echo "=== [7] E5: structural variants (depth x mask width), timing only, allowance ${E5_BUDGET_S}s ==="
+scripts/session3.sh:323:E5_T0=$(date +%s)
+scripts/session3.sh:324:e5_left() { echo $(( E5_BUDGET_S - ($(date +%s) - E5_T0) )); }
+scripts/session3.sh:325:for v in $E5_VARIANTS; do
+scripts/session3.sh:327:        for arm in C3 H; do for chunk in 352800 4410; do for r in $(seq 1 "$E5_RESTARTS"); do
+scripts/session3.sh:328:            terminal_json "$EVID/full_${arm}_c${chunk}_v_${v}_r${r}.json" "$arm" "$chunk" "v_${v}_r${r}" UNTESTED "E5 allowance exhausted (optional experiment)"
+scripts/session3.sh:337:            for r in $(seq 1 "$E5_RESTARTS"); do
+scripts/session3.sh:345:run_aux e5_summary 120 -- python "$REPO_DIR/fullmodel/e_tools.py" e5_summary --evidence-dir "$EVID" --out "$EVID/e5_summary.json" || true
+docs/codex/10_analysis.log:16:Evidence: the pod session-3 evidence directory is /home/muhit/ms/evidence_pod/<the newest d5n5vfr3z1tbp6_* directory>/evidence (read-only). Its audit verdict is COMPLETE 198/198 (session_status.json). The generated outputs to verify are SESSION3_RESULT.md, LEDGER.md/LEDGER.json (regenerated with --phase3-dir), docs/phase3/figures/*.csv and docs/phase3/e9/e9_residual.json in the repository.
+docs/codex/10_analysis.log:19:- fullmodel/session3_result.py: pair_result (median over ELIGIBLE restarts of the per-block medians; block-level bootstrap CI; sign convention a − b with + meaning the second arm is faster; arm walls), the E-by-E "confirmed / NOT confirmed" verdicts against the registered defaults quoted in PRED (compare with prereg_amendments.md v0.2), the E1 "best arm" selection and the X6a ceiling comparison, the E9 table, the E5 checks (i)–(iii) arithmetic, the E7 table and verdict (withdrawal rule), the audit section.
+docs/codex/10_analysis.log:20:- fullmodel/ledger.py fill_realized / matched_realized: realized values for X6a (best of C3F/C3G/C3P with every arm noted) and X2a (control − C3N), the E2 note against X2a+X2b+X2c and the G1 union, the E3 note against X1, the E9 and E7 notes; the render's realized/ceiling column and CI; the coverage check ("realized EXCEEDS ceiling" must fire for X6a at 8 s if C3G's 1.3–1.4 ms exceeds 0.9198 ms) and the tightness-by-grade lines. Confirm the Sep-20 rows are unchanged without --phase3-dir.
+docs/codex/10_analysis.log:21:- fullmodel/e_tools.py: aa_stats (per-block a − b pairing by repeat, bootstrap), e9_check (observed = median over eligible restarts; sign and tolerance rules exactly as registered: sign correct at both AND |error| ≤ 0.4 ms at both), e9_residual (single-term absorptions; no refit), cast_count (the ledger's X6a rule: wrapper calls named *_to_copy* whose read buffers are all graph inputs), template_count (extern GEMM = ideal-cost class GEMM; SDPA excluded), e5_summary (trace tag mapping v_<variant>_r<k> → v_<variant>_trace; kernel sum / span from timing_views median_us in µs).
+docs/codex/10_analysis.log:23:- fullmodel/completeness.py audit_session3 (as run on the pod): does any mandatory item accept a record it should reject (e.g. a pair with a foreign manifest, a trace with incomplete exports, an E4a control mismatch), and did the clock-drift scoping hide a violation that should have failed a stage?
+docs/codex/10_analysis.log:35:/usr/bin/bash -lc "rg --files -g 'AGENTS.md' -g 'prereg_amendments.md' -g 'SESSION3_RESULT.md' -g 'LEDGER*' -g '*session3*' -g 'e_tools.py' -g 'figures.py' -g 'ledger.py' -g 'completeness.py' -g 'e9_cost_model.json'" in /home/muhit/ms/sm120-nulltest
+docs/codex/10_analysis.log:44:fullmodel/ledger.py
+docs/codex/10_analysis.log:63:/usr/bin/bash -lc 'wc -l prereg_amendments.md fullmodel/session3_result.py fullmodel/ledger.py fullmodel/e_tools.py fullmodel/figures.py fullmodel/completeness.py SESSION3_RESULT.md LEDGER.md' in /home/muhit/ms/sm120-nulltest
+docs/codex/10_analysis.log:67:   702 fullmodel/ledger.py
+docs/codex/10_analysis.log:338:  in time and clocks; repeated in three fresh processes. Registered pairs at
+docs/codex/10_analysis.log:344:  clocks.sm,clocks.mem,power.draw,temperature.gpu,utilization.gpu -l 1`) for
+docs/codex/10_analysis.log:424:  source-map coverage), and requires this session's clock log — samples of
+docs/codex/10_analysis.log:477:  lineage (directory marker and every sidecar), clock log, and every
+docs/codex/10_analysis.log:482:  generators: collect_full.py, qualify.py, completeness.py, ledger.py,
+docs/codex/10_analysis.log:501:  `setup.sh`) precedes the session clock. Evidence extraction (validated
+docs/codex/10_analysis.log:644:Governs the Phase-3 pod session (`scripts/session3.sh`, pod name "melband profiling"). Framing rules (handoff §3): (i) the 100 ms (4,410-sample) and 8 s (352,800-sample) operating points are already measured (Sep 20 evidence, `SESSION_RESULT_v2.md`), so no prediction there is held-out; each registration states what was observed before it was written and what is frozen now. (ii) This list is a menu, not a program: E6, E3, E2, E1, E9 and E4a are mandatory for a COMPLETE session; E5 and E7 run only if time remains and skipping them is not a failure. Predictions marked *default* are the assistant's; the owner overrides or accepts them in writing in §8b below before the session. Common protocol for every cell: protocol 5a (5 blocks × 50 passes, min-of-medians, unprofiled CUDA-event timing), matched pairs block-alternating in one process against the named control (`fullmodel/matched_run.py`), 3 process restarts per pair (m1–m3), SDR gate where stated (8 clips, mean ΔSDR ≥ −0.1 dB, r1 records), node-level nsys traces only for mechanism with perturbation logged, 1 Hz clock log per session with the 5 % drift rule, loose-tier validation (rtol 1e-2, atol 1e-3) for every compiled arm against the session's eager-A references. Evidence file names are those the session script writes (`full_<arm>_c<chunk>_<tag>.json`, `matched_<a>_<b>_c<chunk>_<tag>.json`, `traces/*`), audited by `fullmodel/completeness.py --session session3`.
+docs/codex/10_analysis.log:654:**E9 — Held-out crossover prediction (the anchor experiment; runs before E4a and E5).** Cost model `docs/phase3/probes/e9_cost_model.py` → `docs/phase3/e9/e9_cost_model.json` (sha256 recorded in `session3_config.json`), built ONLY from the 8 s and 100 ms trace decompositions (`docs/phase3/padbatch/decomposition_table.json`) and the four existing sweep points (headline walls at 4,410, 22,050, 88,200, 352,800). Terms of D(L) = wall(C3, L) − wall(H, L) (+ = H faster): fixed batching benefit B = 0.567 ms; non-GEMM front/tail and transformer-middle deltas linear in frames F = L/441 + 1; padded FLOPs 0.1609 GFLOP/frame at rate_H(F); kernel-efficiency term 0.4086 GFLOP/frame × (1/rate_H − 1/rate_C3) with saturating rate curves R·F/(F+h). Twelve variants were computed; the registered variant is the one with the smallest maximum in-sample residual, chosen before any held-out measurement: `sweep_refit_THNone_TCNone` (in-sample residuals at 4,410/22,050/88,200/352,800: +0.179, +0.140, -0.418, +0.093 ms; the 88,200 point is the hardest for every variant). **Registered predictions:** crossover L* = 261,072 samples (5.92 s); D(176,400) = +0.368 ms (H faster); D(264,600) = -0.015 ms (C3 faster by less than the model's own in-sample error, so the sign test at 6 s is weak and the magnitude test is the operative one; recorded as such). The traces-only variant (no sweep refit) gives L* = 219,177, D(176,400) = +0.188, D(264,600) = -0.200 and is recorded as the secondary reading. Already observed before this registration: 4,410, 22,050, 88,200 and 352,800; only 176,400 (4 s) and 264,600 (6 s) are held out, and those two lengths are never run on the shakedown host or in any ad-hoc process (`fullarms.held_out_guard`, `SESSION_POD=1` only inside the pod session). Measurement: eager-A validation references at both lengths, then matched C3 vs H, m1–m3, with the E6 A/A block (C3 vs C3, m1) at each length, protocol 5a. Pass (registered): predicted sign correct at both lengths and |observed − predicted| ≤ 0.4 ms at both (`e_tools.py e9_check`, observed = median over eligible restarts of the block medians, block-level bootstrap interval reported). Fail: report which term the residual points at (the per-term values are stored in the registration); do not refit and re-run.
+docs/codex/10_analysis.log:660:**E5 — Structural-variation boundary test (optional; allowance 3,600 s).** Same model built through the pinned construction path (`get_model_from_config` on a derived yaml, `fullmodel/variants.py`) with depth ∈ {1, 6} × mask-estimator hidden width ∈ {full (mlp_expansion_factor 4), quarter (1)}, random weights (seed 20260921), timing only; validation = self-consistency against the variant's own eager-A reference (loose tier; no SDR claim). Arms C3 and H at both operating points, two restarts each (tags `v_<variant>_r1/r2`); node traces of C3 and H per variant at 4,410 (cast time, boundary count via graph verification, kernel sum and span via timing views); weight bytes per pass from parameter counts × 2 (`param_bytes_fp16` in every run record). The public architecture is depth 6 × full, so `d6_mfull` is the random-weight control for the headline arms. Predictions (registered): (i) C3's cast time and the boundary count are invariant to depth within 10 %; (ii) the 4,410 wall floor moves with mask-estimator weight bytes with slope ≈ bytes / 1.79 TB/s; (iii) transformer time scales linearly with depth. Kill: if the cast time scales with depth, the fixed-cost explanation is wrong; report it.
+docs/codex/10_analysis.log:666:**Session plan (handoff §4).** Before the pod: every arm, wrapper and script above built and run end-to-end as a complete session on the shakedown host (GPU 4, tmux, `SHAKEDOWN=1`: E9 held-out cells recorded UNTESTED by rule and never run), on-node audit COMPLETE on that engineering data, one codex gate on the specs and the measurement path closed; the owner's go-ahead was given on 2026-09-21 for the measurement pod only ("only as instructed in the instructions"), and is requested again with the shakedown verdict attached before the pod is created. Order on the pod: E6 → E3 → E2 → E1 → E9 → E4a → E5 → E7. Stop and report, without retrying, if any planted fault passes, the SDR gate fails for a headline arm, clocks drift > 5 % between compared blocks, graph verification fails for an arm claimed graphed, a registered kill branch fires, or pod time exceeds 6 hours. Budget: `SESSION_BUDGET_S` 19,800 s (5.5 h) with a 900 s extraction reserve; target ≤ 3 GPU-h with E5/E7 as the registered cuts.
+docs/codex/10_analysis.log:675:- E5 / E7 run if time remains: ______
+docs/codex/10_analysis.log:677:**Implementation notes (2026-09-21, after codex gate 09, additive):** (i) C3F's `freezing` and C1P's `graph_partition` are passed as `torch.compile(options=...)` (with `triton.cudagraphs=True`, the reduce-overhead setting) rather than as global Inductor config changes, so that the compiled artifact's identity differs from the control arm built earlier in the same matched process (gate-09 finding 128); the arms' `compile_mode` records read `reduce-overhead+freezing` / `reduce-overhead+graph_partition`. (ii) E1's cast count is the ledger's X6a set (wrapper calls named `*_to_copy*` whose reads are all graph inputs), computed from the per-trace ideal-cost record and the compile dump (finding 129); E2's template count classifies extern GEMMs by the ideal-cost class and never counts SDPA kernels (finding 130). (iii) E4a's control is C3M only if C3M is also quality-eligible at both operating points (r1 VALID, validation PASS, SDR PASS, FULLY_GRAPHED); E1's lane stops when C3F's SDR gate fails (finding 131). (iv) The 5 % clock-drift rule is enforced by the audit between compared blocks (finding 132). (v) The C3 DC-filter operator's registered frame set gains 401 and 601 for the E9 held-out lengths, qualified on the pod only (finding 137). (vi) Any off-pod session-3 run is graded "engineering" by the audit (finding 136); A/A statistics are refreshed after the held-out A/A blocks (finding 138).
+docs/codex/10_analysis.log:681:**Implementation note (2026-09-22, final shakedown, additive):** the session-3 clock sampler runs at 5 Hz (`CLOCK_LMS=200`) so that the 0.15 s timing blocks at 4,410 samples carry their own SM-clock samples for the registered 5 % drift rule; the audit scopes a drift violation to the affected restart (noted on the item) and fails a stage only when no clean eligible restart remains. Final shakedown (2026-09-22 02:04–05:53, 3.8 h, engineering grade): 189 of 191 mandatory items complete; the two remaining are the re-audit's tree identity (a later commit) and the C3 vs C3G pairs at 4,410 whose three restarts were all drift-flagged on the shared node (SM clock 6–7 % apart within the 1 Hz proxy window), an environmental condition of that host, not a harness defect.
+docs/codex/10_analysis.log:887:/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence/clocks_session3.csv
+docs/codex/10_analysis.log:2393:docs/phase3/e9/e9_residual.json
+docs/codex/10_analysis.log:2422:docs/phase3/stats/clocks_per_block.csv
+docs/codex/10_analysis.log:2447:fullmodel/ledger.py
+docs/codex/10_analysis.log:2551:## E5 — Structural variants (depth × mask-estimator width), timing only
+docs/codex/10_analysis.log:2697:    87	## E5 — Structural variants (depth × mask-estimator width), timing only
+docs/codex/10_analysis.log:2800:   347	  source-map coverage), and requires this session's clock log — samples of
+docs/codex/10_analysis.log:2853:   400	  lineage (directory marker and every sidecar), clock log, and every
+docs/codex/10_analysis.log:2858:   405	  generators: collect_full.py, qualify.py, completeness.py, ledger.py,
+docs/codex/10_analysis.log:2877:   424	  `setup.sh`) precedes the session clock. Evidence extraction (validated
+docs/codex/10_analysis.log:3020:   567	Governs the Phase-3 pod session (`scripts/session3.sh`, pod name "melband profiling"). Framing rules (handoff §3): (i) the 100 ms (4,410-sample) and 8 s (352,800-sample) operating points are already measured (Sep 20 evidence, `SESSION_RESULT_v2.md`), so no prediction there is held-out; each registration states what was observed before it was written and what is frozen now. (ii) This list is a menu, not a program: E6, E3, E2, E1, E9 and E4a are mandatory for a COMPLETE session; E5 and E7 run only if time remains and skipping them is not a failure. Predictions marked *default* are the assistant's; the owner overrides or accepts them in writing in §8b below before the session. Common protocol for every cell: protocol 5a (5 blocks × 50 passes, min-of-medians, unprofiled CUDA-event timing), matched pairs block-alternating in one process against the named control (`fullmodel/matched_run.py`), 3 process restarts per pair (m1–m3), SDR gate where stated (8 clips, mean ΔSDR ≥ −0.1 dB, r1 records), node-level nsys traces only for mechanism with perturbation logged, 1 Hz clock log per session with the 5 % drift rule, loose-tier validation (rtol 1e-2, atol 1e-3) for every compiled arm against the session's eager-A references. Evidence file names are those the session script writes (`full_<arm>_c<chunk>_<tag>.json`, `matched_<a>_<b>_c<chunk>_<tag>.json`, `traces/*`), audited by `fullmodel/completeness.py --session session3`.
+docs/codex/10_analysis.log:3030:   577	**E9 — Held-out crossover prediction (the anchor experiment; runs before E4a and E5).** Cost model `docs/phase3/probes/e9_cost_model.py` → `docs/phase3/e9/e9_cost_model.json` (sha256 recorded in `session3_config.json`), built ONLY from the 8 s and 100 ms trace decompositions (`docs/phase3/padbatch/decomposition_table.json`) and the four existing sweep points (headline walls at 4,410, 22,050, 88,200, 352,800). Terms of D(L) = wall(C3, L) − wall(H, L) (+ = H faster): fixed batching benefit B = 0.567 ms; non-GEMM front/tail and transformer-middle deltas linear in frames F = L/441 + 1; padded FLOPs 0.1609 GFLOP/frame at rate_H(F); kernel-efficiency term 0.4086 GFLOP/frame × (1/rate_H − 1/rate_C3) with saturating rate curves R·F/(F+h). Twelve variants were computed; the registered variant is the one with the smallest maximum in-sample residual, chosen before any held-out measurement: `sweep_refit_THNone_TCNone` (in-sample residuals at 4,410/22,050/88,200/352,800: +0.179, +0.140, -0.418, +0.093 ms; the 88,200 point is the hardest for every variant). **Registered predictions:** crossover L* = 261,072 samples (5.92 s); D(176,400) = +0.368 ms (H faster); D(264,600) = -0.015 ms (C3 faster by less than the model's own in-sample error, so the sign test at 6 s is weak and the magnitude test is the operative one; recorded as such). The traces-only variant (no sweep refit) gives L* = 219,177, D(176,400) = +0.188, D(264,600) = -0.200 and is recorded as the secondary reading. Already observed before this registration: 4,410, 22,050, 88,200 and 352,800; only 176,400 (4 s) and 264,600 (6 s) are held out, and those two lengths are never run on the shakedown host or in any ad-hoc process (`fullarms.held_out_guard`, `SESSION_POD=1` only inside the pod session). Measurement: eager-A validation references at both lengths, then matched C3 vs H, m1–m3, with the E6 A/A block (C3 vs C3, m1) at each length, protocol 5a. Pass (registered): predicted sign correct at both lengths and |observed − predicted| ≤ 0.4 ms at both (`e_tools.py e9_check`, observed = median over eligible restarts of the block medians, block-level bootstrap interval reported). Fail: report which term the residual points at (the per-term values are stored in the registration); do not refit and re-run.
+docs/codex/10_analysis.log:3036:   583	**E5 — Structural-variation boundary test (optional; allowance 3,600 s).** Same model built through the pinned construction path (`get_model_from_config` on a derived yaml, `fullmodel/variants.py`) with depth ∈ {1, 6} × mask-estimator hidden width ∈ {full (mlp_expansion_factor 4), quarter (1)}, random weights (seed 20260921), timing only; validation = self-consistency against the variant's own eager-A reference (loose tier; no SDR claim). Arms C3 and H at both operating points, two restarts each (tags `v_<variant>_r1/r2`); node traces of C3 and H per variant at 4,410 (cast time, boundary count via graph verification, kernel sum and span via timing views); weight bytes per pass from parameter counts × 2 (`param_bytes_fp16` in every run record). The public architecture is depth 6 × full, so `d6_mfull` is the random-weight control for the headline arms. Predictions (registered): (i) C3's cast time and the boundary count are invariant to depth within 10 %; (ii) the 4,410 wall floor moves with mask-estimator weight bytes with slope ≈ bytes / 1.79 TB/s; (iii) transformer time scales linearly with depth. Kill: if the cast time scales with depth, the fixed-cost explanation is wrong; report it.
+docs/codex/10_analysis.log:3042:   589	**Session plan (handoff §4).** Before the pod: every arm, wrapper and script above built and run end-to-end as a complete session on the shakedown host (GPU 4, tmux, `SHAKEDOWN=1`: E9 held-out cells recorded UNTESTED by rule and never run), on-node audit COMPLETE on that engineering data, one codex gate on the specs and the measurement path closed; the owner's go-ahead was given on 2026-09-21 for the measurement pod only ("only as instructed in the instructions"), and is requested again with the shakedown verdict attached before the pod is created. Order on the pod: E6 → E3 → E2 → E1 → E9 → E4a → E5 → E7. Stop and report, without retrying, if any planted fault passes, the SDR gate fails for a headline arm, clocks drift > 5 % between compared blocks, graph verification fails for an arm claimed graphed, a registered kill branch fires, or pod time exceeds 6 hours. Budget: `SESSION_BUDGET_S` 19,800 s (5.5 h) with a 900 s extraction reserve; target ≤ 3 GPU-h with E5/E7 as the registered cuts.
+docs/codex/10_analysis.log:3051:   598	- E5 / E7 run if time remains: ______
+docs/codex/10_analysis.log:3053:   600	**Implementation notes (2026-09-21, after codex gate 09, additive):** (i) C3F's `freezing` and C1P's `graph_partition` are passed as `torch.compile(options=...)` (with `triton.cudagraphs=True`, the reduce-overhead setting) rather than as global Inductor config changes, so that the compiled artifact's identity differs from the control arm built earlier in the same matched process (gate-09 finding 128); the arms' `compile_mode` records read `reduce-overhead+freezing` / `reduce-overhead+graph_partition`. (ii) E1's cast count is the ledger's X6a set (wrapper calls named `*_to_copy*` whose reads are all graph inputs), computed from the per-trace ideal-cost record and the compile dump (finding 129); E2's template count classifies extern GEMMs by the ideal-cost class and never counts SDPA kernels (finding 130). (iii) E4a's control is C3M only if C3M is also quality-eligible at both operating points (r1 VALID, validation PASS, SDR PASS, FULLY_GRAPHED); E1's lane stops when C3F's SDR gate fails (finding 131). (iv) The 5 % clock-drift rule is enforced by the audit between compared blocks (finding 132). (v) The C3 DC-filter operator's registered frame set gains 401 and 601 for the E9 held-out lengths, qualified on the pod only (finding 137). (vi) Any off-pod session-3 run is graded "engineering" by the audit (finding 136); A/A statistics are refreshed after the held-out A/A blocks (finding 138).
+docs/codex/10_analysis.log:3057:   604	**Implementation note (2026-09-22, final shakedown, additive):** the session-3 clock sampler runs at 5 Hz (`CLOCK_LMS=200`) so that the 0.15 s timing blocks at 4,410 samples carry their own SM-clock samples for the registered 5 % drift rule; the audit scopes a drift violation to the affected restart (noted on the item) and fails a stage only when no clean eligible restart remains. Final shakedown (2026-09-22 02:04–05:53, 3.8 h, engineering grade): 189 of 191 mandatory items complete; the two remaining are the re-audit's tree identity (a later commit) and the C3 vs C3G pairs at 4,410 whose three restarts were all drift-flagged on the shared node (SM clock 6–7 % apart within the 1 Hz proxy window), an environmental condition of that host, not a harness defect.
+docs/codex/10_analysis.log:3066:     5	  python fullmodel/session3_result.py --evidence-dir <session-3 evidence> --out SESSION3_RESULT.md
+docs/codex/10_analysis.log:3086:    25	    'E5': '(i) cast time and boundary count invariant to depth within 10 %; (ii) 4410 wall floor moves with mask-estimator bytes at ~bytes/1.79 TB/s; (iii) transformer time linear in depth',
+docs/codex/10_analysis.log:3148:    87	    ap.add_argument('--evidence-dir', required=True)
+docs/codex/10_analysis.log:3287:   226	    # ---- E5
+docs/codex/10_analysis.log:3288:   227	    L.append('## E5 — Structural variants (depth × mask-estimator width), timing only')
+docs/codex/10_analysis.log:3289:   228	    L.append(f'Registered: {PRED["E5"]}')
+docs/codex/10_analysis.log:3326:   265	        L.append(f'- E5 checks UNRESOLVED: {type(e).__name__}: {e}')
+docs/codex/10_analysis.log:3418:    87	## E5 — Structural variants (depth × mask-estimator width), timing only
+docs/codex/10_analysis.log:3545:clocks_session3.csv
+docs/codex/10_analysis.log:3922:   261	  in time and clocks; repeated in three fresh processes. Registered pairs at
+docs/codex/10_analysis.log:3928:   267	  clocks.sm,clocks.mem,power.draw,temperature.gpu,utilization.gpu -l 1`) for
+docs/codex/10_analysis.log:3963:The report’s E1, E2, and E9 verdicts match the numbers it displays. I’m now checking those numbers against the samples and eligibility rules, including whether drift-flagged restarts enter the aggregates.
+docs/codex/10_analysis.log:4035:    69	    ap.add_argument('--phase3-dir', default=None)
+docs/codex/10_analysis.log:4037:    71	    ap.add_argument('--evidence-dir', default=None, help='session-2 evidence (boundary_bench.json)')
+docs/codex/10_analysis.log:4123:    42	ANALYSIS_TOOLS = ('completeness.py', 'collect_full.py', 'qualify.py', 'ledger.py', 'session_result.py', 'e_tools.py', 'session_result_v2.py', 'session3_result.py', 'figures.py',
+docs/codex/10_analysis.log:4249:   168	    # variant reference directories (E5) are inventoried and joined separately
+docs/codex/10_analysis.log:4318:   237	def clock_series(ev, session, gpu_uuid):
+docs/codex/10_analysis.log:4319:   238	    """(timestamp, SM MHz) samples of this GPU from the session clock log (UTC unless CLOCK_TZ=local)."""
+docs/codex/10_analysis.log:4320:   239	    clocks = os.path.join(ev, f'clocks_{session}.csv')
+docs/codex/10_analysis.log:4322:   241	    if not os.path.exists(clocks):
+docs/codex/10_analysis.log:4324:   243	    for line in open(clocks):
+docs/codex/10_analysis.log:4356:    11	  aa_stats       --evidence-dir E --out J
+docs/codex/10_analysis.log:4359:    14	  e9_check       --evidence-dir E --registration docs/phase3/e9/e9_cost_model.json --out J
+docs/codex/10_analysis.log:4362:    17	  e9_residual    --check J --registration R --out J
+docs/codex/10_analysis.log:4367:    22	  e5_summary     --evidence-dir E --out J
+docs/codex/10_analysis.log:4368:    23	                 : E5 variant cells: wall, kernel sum/span (from timing views if traced),
+docs/codex/10_analysis.log:4453:   108	           'rule': "X6a set: wrapper calls named *_to_copy* whose read buffers are all graph inputs (arg*) — the ledger's rule (ledger.py X6a)"}
+docs/codex/10_analysis.log:4554:   209	def e9_residual(a):
+docs/codex/10_analysis.log:4626:   281	    print(f"{len(out['cells'])} E5 cells summarised -> {a.out}")
+docs/codex/10_analysis.log:4634:   289	    s = sub.add_parser('aa_stats'); s.add_argument('--evidence-dir', required=True); s.add_argument('--out', required=True)
+docs/codex/10_analysis.log:4635:   290	    s = sub.add_parser('e9_check'); s.add_argument('--evidence-dir', required=True); s.add_argument('--registration', required=True); s.add_argument('--out', required=True)
+docs/codex/10_analysis.log:4636:   291	    s = sub.add_parser('e5_summary'); s.add_argument('--evidence-dir', required=True); s.add_argument('--out', required=True)
+docs/codex/10_analysis.log:4637:   292	    s = sub.add_parser('e9_residual'); s.add_argument('--check', required=True); s.add_argument('--registration', required=True); s.add_argument('--out', required=True)
+docs/codex/10_analysis.log:4652:   267	    """Median SM clock over the samples inside [a, b]; a block shorter than the 1 Hz
+docs/codex/10_analysis.log:4666:   281	def audit_clock_drift(ev, items, session, runs, matched, gpu_uuid, limit=0.05):
+docs/codex/10_analysis.log:4667:   282	    """Registered rule (prereg v0.2, session plan): clocks may not drift more than 5 %
+docs/codex/10_analysis.log:4674:   289	    series = clock_series(ev, session, gpu_uuid)
+docs/codex/10_analysis.log:4692:   307	            drift = abs(sa - sb) / ((sa + sb) / 2)
+docs/codex/10_analysis.log:4693:   308	            if drift > limit:
+docs/codex/10_analysis.log:4694:   309	                flagged['pairs'].setdefault((pair, c, t), []).append(f'rep {rep}: {sa:.0f} vs {sb:.0f} MHz ({drift * 100:.1f} %)')
+docs/codex/10_analysis.log:4708:   323	            drift = (max(meds) - min(meds)) / (sum(meds) / len(meds))
+docs/codex/10_analysis.log:4709:   324	            if drift > limit:
+docs/codex/10_analysis.log:4710:   325	                flagged['cells'][(a, c)] = [f'restarts: {min(meds):.0f}–{max(meds):.0f} MHz ({drift * 100:.1f} %)']
+docs/codex/10_analysis.log:4712:   327	    item(items, f'clock drift <= {limit * 100:.0f} % between compared blocks: {checked} comparisons, {n_bad} flagged (informational; consequences are scoped per comparison)',
+docs/codex/10_analysis.log:4719:   334	def audit_clock(ev, items, session, runs, matched, gpu_uuid):
+docs/codex/10_analysis.log:4720:   335	    """This session's clock log (samples of THIS GPU, numeric fields, 1 Hz) must
+docs/codex/10_analysis.log:4722:   337	    clocks = os.path.join(ev, f'clocks_{session}.csv')
+docs/codex/10_analysis.log:4724:   339	    if os.path.exists(clocks):
+docs/codex/10_analysis.log:4725:   340	        for line in open(clocks):
+docs/codex/10_analysis.log:4743:   358	                    # the clock log carries the measuring host's local time; the pod runs UTC. CLOCK_TZ=local keeps
+docs/codex/10_analysis.log:4757:   372	        item(items, f'clock log covers every timing block of this session ({len(blocks)} blocks)', False,
+docs/codex/10_analysis.log:4758:   373	             ['clock log missing, unparsable, or without samples of this GPU'])
+docs/codex/10_analysis.log:4808:   679	        drift = audit_clock_drift(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
+docs/codex/10_analysis.log:4809:   680	        audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux, drift)
+docs/codex/10_analysis.log:4963:   834	    audit_clock(ev, items, args.session, run_map, matched, (manifest.get('env') or {}).get('gpu_uuid'))
+docs/codex/10_analysis.log:5004:/usr/bin/bash -lc "nl -ba fullmodel/ledger.py | sed -n '1,182p;450,702p'" in /home/muhit/ms/sm120-nulltest
+docs/codex/10_analysis.log:5015:    10	Usage: python fullmodel/ledger.py --evidence-dir <dir with session 1+2 evidence> --out LEDGER.md
+docs/codex/10_analysis.log:5315:   577	             'Every number above is computed by fullmodel/ledger.py from the cited files; nothing is transcribed by hand.')
+docs/codex/10_analysis.log:5424:   686	    ap.add_argument('--evidence-dir', required=True)
+docs/codex/10_analysis.log:5425:   687	    ap.add_argument('--phase3-dir', default=None, help='session-3 evidence directory (fills realized/ceiling)')
+docs/codex/10_analysis.log:5453:   432	def audit_session3(ev, items, manifest_id, run_map, matched, cells, pairs, dynamic_aux, drift=None):
+docs/codex/10_analysis.log:5455:   434	    E9 (pod; UNTESTED-by-rule on a shakedown), E4a; optional E5 and E7 (registered as
+docs/codex/10_analysis.log:5459:   438	    drift = drift or {'pairs': {}, 'cells': {}}
+docs/codex/10_analysis.log:5471:   450	            fl = drift['cells'].get((a, c))
+docs/codex/10_analysis.log:5473:   452	                 (cell or {}).get('reasons', ['no runs']), note=(f'clock-drift flagged across restarts (registered 5 % rule): {fl}' if fl else None))
+docs/codex/10_analysis.log:5484:   463	            fl = drift['pairs'].get(((a, b), c, t))
+docs/codex/10_analysis.log:5487:   466	                 note=(f'clock-drift flagged (registered 5 % rule): {fl}' if fl else None))
+docs/codex/10_analysis.log:5490:   469	        item(items, f'{label} {a} vs {b} @{c}: at least one eligible restart without a clock-drift flag', clean > 0,
+docs/codex/10_analysis.log:5491:   470	             [f'every eligible restart is clock-drift flagged: {[drift["pairs"].get(((a, b), c, t)) for t in tags]}'])
+docs/codex/10_analysis.log:5585:   564	    # ---- E5 (optional)
+docs/codex/10_analysis.log:5596:   575	                    item(items, f'E5 variant {v} {a}@{c} r{i} (VALID+PASS, or UNTESTED under the allowance)', ok,
+docs/codex/10_analysis.log:5598:   577	            trace_items('E5', a, 4410, sfx=f'v_{v}_trace', need_graphed=True, optional=True)
+docs/codex/10_analysis.log:5600:   579	    item(items, 'E5 summary present', bool(e5.get('cells')), ['missing'], optional=True)
+docs/codex/10_analysis.log:5650:   629	    ap.add_argument('--evidence-dir', required=True)
+docs/codex/10_analysis.log:5658:/usr/bin/bash -lc "nl -ba fullmodel/ledger.py | sed -n '185,315p;495,570p'" in /home/muhit/ms/sm120-nulltest
+docs/codex/10_analysis.log:5930:   123	Headline walls are unprofiled (summary_full.json). Trace-derived numbers are MODELLED and carry the node-level perturbation factor of their trace as a caveat when > 5 %. Every number above is computed by fullmodel/ledger.py from the cited files; nothing is transcribed by hand.
+docs/codex/10_analysis.log:5948:[{'item': 'clock drift <= 5 % between compared blocks: 233 comparisons, 11 flagged (informational; consequences are scoped per comparison)', 'complete': True, 'optional': True, 'reason': None, 'note': "flagged: (('C3M', 'C3N'), 4410, 'm1'): ['rep 0: 2572 vs 2771 MHz (7.4 %)']; (('C3', 'C3F'), 4410, 'm1'): ['rep 0: 2572 vs 2940 MHz (13.4 %)']; (('C3', 'C3F'), 4410, 'm3'): ['rep 0: 2617 vs 2977 MHz (12.9 %)']; (('C3', 'C3G'), 4410, 'm3'): ['rep 0: 2572 vs 2977 MHz (14.6 %)']; (('C3', 'C3P'), 4410, 'm3'): ['rep 1: 2820 vs 2977 MHz (5.4 %)']; (('C3', 'C3#2'), 4410, 'm1'): ['rep 0: 2662 vs 2816 MHz (5.6 %)']; ('C1', 4410): ['restarts: 2580–2970 MHz (13.4 %)']; ('C3G', 4410): ['restarts: 2572–2977 MHz (14.4 %)']; ('C3P', 4410): ['restarts: 2595–2977 MHz (13.5 %)']; ('C3', 4410): ['restarts: 2572–2970 MHz (13.9 %)']"}, {'item': 'E6 headline C3@4410 (r1..r5, SDR in r1)', 'complete': True, 'optional': False, 'reason': None, 'note': "clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2572–2970 MHz (13.9 %)']"}, {'item': 'E6 headline H@4410 (r1..r5, SDR in r1)', 'complete': True, 'optional': False, 'reason': None, 'note': "clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2602–2992 MHz (13.6 %)']"}, {'item': 'E6 headline C1@4410 (r1..r5, SDR in r1)', 'complete': True, 'optional': False, 'reason': None, 'note': "clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2580–2970 MHz (13.4 %)']"}, {'item': 'E2 SDR gate C3M@352800 recorded (r1)', 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta -2.9510395600784722e-05'}, {'item': 'E2 SDR gate C3M@4410 recorded (r1)', 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta -0.0005075870629565223'}, {'item': 'E1 SDR gate C3F@352800 recorded (r1)', 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta -9.794055864700835e-05'}, {'item': "E1(a') SDR gate C3G@352800 recorded (r1)", 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta 7.295708089236075e-05'}, {'item': 'E1(b) SDR gate C3P@352800 recorded (r1)', 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta -0.0002982425480845263'}, {'item': 'E1 matched C3 vs C3F @4410 (m1)', 'complete': True, 'optional': False, 'reason': None, 'note': "clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2940 MHz (13.4 %)']"}, {'item': 'E1 matched C3 vs C3F @4410 (m3)', 'complete': True, 'optional': False, 'reason': None, 'note': "clock-drift flagged (registered 5 % rule): ['rep 0: 2617 vs 2977 MHz (12.9 %)']"}, {'item': 'E1 SDR gate C3F@4410 recorded (r1)', 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta -0.00028684415012746045'}, {'item': "E1(a') matched C3 vs C3G @4410 (m3)", 'complete': True, 'optional': False, 'reason': None, 'note': "clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2977 MHz (14.6 %)']"}, {'item': "E1(a') SDR gate C3G@4410 recorded (r1)", 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta -0.0006248389836842009'}, {'item': 'E1(b) matched C3 vs C3P @4410 (m3)', 'complete': True, 'optional': False, 'reason': None, 'note': "clock-drift flagged (registered 5 % rule): ['rep 1: 2820 vs 2977 MHz (5.4 %)']"}, {'item': 'E1(b) SDR gate C3P@4410 recorded (r1)', 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta -0.0003500857985108633'}, {'item': 'E9 registered predictions checked (e9_check.json, verdict recorded)', 'complete': True, 'optional': False, 'reason': None, 'note': 'verdict FAIL'}, {'item': 'E4a SDR gate C3N@352800 recorded (r1)', 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta 0.00043107368400752133'}, {'item': 'E4a matched C3M vs C3N @4410 (m1)', 'complete': True, 'optional': False, 'reason': None, 'note': "clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2771 MHz (7.4 %)']"}, {'item': 'E4a SDR gate C3N@4410 recorded (r1)', 'complete': True, 'optional': False, 'reason': None, 'note': 'SDR PASS mean delta 0.0016549291197914167'}, {'item': 'E7 PDL evidence recorded (launch attributes, PTX, SASS check)', 'complete': True, 'optional': True, 'reason': None, 'note': "SASS mnemonics ['ACQBULK', 'PREEXIT']; e7 {'trivial/stream->pdl_stream': {'slope_us_per_node_base': 5.1380032057590626, 'slope_us_per_node_pdl': 5.051728818543798, 'pdl_saving_us_per_node': 0.0862743872152647}, 'trivial/graph->pdl_graph': {'slope_us_per_node_base': 0.7185014363254114, 'slope_us_per_node_pdl': 0.5675755361714749, 'pdl_saving_us_per_node': 0.15092590015393648}, 'prologue/stream->pdl_stream': {'slope_us_per_node_base': 8.193564646773869, 'slope_us_per_node_pdl': 6.163022220134735, 'pdl_saving_us_per_node': 2.0305424266391334}, 'prologue/graph->pdl_graph': {'slope_us_per_node_base': 6.282577978240119, 'slope_us_per_node_pdl': 6.098933319250743, 'pdl_saving_us_per_node': 0.1836446589893761}}"}, {'item': 'E7 boundary trace analysis qualified (overlap recorded per PDL segment)', 'complete': True, 'optional': True, 'reason': None, 'note': "overlap_observed {'trivial/pdl_stream/N10': False, 'trivial/pdl_graph/N10': False, 'trivial/pdl_stream/N100': False, 'trivial/pdl_graph/N100': False, 'trivial/pdl_stream/N1000': False, 'trivial/pdl_graph/N1000': True, 'trivial/pdl_stream/N2000': False, 'trivial/pdl_graph/N2000': True, 'prologue/pdl_stream/N100': False, 'prologue/pdl_graph/N100': False, 'prologue/pdl_stream/N1000': False, 'prologue/pdl_graph/N1000': False}"}]
+docs/codex/10_analysis.log:5956:/usr/bin/bash -lc 'cat docs/phase3/e9/e9_residual.json' in /home/muhit/ms/sm120-nulltest
+docs/codex/10_analysis.log:6166:463c923 Phase 3 session-3 outputs: SESSION3_RESULT.md, LEDGER.md/json with realized/ceiling from the pod pairs, figure CSVs, E9 residual attribution; gate-10 prompt; result generator fixes (E6/E4a verdict lines, E5 wording)
+docs/codex/10_analysis.log:6168:ed3ea3d session 3: 5 Hz clock sampler; analysis tools list; final-shakedown note in the registration
+docs/codex/10_analysis.log:6169:5109c8c completeness: clock-drift consequences scoped per comparison (flagged restarts noted; a stage fails only with no clean restart)
+docs/codex/10_analysis.log:6178: if i.get('note') and ('clock' in i['note'] or 'clock' in i['item']): print(i['item'], i['complete'], i['note'])
+docs/codex/10_analysis.log:6186:clock drift <= 5 % between compared blocks: 233 comparisons, 11 flagged (informational; consequences are scoped per comparison) True flagged: (('C3M', 'C3N'), 4410, 'm1'): ['rep 0: 2572 vs 2771 MHz (7.4 %)']; (('C3', 'C3F'), 4410, 'm1'): ['rep 0: 2572 vs 2940 MHz (13.4 %)']; (('C3', 'C3F'), 4410, 'm3'): ['rep 0: 2617 vs 2977 MHz (12.9 %)']; (('C3', 'C3G'), 4410, 'm3'): ['rep 0: 2572 vs 2977 MHz (14.6 %)']; (('C3', 'C3P'), 4410, 'm3'): ['rep 1: 2820 vs 2977 MHz (5.4 %)']; (('C3', 'C3#2'), 4410, 'm1'): ['rep 0: 2662 vs 2816 MHz (5.6 %)']; ('C1', 4410): ['restarts: 2580–2970 MHz (13.4 %)']; ('C3G', 4410): ['restarts: 2572–2977 MHz (14.4 %)']; ('C3P', 4410): ['restarts: 2595–2977 MHz (13.5 %)']; ('C3', 4410): ['restarts: 2572–2970 MHz (13.9 %)']
+docs/codex/10_analysis.log:6187:E6 headline C3@4410 (r1..r5, SDR in r1) True clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2572–2970 MHz (13.9 %)']
+docs/codex/10_analysis.log:6188:E6 headline H@4410 (r1..r5, SDR in r1) True clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2602–2992 MHz (13.6 %)']
+docs/codex/10_analysis.log:6189:E6 headline C1@4410 (r1..r5, SDR in r1) True clock-drift flagged across restarts (registered 5 % rule): ['restarts: 2580–2970 MHz (13.4 %)']
+docs/codex/10_analysis.log:6190:E1 matched C3 vs C3F @4410 (m1) True clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2940 MHz (13.4 %)']
+docs/codex/10_analysis.log:6191:E1 matched C3 vs C3F @4410 (m3) True clock-drift flagged (registered 5 % rule): ['rep 0: 2617 vs 2977 MHz (12.9 %)']
+docs/codex/10_analysis.log:6192:E1(a') matched C3 vs C3G @4410 (m3) True clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2977 MHz (14.6 %)']
+docs/codex/10_analysis.log:6193:E1(b) matched C3 vs C3P @4410 (m3) True clock-drift flagged (registered 5 % rule): ['rep 1: 2820 vs 2977 MHz (5.4 %)']
+docs/codex/10_analysis.log:6194:E4a matched C3M vs C3N @4410 (m1) True clock-drift flagged (registered 5 % rule): ['rep 0: 2572 vs 2771 MHz (7.4 %)']
+docs/codex/10_analysis.log:6201:The pod audit flagged clock drift in several 4,410-sample restarts, including the only A/A restart, but the report still uses them. I’m calculating the effect of excluding them and checking whether the audit enforces the amended “at least one clean restart” rule.
+docs/codex/10_analysis.log:6432:reg=json.load(open('docs/phase3/e9/e9_cost_model.json'));res=json.load(open('docs/phase3/e9/e9_residual.json'));i=reg['inputs']
+docs/codex/10_analysis.log:6475:items=[];drift=c.audit_clock_drift(str(p),items,'session3',runs,matched,man['env']['gpu_uuid'])
+docs/codex/10_analysis.log:6476:print('DRIFT PAIRS',drift['pairs']);print('DRIFT CELLS',drift['cells'])
+docs/codex/10_analysis.log:6484:  flag=drift['pairs'].get((tuple(m['pair']),O,m['tag']))
+docs/codex/10_analysis.log:6486:  print(f.name,'raw median',round(med,9),'drift',bool(flag))
+docs/codex/10_analysis.log:6494:series=c.clock_series(str(p),'session3',man['env']['gpu_uuid'])
+docs/codex/10_analysis.log:6499:  print('HEADLINE CLOCK',a,t,ms,'drift',(max(ms)-min(ms))/s.mean(ms))
+docs/codex/10_analysis.log:6504:matched_C3_H_c176400_m1.json raw median 1.042359509 drift False
+docs/codex/10_analysis.log:6505:matched_C3_H_c176400_m2.json raw median 1.147638075 drift False
+docs/codex/10_analysis.log:6506:matched_C3_H_c176400_m3.json raw median 1.128826989 drift False
+docs/codex/10_analysis.log:6508:matched_C3_H_c264600_m1.json raw median 0.674299547 drift False
+docs/codex/10_analysis.log:6509:matched_C3_H_c264600_m2.json raw median 0.672290684 drift False
+docs/codex/10_analysis.log:6510:matched_C3_H_c264600_m3.json raw median 0.642144005 drift False
+docs/codex/10_analysis.log:6512:matched_C3_C3M_c352800_m1.json raw median 4.570666817 drift False
+docs/codex/10_analysis.log:6513:matched_C3_C3M_c352800_m2.json raw median 4.796455381 drift False
+docs/codex/10_analysis.log:6514:matched_C3_C3M_c352800_m3.json raw median 4.80830844 drift False
+docs/codex/10_analysis.log:6516:matched_C3_C3M_c4410_m1.json raw median 0.190967927 drift False
+docs/codex/10_analysis.log:6517:matched_C3_C3M_c4410_m2.json raw median 0.19872759 drift False
+docs/codex/10_analysis.log:6518:matched_C3_C3M_c4410_m3.json raw median 0.237115077 drift False
+docs/codex/10_analysis.log:6520:matched_C3_C3G_c352800_m1.json raw median 1.403762493 drift False
+docs/codex/10_analysis.log:6521:matched_C3_C3G_c352800_m2.json raw median 1.314053894 drift False
+docs/codex/10_analysis.log:6522:matched_C3_C3G_c352800_m3.json raw median 1.417658059 drift False
+docs/codex/10_analysis.log:6524:matched_C3_C3G_c4410_m1.json raw median 0.657127472 drift False
+docs/codex/10_analysis.log:6525:matched_C3_C3G_c4410_m2.json raw median 0.716924435 drift False
+docs/codex/10_analysis.log:6526:matched_C3_C3G_c4410_m3.json raw median 0.665032538 drift True
+docs/codex/10_analysis.log:6529:matched_C3_C3P_c352800_m1.json raw median 0.713097514 drift False
+docs/codex/10_analysis.log:6530:matched_C3_C3P_c352800_m2.json raw median 0.73363597 drift False
+docs/codex/10_analysis.log:6531:matched_C3_C3P_c352800_m3.json raw median 0.774822314 drift False
+docs/codex/10_analysis.log:6533:matched_C3_C3P_c4410_m1.json raw median 0.599489664 drift False
+docs/codex/10_analysis.log:6534:matched_C3_C3P_c4410_m2.json raw median 0.54941047 drift False
+docs/codex/10_analysis.log:6535:matched_C3_C3P_c4410_m3.json raw median 0.530690071 drift True
+docs/codex/10_analysis.log:6538:matched_C3_C3F_c352800_m1.json raw median -2.592982491 drift False
+docs/codex/10_analysis.log:6539:matched_C3_C3F_c352800_m2.json raw median -2.487875521 drift False
+docs/codex/10_analysis.log:6540:matched_C3_C3F_c352800_m3.json raw median -2.447139472 drift False
+docs/codex/10_analysis.log:6542:matched_C3_C3F_c4410_m1.json raw median -2.540354966 drift True
+docs/codex/10_analysis.log:6543:matched_C3_C3F_c4410_m2.json raw median -2.530611353 drift False
+docs/codex/10_analysis.log:6544:matched_C3_C3F_c4410_m3.json raw median -2.585529233 drift True
+docs/codex/10_analysis.log:6547:matched_C3M_C3N_c352800_m1.json raw median -2.439149539 drift False
+docs/codex/10_analysis.log:6548:matched_C3M_C3N_c352800_m2.json raw median -2.301376429 drift False
+docs/codex/10_analysis.log:6549:matched_C3M_C3N_c352800_m3.json raw median -2.281344146 drift False
+docs/codex/10_analysis.log:6551:matched_C3M_C3N_c4410_m1.json raw median -0.012523378 drift True
+docs/codex/10_analysis.log:6552:matched_C3M_C3N_c4410_m2.json raw median 0.064766034 drift False
+docs/codex/10_analysis.log:6553:matched_C3M_C3N_c4410_m3.json raw median -0.113308197 drift False
+docs/codex/10_analysis.log:6560:HEADLINE CLOCK C3 r1 [2572.0, 2771.0, 2970.0, 2970.0, 2970.0] drift 0.1396197291798218
+docs/codex/10_analysis.log:6561:HEADLINE CLOCK C3 r2 [2595.0, 2962.0, 2966.0, 2970.0, 2970.0] drift 0.12964115328769965
+docs/codex/10_analysis.log:6562:HEADLINE CLOCK C3 r3 [2595.0, 2857.0, 2962.0, 2962.0, 2970.0] drift 0.13069845253032206
+docs/codex/10_analysis.log:6563:HEADLINE CLOCK C3 r4 [2718.5, 2842.0, 2902.0, 2966.0, 2970.0] drift 0.08733548633538216
+docs/codex/10_analysis.log:6564:HEADLINE CLOCK C3 r5 [2670.0, 2670.0, 2970.0, 2970.0, 2970.0] drift 0.10526315789473684
+docs/codex/10_analysis.log:6565:HEADLINE CLOCK H r1 [2992.0, 2962.0, 2962.0, 2955.0, 2955.0] drift 0.012478079050317012
+docs/codex/10_analysis.log:6566:HEADLINE CLOCK H r2 [2602.5, 2610.0, 2955.0, 2955.0, 2955.0] drift 0.12519978689397976
+docs/codex/10_analysis.log:6567:HEADLINE CLOCK H r3 [2647.0, 2647.0, 2917.0, 2955.0, 2955.0] drift 0.10905743219318746
+docs/codex/10_analysis.log:6568:HEADLINE CLOCK H r4 [2625.0, 2625.0, 2625.0, 2955.0, 2955.0] drift 0.11969532100108814
+docs/codex/10_analysis.log:6569:HEADLINE CLOCK H r5 [2880.0, 2880.0, 2955.0, 2955.0, 2955.0] drift 0.02564102564102564
+docs/codex/10_analysis.log:6570:HEADLINE CLOCK C1 r1 [2625.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.1189245087900724
+docs/codex/10_analysis.log:6571:HEADLINE CLOCK C1 r2 [2580.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.13485477178423236
+docs/codex/10_analysis.log:6572:HEADLINE CLOCK C1 r3 [2617.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.121749327447058
+docs/codex/10_analysis.log:6573:HEADLINE CLOCK C1 r4 [2775.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.06653019447287616
+docs/codex/10_analysis.log:6574:HEADLINE CLOCK C1 r5 [2580.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.13485477178423236
+docs/codex/10_analysis.log:6575:HEADLINE CLOCK A r1 [2985.0, 2985.0, 2985.0, 2985.0, 2985.0] drift 0.0
+docs/codex/10_analysis.log:6576:HEADLINE CLOCK A r2 [2977.5, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.002523977788995457
+docs/codex/10_analysis.log:6577:HEADLINE CLOCK A r3 [2962.0, 2985.0, 2985.0, 2985.0, 2985.0] drift 0.007717084955039592
+docs/codex/10_analysis.log:6578:HEADLINE CLOCK A r4 [2872.5, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.03304524656837824
+docs/codex/10_analysis.log:6579:HEADLINE CLOCK A r5 [2970.0, 2970.0, 2970.0, 2970.0, 2970.0] drift 0.0
+docs/phase3/_session_result_v1_regenerated.md:5:clocks session1: SM median 2805 MHz (range 240–2947) · memory 13801 MHz · 3253 samples — evidence/clocks_session1.csv
+docs/phase3/_session_result_v1_regenerated.md:6:clocks session2: SM median 2520 MHz (range 232–2947) · memory 13801 MHz · 3260 samples — evidence/clocks_session2.csv
+
+exec
+/usr/bin/bash -lc "nl -ba fullmodel/ideal_costs.py | sed -n '405,448p'" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+   405	    else:
+   406	        out['variant_selection'] = {'status': 'n/a', 'reason': 'eager arm: no generated code'}
+   407	
+   408	    rows = []
+   409	    for name, v in ks.items():
+   410	        cls = classify(name)
+   411	        template_gemm = name.startswith('triton_tem_')
+   412	        if template_gemm:
+   413	            cls = 'GEMM'          # Inductor GEMM templates (max-autotune) are GEMMs, not fused pointwise
+   414	        row = {'kernel': name[:120], 'kernel_full': name, 'class': cls, 'launches_per_pass': v['instances'] / n_pass,
+   415	               'time_us_per_pass': v['total_ns'] / n_pass / 1e3, 'flops_per_pass': None,
+   416	               'bytes_per_pass': None, 'ideal_us_hbm': None, 'ideal_us_l2': None, 'resolution': 'UNRESOLVED'}
+   417	        if template_gemm:
+   418	            row['resolution'] = ('UNRESOLVED: Inductor GEMM template kernel (max-autotune); not priced '
+   419	                                 'by the byte model — GEMM class only')
+   420	        elif cls == 'INDUCTOR_FUSED' and name in fused_bytes:
+   421	            vals = fused_bytes[name]
+   422	            if all(x is not None for x in vals):
+   423	                by = sum(v['bytes'] for v in vals)
+   424	                # per-call ideals, summed (each call's own L2 residency test)
+   425	                hbm = sum(ideal_us(0.0, v['bytes'], 'torch.float16', None, None)['ideal_us_hbm'] for v in vals)
+   426	                l2 = [ideal_us(0.0, v['bytes'], 'torch.float16', args.bw_l2_tbps,
+   427	                               args.l2_bytes if v['footprint'] is not None else None,
+   428	                               footprint=v['footprint']).get('ideal_us_l2') for v in vals]
+   429	                row.update(flops_per_pass=0.0, bytes_per_pass=by, ideal_us_hbm=hbm,
+   430	                           bytes_read_per_pass=sum(v['bytes_read'] for v in vals),
+   431	                           bytes_write_per_pass=sum(v['bytes_write'] for v in vals),
+   432	                           ideal_us_l2=(sum(l2) if all(x is not None for x in l2) else None),
+   433	                           resolution='wrapper access bytes, per-call ideals summed '
+   434	                                      '(zero-FLOP pricing: registered deviation for fused pointwise/reduction kernels)')
+   435	                if hbm > row['time_us_per_pass']:
+   436	                    row['bound_not_tight'] = ('HBM-model ideal exceeds the measured time: the byte '
+   437	                                              'footprint over-counts (slice reads) and/or L2 absorbed '
+   438	                                              'traffic; recoverable share under the HBM model = 0')
+   439	                row['recoverable_share_hbm_model'] = max(0.0, 1.0 - hbm / row['time_us_per_pass']) if row['time_us_per_pass'] else None
+   440	            else:
+   441	                row['resolution'] = 'UNRESOLVED: an access/dtype/shape could not be resolved'
+   442	        elif cls == 'SDPA':
+   443	            row['resolution'] = 'class-level (see sdpa_class)'
+   444	        elif cls == 'GEMM':
+   445	            row['resolution'] = 'class-level (cuBLAS names carry no shapes; see gemm_sites)'
+   446	        rows.append(row)
+   447	    out['rows'] = rows
+   448	    out['gemm_sites'] = gemm_sites
+
+exec
+/usr/bin/bash -lc "rg --files /home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855 | rg '/(session_manifest.json|summary_full.json|boundary_bench.json)"'$'"'" in /home/muhit/ms/sm120-nulltest
+ succeeded in 0ms:
+/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855/evidence/boundary_bench.json
+/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855/evidence/session_manifest.json
+/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855/evidence/summary_full.json
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,collections,statistics as s,sys
+from pathlib import Path
+sys.path.insert(0,'fullmodel');sys.path.insert(0,'fullmodel/attrib')
+import e_tools as e, kernel_map as km
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence')
+for O in [352800,4410]:
+ for arm in ['C3','C3M','C3F','C3G','C3P','C3N']:
+  base=p/'traces';ic=json.loads((base/f'ideal_costs_{arm}_{O}.json').read_text());tc=json.loads((base/f'template_count_{arm}_{O}.json').read_text());cc=json.loads((base/f'cast_count_{arm}_{O}.json').read_text())
+  rows=ic['rows'];tem=[r for r in rows if (r.get('kernel_full') or r.get('kernel')).startswith('triton_tem_')];ext=[r for r in rows if r['class']=='GEMM' and r not in tem]
+  print(arm,O,'GEMM class',sum(r['launches_per_pass'] for r in rows if r['class']=='GEMM'),'templates',sum(r['launches_per_pass'] for r in tem),'extern',sum(r['launches_per_pass'] for r in ext),'reported extern',tc['extern_gemm_kernels_per_pass'],'cast',cc['cast_kernels_per_pass'],cc['cast_time_ms_per_pass'])
+  if arm=='C3M':
+   gpu=km.read_gpu_trace(str(base/f'trace_{arm}_{O}_trace_cuda_gpu_trace.csv'));windows,err=km.nvtx_pass_windows(str(base/f'trace_{arm}_{O}_trace_nvtx_gpu_proj_trace.csv'))
+   from classify import classify
+   ps,_=km.split_passes(gpu,windows,classify)
+   print('RAW GPU',len(ps),s.median([sum(x['name'].startswith('triton_tem_') for x in z) for z in ps]),s.median([sum(not x['name'].startswith('triton_tem_') and classify(x['name'])=='GEMM' for x in z) for z in ps]))
+  calls=e._wrapper_calls(ic,str(base/f'dump_{arm}_{O}_trace'))
+  selected={c['name'] for c in calls if c.get('kind')=='triton' and '_to_copy' in c['name'] and any(a.get('read') for a in c.get('args',[])) and all(str(a.get('buf','')).startswith('arg') for a in c.get('args',[]) if a.get('read'))}
+  by=e._row_by_name(ic);missing=selected-by.keys();cnt=sum(by[n]['launches_per_pass'] for n in selected if n in by);tm=sum(by[n]['time_us_per_pass'] for n in selected if n in by)/1000
+  assert not missing and cnt==cc['cast_kernels_per_pass'] and abs(tm-cc['cast_time_ms_per_pass'])<1e-9,(arm,O,missing,cnt,tm)
+print('All cast counts and times match the X6a wrapper set')
+PY" in /home/muhit/ms/sm120-nulltest
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys,copy,hashlib
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,'fullmodel');import completeness as c
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');ev=str(p)
+run=c.load_runs(ev);matched=c.load_matched(ev);man=c.load(str(p/'session_manifest.json'));mid=man['manifest_id'];summ=c.load(str(p/'summary_full.json'))
+st=c.load(str(p/'session_status.json'))
+print('AUDIT CODE identical to pod hash:',st['analysis_tools_sha256'].get('fullmodel/completeness.py')==hashlib.sha256(Path('fullmodel/completeness.py').read_bytes()).hexdigest())
+load=c.load
+def go(name,changes=None,run_=None,matched_=None):
+ def altered(path):
+  pp=str(path);rel=str(Path(pp).relative_to(p)) if Path(pp).is_relative_to(p) else pp
+  return changes[rel] if changes and rel in changes else load(path)
+ with patch.object(c,'load',side_effect=altered):
+  its=[];aux=[];c.audit_session3(ev,its,mid,run_ or run,matched_ or matched,summ['cells'],summ['matched_pairs'],aux)
+ bad=[(i['item'],i['reason']) for i in its if not i['complete'] and not i['optional']]
+ print(name,'mandatory rejected',bad)
+ return its
+base=go('baseline')
+m=copy.deepcopy(matched);m[(('C3','C3G'),352800,'m1')]['manifest_id']='foreign';go('foreign matched manifest',matched_=m)
+r=copy.deepcopy(run);r[('C3G',352800)]['trace']['manifest_id']='foreign';go('foreign trace manifest',run_=r)
+e=c.load(str(p/'traces/trace_C3G_352800_trace_exports.json'));e['complete']=False;go('explicit incomplete exports',{'traces/trace_C3G_352800_trace_exports.json':e})
+g=copy.deepcopy(c.load(str(p/'traces/graph_verify_C3M_352800.json')));g['qualified']=False;g['registered_protocol']=False;g['per_pass']=[]
+go('claimed FULLY_GRAPHED but no per-pass evidence',{'traces/graph_verify_C3M_352800.json':g})
+r=copy.deepcopy(run);r[('C3N',352800)]['r1']['compile_mode']='reduce-overhead';go('E4a single run mode mismatch',run_=r)
+m=copy.deepcopy(matched)
+for key,x in m.items():
+ if key[0]==('C3M','C3N'):
+  x['arms']['C3N']['compile_mode']='reduce-overhead'
+  x['effective_variants']['C3N']['compile_mode']='reduce-overhead'
+go('E4a all matched C3N modes disagree with decision',matched_=m)
+d=copy.deepcopy(c.load(str(p/'e4a_decision.json')));d['C3_minus_C3M_8s_median_ms']=0.1;d['quality_ok']=False;go('E4a decision contradicts its own trigger',{'e4a_decision.json':d})
+PY" in /home/muhit/ms/sm120-nulltest
+ exited 1 in 406ms:
+AUDIT CODE identical to pod hash: True
+baseline mandatory rejected []
+foreign matched manifest mandatory rejected [("E1(a') matched C3 vs C3G @352800 (m1)", ['missing'])]
+foreign trace manifest mandatory rejected [("E1(a') trace C3G@352800", ['foreign manifest'])]
+explicit incomplete exports mandatory rejected [("E1(a') trace C3G@352800", ['node-level exports incomplete'])]
+claimed FULLY_GRAPHED but no per-pass evidence mandatory rejected []
+E4a single run mode mismatch mandatory rejected [('E4a C3N@352800 compile mode matches the decision (max-autotune)', ['run compile_mode reduce-overhead vs decision max-autotune'])]
+Traceback (most recent call last):
+  File "<stdin>", line 30, in <module>
+TypeError: 'str' object does not support item assignment
+
+ succeeded in 5620ms:
+C3 352800 GEMM class 323.0 templates 0 extern 323.0 reported extern 323.0 cast 420.0 0.9151503200000001
+C3M 352800 GEMM class 323.0 templates 178.0 extern 145.0 reported extern 323.0 cast 420.0 0.90535206
+RAW GPU 50 178.0 145.0
+C3F 352800 GEMM class 323.0 templates 0 extern 323.0 reported extern 323.0 cast 420.0 0.9111674999999999
+C3G 352800 GEMM class 323.0 templates 0 extern 323.0 reported extern 323.0 cast 0 0.0
+C3P 352800 GEMM class 323.0 templates 0 extern 323.0 reported extern 323.0 cast 60.0 0.13988096
+C3N 352800 GEMM class 300.0 templates 271.0 extern 29.0 reported extern 300.0 cast 420.0 0.9167274599999999
+C3 4410 GEMM class 329.0 templates 0 extern 329.0 reported extern 329.0 cast 420.0 0.85320478
+C3M 4410 GEMM class 310.0 templates 280.0 extern 30.0 reported extern 310.0 cast 420.0 0.8520577599999999
+RAW GPU 50 280.0 30.0
+C3F 4410 GEMM class 329.0 templates 0 extern 329.0 reported extern 329.0 cast 420.0 0.8575841000000001
+C3G 4410 GEMM class 329.0 templates 0 extern 329.0 reported extern 329.0 cast 0 0.0
+C3P 4410 GEMM class 329.0 templates 0 extern 329.0 reported extern 329.0 cast 60.0 0.10241728
+C3N 4410 GEMM class 307.0 templates 270.0 extern 37.0 reported extern 307.0 cast 420.0 0.8571481599999999
+All cast counts and times match the X6a wrapper set
+
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys,copy
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,'fullmodel');import completeness as c
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence');ev=str(p)
+run=c.load_runs(ev);matched=c.load_matched(ev);man=c.load(str(p/'session_manifest.json'));mid=man['manifest_id'];summ=c.load(str(p/'summary_full.json'));load=c.load
+print('E4a effective variants',next(m for (pair,_,_),m in matched.items() if pair==('C3M','C3N'))['effective_variants'])
+def go(name,changes=None,run_=None,matched_=None):
+ def altered(path):
+  pp=str(path);rel=str(Path(pp).relative_to(p)) if Path(pp).is_relative_to(p) else pp
+  return changes[rel] if changes and rel in changes else load(path)
+ with patch.object(c,'load',side_effect=altered):
+  its=[];aux=[];c.audit_session3(ev,its,mid,run_ or run,matched_ or matched,summ['cells'],summ['matched_pairs'],aux)
+ print(name,'mandatory rejected',[(i['item'],i['reason']) for i in its if not i['complete'] and not i['optional']])
+m=copy.deepcopy(matched)
+for key,x in m.items():
+ if key[0]==('C3M','C3N'):
+  x['arms']['C3N']['compile_mode']='reduce-overhead'
+  x['effective_variants']['C3N']=x['effective_variants']['C3N'].replace('max-autotune','reduce-overhead')
+go('E4a all matched C3N modes disagree with decision',matched_=m)
+d=copy.deepcopy(c.load(str(p/'e4a_decision.json')));d['C3_minus_C3M_8s_median_ms']=0.1;d['quality_ok']=False
+go('E4a decision contradicts its own trigger',{'e4a_decision.json':d})
+# Model deletion of actual export payloads: intercept any attempt to read them.
+origopen=open
+seen=[]
+def blockedopen(path,*args,**kwargs):
+ if str(path).endswith('.csv') and '/traces/' in str(path):
+  seen.append(str(path));raise FileNotFoundError(path)
+ return origopen(path,*args,**kwargs)
+with patch('builtins.open',side_effect=blockedopen):go('all trace CSV payloads absent, export labels retained')
+print('attempted CSV reads',len(seen))
+# The audit currently marks SDR as recorded without requiring a valid payload.
+r=copy.deepcopy(run);r[('C3M',352800)]['r1']['sdr_gate']['clips']=[]
+go('empty E2 SDR clips but PASS label retained',run_=r)
+PY" in /home/muhit/ms/sm120-nulltest
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import sys,json
+from pathlib import Path
+sys.path.insert(0,'fullmodel');import ledger
+p='/home/muhit/ms/evidence_pod/9tblar2zwo97ln_20260920_1855/evidence'
+E,rows=ledger.build(p);pub=json.load(open('LEDGER.json'))
+strip=lambda rs:[{k:v for k,v in r.items() if not k.startswith('realized_')} for r in rs]
+print('base rows',len(rows),'published',len(pub),'all base fields equal',strip(rows)==strip(pub))
+for r,s in zip(rows,strip(pub)):
+ diff={k:(r.get(k),s.get(k)) for k in r.keys()|s.keys() if r.get(k)"'!=s.get(k)}
+ if diff:print('"'DIFF',r['X'],r['O'],diff)
+import subprocess
+prev=json.loads(subprocess.check_output(['git','show','ed3ea3d:LEDGER.json']))
+print('without phase3 vs pod-commit Sep20 ledger unchanged',rows==prev)
+PY" in /home/muhit/ms/sm120-nulltest
+exec
+/usr/bin/bash -lc "python -B - <<'PY'
+import json,sys
+from pathlib import Path
+sys.path.insert(0,'fullmodel');sys.path.insert(0,'fullmodel/attrib')
+from kernel_map import parse_output_code
+p=Path('/home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence/traces')
+O=352800;a='C3M';ic=json.loads((p/f'ideal_costs_{a}_{O}.json').read_text());wanted=ic['variant_selection']['selected'];dump=p/f'dump_{a}_{O}_trace'
+for g in parse_output_code(str(dump)):
+ if str(Path(g['path']).relative_to(dump)) not in wanted:continue
+ ts=[c for c in g['calls'] if c['name'].startswith('triton_tem_')]
+ if not ts:continue
+ print('PATH',g['path'])
+ for c in ts[:3]:
+  print('TEMPLATE CALL',c)
+  print('TEMPLATE metadata',g['kernels'].get(c['name']))
+  k=next(i for i,x in enumerate(g['calls']) if x is c)
+  print('PREVIOUS',g['calls'][max(0,k-2):k])
+ break
+PY" in /home/muhit/ms/sm120-nulltest
+ succeeded in 267ms:
+E4a effective variants {'C3M': 'capture_scope=None|capture_adapter_active=None|compile_mode=max-autotune|stream_count=None', 'C3N': 'capture_scope=None|capture_adapter_active=None|compile_mode=max-autotune|stream_count=None'}
+E4a all matched C3N modes disagree with decision mandatory rejected []
+E4a decision contradicts its own trigger mandatory rejected []
+all trace CSV payloads absent, export labels retained mandatory rejected []
+attempted CSV reads 0
+empty E2 SDR clips but PASS label retained mandatory rejected []
+
+ succeeded in 569ms:
+PATH /home/muhit/ms/evidence_pod/d5n5vfr3z1tbp6_20260922_1031/evidence/traces/dump_C3M_352800_trace/torch_compile_debug/run_2026_09_22_00_57_52_070189-pid_158335/torchinductor/model__1_inference_1.1/output_code.py
+TEMPLATE CALL {'kind': 'triton', 'name': 'triton_tem_fused__to_copy_addmm_6', 'args': [{'buf': 'buf17', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf15', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}, {'buf': 'buf16', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': False, 'role': 'unaligned', 'access_unresolved': True}, {'buf': 'buf18', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': False, 'role': 'unaligned', 'access_unresolved': True}], 'align_ok': False, 'assigned': None, 'numeric_literals': ['312', '1', '1'], 'line': 'triton_tem_fused__to_copy_addmm_6.run(buf17, buf15, buf16, buf18, 312, 1, 1, stream=stream0)', 'source_line': 18928}
+TEMPLATE metadata {'inner_name': 'triton_tem_fused__to_copy_addmm_6', 'inner_mismatch': False, 'ops': ['aten._to_copy', 'aten.addmm'], 'ops_source': 'aten_comment', 'params': ['in_ptr0', 'out_ptr0'], 'numeric_params': ['arg_A', 'arg_B'], 'load_exprs': {'in_ptr0': 'tl.broadcast_to(idx_n,acc.shape)'}, 'store_exprs': {'out_ptr0': 'tl.broadcast_to(xindex,acc.shape)'}, 'loads_present': ['in_ptr0'], 'stores_present': ['out_ptr0'], 'load_sites': {'in_ptr0': 1, 'out_ptr0': 0}, 'store_sites': {'in_ptr0': 0, 'out_ptr0': 1}, 'ptr_dtypes': {'in_ptr0': 'fp16', 'arg_A': 'fp16', 'arg_B': 'fp16', 'out_ptr0': 'fp16'}, 'source_sha256': '64b542c615eecc552a062fd9f5181e7be1d8047ee8f6782aa44b29780566084f'}
+PREVIOUS [{'kind': 'triton', 'name': 'triton_poi_fused__to_copy_5', 'args': [{'buf': 'arg6_1', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf16', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}], 'align_ok': True, 'assigned': None, 'numeric_literals': ['9216'], 'line': 'triton_poi_fused__to_copy_5.run(arg6_1, buf16, 9216, stream=stream0)', 'source_line': 18918}, {'kind': 'triton', 'name': 'triton_poi_fused__to_copy_3', 'args': [{'buf': 'arg7_1', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf17', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}], 'align_ok': True, 'assigned': None, 'numeric_literals': ['384'], 'line': 'triton_poi_fused__to_copy_3.run(arg7_1, buf17, 384, stream=stream0)', 'source_line': 18923}]
+TEMPLATE CALL {'kind': 'triton', 'name': 'triton_tem_fused__to_copy_addmm_6', 'args': [{'buf': 'buf22', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf20', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}, {'buf': 'buf21', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': False, 'role': 'unaligned', 'access_unresolved': True}, {'buf': 'buf23', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': False, 'role': 'unaligned', 'access_unresolved': True}], 'align_ok': False, 'assigned': None, 'numeric_literals': ['312', '1', '1'], 'line': 'triton_tem_fused__to_copy_addmm_6.run(buf22, buf20, buf21, buf23, 312, 1, 1, stream=stream0)', 'source_line': 18943}
+TEMPLATE metadata {'inner_name': 'triton_tem_fused__to_copy_addmm_6', 'inner_mismatch': False, 'ops': ['aten._to_copy', 'aten.addmm'], 'ops_source': 'aten_comment', 'params': ['in_ptr0', 'out_ptr0'], 'numeric_params': ['arg_A', 'arg_B'], 'load_exprs': {'in_ptr0': 'tl.broadcast_to(idx_n,acc.shape)'}, 'store_exprs': {'out_ptr0': 'tl.broadcast_to(xindex,acc.shape)'}, 'loads_present': ['in_ptr0'], 'stores_present': ['out_ptr0'], 'load_sites': {'in_ptr0': 1, 'out_ptr0': 0}, 'store_sites': {'in_ptr0': 0, 'out_ptr0': 1}, 'ptr_dtypes': {'in_ptr0': 'fp16', 'arg_A': 'fp16', 'arg_B': 'fp16', 'out_ptr0': 'fp16'}, 'source_sha256': '64b542c615eecc552a062fd9f5181e7be1d8047ee8f6782aa44b29780566084f'}
+PREVIOUS [{'kind': 'triton', 'name': 'triton_poi_fused__to_copy_5', 'args': [{'buf': 'arg9_1', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf21', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}], 'align_ok': True, 'assigned': None, 'numeric_literals': ['9216'], 'line': 'triton_poi_fused__to_copy_5.run(arg9_1, buf21, 9216, stream=stream0)', 'source_line': 18933}, {'kind': 'triton', 'name': 'triton_poi_fused__to_copy_3', 'args': [{'buf': 'arg10_1', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf22', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}], 'align_ok': True, 'assigned': None, 'numeric_literals': ['384'], 'line': 'triton_poi_fused__to_copy_3.run(arg10_1, buf22, 384, stream=stream0)', 'source_line': 18938}]
+TEMPLATE CALL {'kind': 'triton', 'name': 'triton_tem_fused__to_copy_addmm_6', 'args': [{'buf': 'buf27', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf25', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}, {'buf': 'buf26', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': False, 'role': 'unaligned', 'access_unresolved': True}, {'buf': 'buf28', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': False, 'role': 'unaligned', 'access_unresolved': True}], 'align_ok': False, 'assigned': None, 'numeric_literals': ['312', '1', '1'], 'line': 'triton_tem_fused__to_copy_addmm_6.run(buf27, buf25, buf26, buf28, 312, 1, 1, stream=stream0)', 'source_line': 18958}
+TEMPLATE metadata {'inner_name': 'triton_tem_fused__to_copy_addmm_6', 'inner_mismatch': False, 'ops': ['aten._to_copy', 'aten.addmm'], 'ops_source': 'aten_comment', 'params': ['in_ptr0', 'out_ptr0'], 'numeric_params': ['arg_A', 'arg_B'], 'load_exprs': {'in_ptr0': 'tl.broadcast_to(idx_n,acc.shape)'}, 'store_exprs': {'out_ptr0': 'tl.broadcast_to(xindex,acc.shape)'}, 'loads_present': ['in_ptr0'], 'stores_present': ['out_ptr0'], 'load_sites': {'in_ptr0': 1, 'out_ptr0': 0}, 'store_sites': {'in_ptr0': 0, 'out_ptr0': 1}, 'ptr_dtypes': {'in_ptr0': 'fp16', 'arg_A': 'fp16', 'arg_B': 'fp16', 'out_ptr0': 'fp16'}, 'source_sha256': '64b542c615eecc552a062fd9f5181e7be1d8047ee8f6782aa44b29780566084f'}
+PREVIOUS [{'kind': 'triton', 'name': 'triton_poi_fused__to_copy_5', 'args': [{'buf': 'arg12_1', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf26', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}], 'align_ok': True, 'assigned': None, 'numeric_literals': ['9216'], 'line': 'triton_poi_fused__to_copy_5.run(arg12_1, buf26, 9216, stream=stream0)', 'source_line': 18948}, {'kind': 'triton', 'name': 'triton_poi_fused__to_copy_3', 'args': [{'buf': 'arg13_1', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': True, 'write': False, 'role': 'in_ptr0', 'access_unresolved': False}, {'buf': 'buf27', 'shape': None, 'stride': None, 'reinterpret': False, 'in_out_kw': False, 'read': False, 'write': True, 'role': 'out_ptr0', 'access_unresolved': False}], 'align_ok': True, 'assigned': None, 'numeric_literals': ['384'], 'line': 'triton_poi_fused__to_copy_3.run(arg13_1, buf27, 384, stream=stream0)', 'source_line': 18953}]
+
+ succeeded in 1376ms:
+base rows 38 published 38 all base fields equal True
+without phase3 vs pod-commit Sep20 ledger unchanged True
+
+codex
+The E9 observations and E2 deltas reproduce from the raw samples, and the Sep-20 ledger rows are unchanged without `--phase3-dir`. I also found that the reported “extern GEMM” counts include Triton templates, and the E2 weight-cast attribution conflicts with the cast records and compile dump.
