@@ -112,6 +112,14 @@ def main():
             L.append(f"| {k} | UNRESOLVED | | | {v.get('status')} |"); continue
         lo, hi = v['ci95_median_ms']
         L.append(f"| {v['chunk']} | {v['median_ms']:+.4f} | [{lo:+.4f}, {hi:+.4f}] | {'yes' if lo <= 0 <= hi else 'NO'} | {k} |")
+    v6 = []
+    for k, v in sorted((aa.get('pairs') or {}).items()):
+        if 'median_ms' in v and v.get('chunk') in OPS:
+            bound = 0.05 if v['chunk'] == 4410 else 0.15
+            lo, hi = v['ci95_median_ms']
+            v6.append(f"{v['chunk']}: |{v['median_ms']:+.4f}| {'<=' if abs(v['median_ms']) <= bound else '>'} {bound} ms and interval {'covers' if lo <= 0 <= hi else 'excludes'} zero → **{'confirmed' if abs(v['median_ms']) <= bound and lo <= 0 <= hi else 'NOT confirmed'}**")
+    L.append('')
+    L.append('- Registered prediction: ' + '; '.join(v6) if v6 else '- Registered prediction: UNRESOLVED')
     summ = load(os.path.join(ev, 'summary_full.json')) or {}
     L.append('')
     L.append('Headline cells over the session restarts (collect_full.py; HEADLINE requires every restart eligible and SDR PASS in r1):')
@@ -205,12 +213,15 @@ def main():
     L.append('')
     L.append('| O | control − C3N (ms) | CI95 | restarts | control wall | C3N wall | SDR (C3N r1) | graph verify (kernels) |')
     L.append('|---|---|---|---|---|---|---|---|')
+    e4 = {}
     for O in OPS:
-        r = pair_result(ev, ctrl, 'C3N', O); s_, d_ = sdr_of(ev, 'C3N', O); v, gl, cap, stg = gv_of(ev, 'C3N', O)
+        r = pair_result(ev, ctrl, 'C3N', O); e4[O] = r; s_, d_ = sdr_of(ev, 'C3N', O); v, gl, cap, stg = gv_of(ev, 'C3N', O)
         L.append(f"| {O} | {f(r.get('median_ms'), '+.4f')} | {r.get('ci95_ms', r.get('status'))} | {r.get('restarts', 0)} | {f(r.get('a_wall_ms'))} | {f(r.get('b_wall_ms'))} | {s_} ({f(d_, '+.4f')} dB) | {v} ({f(cap, '.0f')}) |")
-        if O == 352800:
-            ok = r.get('status') == 'ok' and r['median_ms'] >= 0.5
-            L.append(f"- 8 s registered ≥ 0.5 ms: **{'confirmed' if ok else 'NOT confirmed'}**; X2a ceiling 1.1275 ms (LEDGER.md)")
+    L.append('')
+    r8, r1 = e4[352800], e4[4410]
+    ok8 = r8.get('status') == 'ok' and r8['median_ms'] >= 0.5
+    ok1 = r1.get('status') == 'ok' and abs(r1['median_ms']) <= 0.1
+    L.append(f"- Registered prediction: 8 s ≥ 0.5 ms **{'confirmed' if ok8 else 'NOT confirmed'}** ({f(r8.get('median_ms'), '+.3f')} ms; X2a ceiling 1.1275 ms, LEDGER.md); 4410 |Δ| ≤ 0.1 ms **{'confirmed' if ok1 else 'NOT confirmed'}** ({f(r1.get('median_ms'), '+.3f')} ms)")
     L.append('')
     # ---- E5
     L.append('## E5 — Structural variants (depth × mask-estimator width), timing only')
@@ -249,7 +260,7 @@ def main():
             a1, a6 = cell('C3', 352800, f'd1_{var}'), cell('C3', 352800, f'd6_{var}')
             if a1 and a6:
                 w1, w6 = statistics.median(a1['walls']), statistics.median(a6['walls'])
-                L.append(f"- (iii) C3 at 8 s, {var}: wall depth 6 / depth 1 = {w6 / w1:.2f}× (linear-in-depth transformer time would give 6× on the depth-scaled part; per-depth increment {(w6 - w1) / 5:.3f} ms; fixed part ≈ {w1 - (w6 - w1) / 5:.3f} ms)")
+                L.append(f"- (iii) C3 at 8 s, {var}: wall depth 1 = {w1:.3f} ms, depth 6 = {w6:.3f} ms; under a linear-in-depth model the per-depth increment is {(w6 - w1) / 5:.3f} ms and the depth-independent part {w1 - (w6 - w1) / 5:.3f} ms (two depths only: linearity itself is not testable here; the registered quantities are reported)")
     except Exception as e:
         L.append(f'- E5 checks UNRESOLVED: {type(e).__name__}: {e}')
     L.append('')

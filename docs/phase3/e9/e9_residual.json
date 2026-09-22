@@ -1,0 +1,106 @@
+{
+ "registered_variant": "sweep_refit_THNone_TCNone",
+ "in_sample_residuals_ms (pred - obs)": {
+  "352800": 0.09291909328568515,
+  "4410": 0.17880192046810084,
+  "22050": 0.13986987858544708,
+  "88200": -0.41800027847450494
+ },
+ "held_out": {
+  "176400": {
+   "frames": 401,
+   "observed": 1.1288269888609648,
+   "predicted": 0.368239512112225,
+   "residual_obs_minus_pred_ms": 0.7605874767487397,
+   "terms_registered": {
+    "rate_H": 108.24977759559428,
+    "rate_C3": 70.78606129575306,
+    "pad": 0.5961817533621114,
+    "eff": -0.8011046230692712,
+    "nf": 0.32320347468354416,
+    "mid": 0.08028013291139309,
+    "B": 0.5668002500000024
+   },
+   "to_absorb_alone": {
+    "rate_C3_TFLOPS (registered -> needed)": [
+     70.78606129575306,
+     53.279406929341675
+    ],
+    "rate_H_TFLOPS (registered -> needed)": [
+     108.24977759559428,
+     217.58090139853655
+    ],
+    "padding_cost_ms (registered -> needed)": [
+     0.5961817533621114,
+     -0.1644057233866283
+    ],
+    "fixed_B_ms (registered -> needed)": [
+     0.5668002500000024,
+     1.3273877267487422
+    ]
+   },
+   "note": "B is fixed by the two traces (0.552/0.582 ms), so a B change of this size is excluded; the padding term is bounded by the extra FLOPs and cannot go negative; the residual therefore points at the rate curves (kernel-efficiency term)"
+  },
+  "264600": {
+   "frames": 601,
+   "observed": 0.6722906837239861,
+   "predicted": -0.014920697301044394,
+   "residual_obs_minus_pred_ms": 0.6872113810250305,
+   "terms_registered": {
+    "rate_H": 114.31943502043337,
+    "rate_C3": 81.84589456567727,
+    "pad": 0.8460883645087256,
+    "eff": -0.852306721005148,
+    "nf": 0.46756448734177203,
+    "mid": 0.12037481645569723,
+    "B": 0.5668002500000024
+   },
+   "to_absorb_alone": {
+    "rate_C3_TFLOPS (registered -> needed)": [
+     81.84589456567727,
+     66.59356256034938
+    ],
+    "rate_H_TFLOPS (registered -> needed)": [
+     114.31943502043337,
+     168.0944509649221
+    ],
+    "padding_cost_ms (registered -> needed)": [
+     0.8460883645087256,
+     0.15887698348369506
+    ],
+    "fixed_B_ms (registered -> needed)": [
+     0.5668002500000024,
+     1.2540116310250329
+    ]
+   },
+   "note": "B is fixed by the two traces (0.552/0.582 ms), so a B change of this size is excluded; the padding term is bounded by the extra FLOPs and cannot go negative; the residual therefore points at the rate curves (kernel-efficiency term)"
+  }
+ },
+ "residual_by_length_ms (pred - obs)": [
+  [
+   4410,
+   0.17880192046810084
+  ],
+  [
+   22050,
+   0.13986987858544708
+  ],
+  [
+   88200,
+   -0.41800027847450494
+  ],
+  [
+   176400,
+   -0.7605874767487397
+  ],
+  [
+   264600,
+   -0.6872113810250305
+  ],
+  [
+   352800,
+   0.09291909328568515
+  ]
+ ],
+ "reading": "the residual (pred \u2212 obs) is near zero at 4,410 and 22,050, negative from 88,200 through 264,600 (the model under-predicts H's advantage at mid lengths) and positive at 352,800: a shape that the two-point saturating rate curves cannot follow; the efficiency term (per-band C3 GEMM rate vs batched H rate as a function of frames) is where the model is wrong. No refit is performed."
+}
