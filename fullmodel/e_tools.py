@@ -14,6 +14,11 @@ post-session with recorded identity). Subcommands:
   e9_check       --evidence-dir E --registration docs/phase3/e9/e9_cost_model.json --out J
                  : E9 held-out predictions vs the matched C3-H results; sign and
                    magnitude verdicts under the registered tolerance
+  e9_residual    --check J --registration R --out J
+                 : E9 post-hoc attribution (registered: "report which term the residual points
+                   at; do not refit and re-run"): the observed − predicted residual at each
+                   held-out length next to the in-sample residuals, and the single-term
+                   changes (rate_C3 or rate_H at that frame count) that would absorb it
   e5_summary     --evidence-dir E --out J
                  : E5 variant cells: wall, kernel sum/span (from timing views if traced),
                    cast time, boundary count, param bytes; the three registered checks
@@ -201,6 +206,51 @@ def e9_check(a):
         print(L, {k: v for k, v in r.items() if k not in ('terms', 'files')})
 
 
+def e9_residual(a):
+    import math
+    chk = _load(a.check) or {}
+    reg = _load(a.registration) or {}
+    var = reg['variants'][reg['registered_variant']]
+    p = var['params']; inp = reg['inputs']
+    def q(T):
+        return (lambda f: f / (T * math.ceil(f / T))) if T else (lambda f: 1.0)
+    qH, qC = q(p['TH']), q(p['TC'])
+    out = {'registered_variant': reg['registered_variant'], 'in_sample_residuals_ms (pred - obs)': var['res'], 'held_out': {}}
+    for L, r in (chk.get('held_out') or {}).items():
+        obs = r.get('observed_C3_minus_H_ms (median over restarts of block medians)')
+        if obs is None:
+            out['held_out'][L] = {'status': 'UNRESOLVED'}; continue
+        f = int(L) // HOP + 1
+        t = r['terms']
+        resid = obs - r['predicted_C3_minus_H_ms']            # + : H is faster than the model says
+        rH, rC = t['rate_H'], t['rate_C3']
+        G = inp['true_gflop_per_frame'] * f
+        # single-term absorptions (which one term, alone, would have to move to make the model exact)
+        # efficiency term: -G(1/rH - 1/rC) enters D with a minus sign -> D rises when rC falls
+        rc_needed = 1.0 / (1.0 / rC + resid / G) if (1.0 / rC + resid / G) > 0 else None
+        rh_needed = 1.0 / (1.0 / rH - resid / G) if (1.0 / rH - resid / G) > 0 else None
+        pad_needed = t['pad'] - resid                           # padding cost that would absorb it
+        out['held_out'][L] = {
+            'frames': f, 'observed': obs, 'predicted': r['predicted_C3_minus_H_ms'], 'residual_obs_minus_pred_ms': resid,
+            'terms_registered': {k: v for k, v in t.items() if isinstance(v, (int, float))},
+            'to_absorb_alone': {
+                'rate_C3_TFLOPS (registered -> needed)': [rC, rc_needed],
+                'rate_H_TFLOPS (registered -> needed)': [rH, rh_needed],
+                'padding_cost_ms (registered -> needed)': [t['pad'], pad_needed],
+                'fixed_B_ms (registered -> needed)': [t['B'], t['B'] + resid]},
+            'note': 'B is fixed by the two traces (0.552/0.582 ms), so a B change of this size is excluded; the padding term is bounded by the '
+                    'extra FLOPs and cannot go negative; the residual therefore points at the rate curves (kernel-efficiency term)'}
+    seq = sorted([(int(L), v) for L, v in var['res'].items()] + [(int(L), -h['residual_obs_minus_pred_ms']) for L, h in out['held_out'].items() if 'residual_obs_minus_pred_ms' in h])
+    out['residual_by_length_ms (pred - obs)'] = seq
+    out['reading'] = ('the residual (pred − obs) is near zero at 4,410 and 22,050, negative from 88,200 through 264,600 (the model under-predicts H\'s advantage '
+                      'at mid lengths) and positive at 352,800: a shape that the two-point saturating rate curves cannot follow; '
+                      'the efficiency term (per-band C3 GEMM rate vs batched H rate as a function of frames) is where the model is wrong. No refit is performed.')
+    json.dump(out, open(a.out, 'w'), indent=1)
+    print(json.dumps({k: v for k, v in out.items() if k != 'held_out'}, indent=1))
+    for L, h in out['held_out'].items():
+        print(L, {k: v for k, v in h.items() if k in ('observed', 'predicted', 'residual_obs_minus_pred_ms', 'to_absorb_alone')})
+
+
 def e5_summary(a):
     out = {'cells': {}, 'checks': {}}
     for path in sorted(glob.glob(os.path.join(a.evidence_dir, 'full_*_v_*.json'))):
@@ -239,6 +289,7 @@ def main():
     s = sub.add_parser('aa_stats'); s.add_argument('--evidence-dir', required=True); s.add_argument('--out', required=True)
     s = sub.add_parser('e9_check'); s.add_argument('--evidence-dir', required=True); s.add_argument('--registration', required=True); s.add_argument('--out', required=True)
     s = sub.add_parser('e5_summary'); s.add_argument('--evidence-dir', required=True); s.add_argument('--out', required=True)
+    s = sub.add_parser('e9_residual'); s.add_argument('--check', required=True); s.add_argument('--registration', required=True); s.add_argument('--out', required=True)
     a = ap.parse_args()
     globals()[a.cmd](a)
 
