@@ -751,6 +751,12 @@ def audit_session4(ev, items, manifest_id, run_map, matched, cells, pairs, dynam
     pbase = os.path.join(ev, 'traces', 'trace_matched_C1_C1P_352800_p1')
     exports_ok = all(csv_rows(f'{pbase}_{rep}.csv', cols) for rep, cols in (('cuda_gpu_trace', ('Start', 'Duration', 'Name')), ('cuda_api_trace', ('Start', 'Name')), ('nvtx_pushpop_trace', ('Start', 'Name'))))
     pprobs = qualify.pair_problems(m) if m else ['record missing']
+    # the profiled record declares itself a trace record (never a headline); the shared validator reports that
+    # declared flag as its only problem once every structural check passed — that one expected reason is not a
+    # defect of the record (on-pod audit item was mis-specified; corrected off-pod, gate-12 re-audit)
+    if m and m.get('pair_eligible') is False and pprobs == [f"stored pair flag says ineligible: {m.get('ineligibility_reasons')}"] \
+            and m.get('ineligibility_reasons') == ['profiled matched run (trace record; never a headline)']:
+        pprobs = []
     ok = bool(m and not pprobs and m.get('manifest_id') == manifest_id and m.get('profiled_repeat') == 0 and exp.get('complete') is True and exports_ok
               and mt.get('status') == 'ok' and all(a_ in (mt.get('arms') or {}) and sorted(p_.get('pass') for p_ in mt['arms'][a_].get('per_pass') or []) == list(range(50)) for a_ in ('C1', 'C1P')))
     item(items, 'PB profiled matched C1/C1P process (record passes the shared validator; repeat 0 captured; populated exports; aligned analysis with unique pass ids 0..49 per arm)', ok,
@@ -808,6 +814,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--evidence-dir', required=True)
     ap.add_argument('--session', choices=['session1', 'session2', 'session3', 'session4'], required=True)
+    ap.add_argument('--status-out', default=None, help='verdict file name inside the evidence dir (default session_status.json; a re-audit should name a separate file)')
     args = ap.parse_args()
     ev = args.evidence_dir
     items = []
@@ -1043,7 +1050,8 @@ def main():
               'qualify_version': qualify.QUALIFY_VERSION,
               'analysis_tools_commit': analysis_commit,
               'analysis_tools_sha256': {k: v for k, v in provenance.code_hashes().items() if os.path.basename(k) in ANALYSIS_TOOLS}}
-    with open(os.path.join(ev, 'session_status.json'), 'w') as f:
+    # --status-out lets a corrected re-audit be written beside the preserved on-pod verdict (gate-12 f163)
+    with open(os.path.join(ev, args.status_out or 'session_status.json'), 'w') as f:
         json.dump(status, f, indent=1)
     print(f"[completeness] {args.session}: {status['verdict']} ({n_ok}/{len(mandatory)} mandatory items"
           + (f"; shakedown={status['shakedown']}; evidence grade: {status['evidence_grade']}" if args.session in ('session3', 'session4') else '') + ')')

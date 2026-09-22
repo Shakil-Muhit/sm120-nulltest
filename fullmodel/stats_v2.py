@@ -69,7 +69,7 @@ def pair_stats(ev, a, b, O, manifest_id, flags):
             'ci95_cluster_bootstrap_ms (revised; same statistic)': [lo, hi],
             'historical': {'pooled_repeat_median_ms': statistics.median(pooled), 'ci95_pooled_repeat_bootstrap_ms': [plo, phi],
                            'note': 'the historical interval resampled pooled repeats (a different statistic from the reported point estimate)'},
-            'inference_scope': 'this pod, this session, this software configuration; three restarts limit the interval to the restart-median spread'}
+            'inference_scope': f'this pod, this session, this software configuration; {len(rmeds)} restart(s) carry the between-restart information — the interval resamples restarts and then repeats within them, so it is not the restart-median range'}
 
 
 def main():

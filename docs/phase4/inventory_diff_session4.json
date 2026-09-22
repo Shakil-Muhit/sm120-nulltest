@@ -1,0 +1,459 @@
+{
+ "C3_vs_C3I_352800": {
+  "status": "ok",
+  "measurement_status": {
+   "C3": "ok",
+   "C3I": "ok"
+  },
+  "class_totals_ms_per_pass": {
+   "C3": {
+    "GEMM": 16.5104,
+    "SDPA": 3.6732,
+    "INDUCTOR_FUSED": 8.5574,
+    "COPY": 0.0421,
+    "FFT": 0.0168,
+    "OTHER": 0.0544
+   },
+   "C3I": {
+    "GEMM": 16.5211,
+    "SDPA": 3.6767,
+    "INDUCTOR_FUSED": 8.4969,
+    "COPY": 0.0285,
+    "FFT": 0.0168,
+    "OTHER": 0.0545
+   }
+  },
+  "class_deltas_ms (C3 - C3I)": {
+   "FFT": 0.0,
+   "SDPA": -0.0035,
+   "COPY": 0.0136,
+   "OTHER": -0.0001,
+   "INDUCTOR_FUSED": 0.0605,
+   "GEMM": -0.0107
+  },
+  "kernel_launches_per_pass": {
+   "C3": 1143.0,
+   "C3I": 1142.0
+  },
+  "param_only_casts": {
+   "C3": {
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.9249
+    }
+   },
+   "C3I": {
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.9234
+    }
+   }
+  },
+  "signatures_gone_in_C3I (non-cast)": {},
+  "signatures_new_in_C3I": {},
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {
+   "triton|aten.gelu|": 0.0643
+  },
+  "templates": {
+   "C3": 0,
+   "C3I": 0
+  },
+  "sum_of_class_deltas_ms": 0.0598,
+  "cast_time_ms": {
+   "C3": 0.9249,
+   "C3I": 0.9234
+  },
+  "note": "node-level traced device time per pass (caches disabled, profiler on); descriptive, not a causal split of the unprofiled matched difference"
+ },
+ "C3_vs_C3I_4410": {
+  "status": "ok",
+  "measurement_status": {
+   "C3": "ok",
+   "C3I": "ok"
+  },
+  "class_totals_ms_per_pass": {
+   "C3": {
+    "GEMM": 1.2558,
+    "SDPA": 0.1038,
+    "INDUCTOR_FUSED": 1.1668,
+    "COPY": 0.0072,
+    "FFT": 0.0049,
+    "OTHER": 0.0168
+   },
+   "C3I": {
+    "GEMM": 1.2532,
+    "SDPA": 0.1038,
+    "INDUCTOR_FUSED": 1.1577,
+    "COPY": 0.0044,
+    "FFT": 0.0049,
+    "OTHER": 0.0166
+   }
+  },
+  "class_deltas_ms (C3 - C3I)": {
+   "FFT": 0.0,
+   "SDPA": 0.0,
+   "COPY": 0.0028,
+   "OTHER": 0.0002,
+   "INDUCTOR_FUSED": 0.0091,
+   "GEMM": 0.0026
+  },
+  "kernel_launches_per_pass": {
+   "C3": 1150.0,
+   "C3I": 1149.0
+  },
+  "param_only_casts": {
+   "C3": {
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.8571
+    }
+   },
+   "C3I": {
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.8574
+    }
+   }
+  },
+  "signatures_gone_in_C3I (non-cast)": {},
+  "signatures_new_in_C3I": {},
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {},
+  "templates": {
+   "C3": 0,
+   "C3I": 0
+  },
+  "sum_of_class_deltas_ms": 0.0147,
+  "cast_time_ms": {
+   "C3": 0.8571,
+   "C3I": 0.8574
+  },
+  "note": "node-level traced device time per pass (caches disabled, profiler on); descriptive, not a causal split of the unprofiled matched difference"
+ },
+ "C3I_vs_C3G_352800": {
+  "status": "ok",
+  "measurement_status": {
+   "C3I": "ok",
+   "C3G": "ok"
+  },
+  "class_totals_ms_per_pass": {
+   "C3I": {
+    "GEMM": 16.5211,
+    "SDPA": 3.6767,
+    "INDUCTOR_FUSED": 8.4969,
+    "COPY": 0.0285,
+    "FFT": 0.0168,
+    "OTHER": 0.0545
+   },
+   "C3G": {
+    "GEMM": 16.6514,
+    "SDPA": 3.6518,
+    "INDUCTOR_FUSED": 7.2464,
+    "COPY": 0.0289,
+    "FFT": 0.017,
+    "OTHER": 0.0555
+   }
+  },
+  "class_deltas_ms (C3I - C3G)": {
+   "FFT": -0.0002,
+   "SDPA": 0.0249,
+   "COPY": -0.0004,
+   "OTHER": -0.001,
+   "INDUCTOR_FUSED": 1.2505,
+   "GEMM": -0.1303
+  },
+  "kernel_launches_per_pass": {
+   "C3I": 1142.0,
+   "C3G": 729.0
+  },
+  "param_only_casts": {
+   "C3I": {
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.9234
+    }
+   },
+   "C3G": {}
+  },
+  "signatures_gone_in_C3G (non-cast)": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.cos,aten.mul,aten.sin|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 1.3585
+   }
+  },
+  "signatures_new_in_C3G": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.mul|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 1.3897
+   },
+   "triton|aten.sigmoid|": {
+    "kernels": 12,
+    "launches": 12.0,
+    "time_ms": 0.0096
+   }
+  },
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {
+   "triton|aten._to_copy,aten.div,aten.linalg_vector_norm,aten.mul|": 0.0208,
+   "triton|aten._to_copy,aten.add,aten.div,aten.linalg_vector_norm,aten.mul|": 0.345
+  },
+  "templates": {
+   "C3I": 0,
+   "C3G": 0
+  },
+  "sum_of_class_deltas_ms": 1.1435,
+  "cast_time_ms": {
+   "C3I": 0.9234,
+   "C3G": 0
+  },
+  "note": "node-level traced device time per pass (caches disabled, profiler on); descriptive, not a causal split of the unprofiled matched difference"
+ },
+ "C3I_vs_C3G_4410": {
+  "status": "ok",
+  "measurement_status": {
+   "C3I": "ok",
+   "C3G": "ok"
+  },
+  "class_totals_ms_per_pass": {
+   "C3I": {
+    "GEMM": 1.2532,
+    "SDPA": 0.1038,
+    "INDUCTOR_FUSED": 1.1577,
+    "COPY": 0.0044,
+    "FFT": 0.0049,
+    "OTHER": 0.0166
+   },
+   "C3G": {
+    "GEMM": 1.6274,
+    "SDPA": 0.1036,
+    "INDUCTOR_FUSED": 0.3011,
+    "COPY": 0.0048,
+    "FFT": 0.005,
+    "OTHER": 0.0167
+   }
+  },
+  "class_deltas_ms (C3I - C3G)": {
+   "FFT": -0.0001,
+   "SDPA": 0.0002,
+   "COPY": -0.0004,
+   "OTHER": -0.0001,
+   "INDUCTOR_FUSED": 0.8566,
+   "GEMM": -0.3742
+  },
+  "kernel_launches_per_pass": {
+   "C3I": 1149.0,
+   "C3G": 736.0
+  },
+  "param_only_casts": {
+   "C3I": {
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.8574
+    }
+   },
+   "C3G": {}
+  },
+  "signatures_gone_in_C3G (non-cast)": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.cos,aten.mul,aten.sin|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 0.0164
+   }
+  },
+  "signatures_new_in_C3G": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.mul|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 0.0151
+   },
+   "triton|aten.sigmoid|": {
+    "kernels": 12,
+    "launches": 12.0,
+    "time_ms": 0.0067
+   }
+  },
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {},
+  "templates": {
+   "C3I": 0,
+   "C3G": 0
+  },
+  "sum_of_class_deltas_ms": 0.482,
+  "cast_time_ms": {
+   "C3I": 0.8574,
+   "C3G": 0
+  },
+  "note": "node-level traced device time per pass (caches disabled, profiler on); descriptive, not a causal split of the unprofiled matched difference"
+ },
+ "C3_vs_C3G_352800": {
+  "status": "ok",
+  "measurement_status": {
+   "C3": "ok",
+   "C3G": "ok"
+  },
+  "class_totals_ms_per_pass": {
+   "C3": {
+    "GEMM": 16.5104,
+    "SDPA": 3.6732,
+    "INDUCTOR_FUSED": 8.5574,
+    "COPY": 0.0421,
+    "FFT": 0.0168,
+    "OTHER": 0.0544
+   },
+   "C3G": {
+    "GEMM": 16.6514,
+    "SDPA": 3.6518,
+    "INDUCTOR_FUSED": 7.2464,
+    "COPY": 0.0289,
+    "FFT": 0.017,
+    "OTHER": 0.0555
+   }
+  },
+  "class_deltas_ms (C3 - C3G)": {
+   "FFT": -0.0002,
+   "SDPA": 0.0214,
+   "COPY": 0.0132,
+   "OTHER": -0.0011,
+   "INDUCTOR_FUSED": 1.311,
+   "GEMM": -0.141
+  },
+  "kernel_launches_per_pass": {
+   "C3": 1143.0,
+   "C3G": 729.0
+  },
+  "param_only_casts": {
+   "C3": {
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.9249
+    }
+   },
+   "C3G": {}
+  },
+  "signatures_gone_in_C3G (non-cast)": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.cos,aten.mul,aten.sin|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 1.3596
+   }
+  },
+  "signatures_new_in_C3G": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.mul|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 1.3897
+   },
+   "triton|aten.sigmoid|": {
+    "kernels": 12,
+    "launches": 12.0,
+    "time_ms": 0.0096
+   }
+  },
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {
+   "triton|aten._to_copy,aten.div,aten.linalg_vector_norm,aten.mul|": 0.0269,
+   "triton|aten._to_copy,aten.add,aten.div,aten.linalg_vector_norm,aten.mul|": 0.3458,
+   "triton|aten.gelu|": 0.0572
+  },
+  "templates": {
+   "C3": 0,
+   "C3G": 0
+  },
+  "sum_of_class_deltas_ms": 1.2033,
+  "cast_time_ms": {
+   "C3": 0.9249,
+   "C3G": 0
+  },
+  "note": "node-level traced device time per pass (caches disabled, profiler on); descriptive, not a causal split of the unprofiled matched difference"
+ },
+ "C3_vs_C3G_4410": {
+  "status": "ok",
+  "measurement_status": {
+   "C3": "ok",
+   "C3G": "ok"
+  },
+  "class_totals_ms_per_pass": {
+   "C3": {
+    "GEMM": 1.2558,
+    "SDPA": 0.1038,
+    "INDUCTOR_FUSED": 1.1668,
+    "COPY": 0.0072,
+    "FFT": 0.0049,
+    "OTHER": 0.0168
+   },
+   "C3G": {
+    "GEMM": 1.6274,
+    "SDPA": 0.1036,
+    "INDUCTOR_FUSED": 0.3011,
+    "COPY": 0.0048,
+    "FFT": 0.005,
+    "OTHER": 0.0167
+   }
+  },
+  "class_deltas_ms (C3 - C3G)": {
+   "FFT": -0.0001,
+   "SDPA": 0.0002,
+   "COPY": 0.0024,
+   "OTHER": 0.0001,
+   "INDUCTOR_FUSED": 0.8657,
+   "GEMM": -0.3716
+  },
+  "kernel_launches_per_pass": {
+   "C3": 1150.0,
+   "C3G": 736.0
+  },
+  "param_only_casts": {
+   "C3": {
+    "triton|aten._to_copy|param-only": {
+     "kernels": 117,
+     "launches": 420.0,
+     "time_ms": 0.8571
+    }
+   },
+   "C3G": {}
+  },
+  "signatures_gone_in_C3G (non-cast)": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.cos,aten.mul,aten.sin|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 0.0164
+   }
+  },
+  "signatures_new_in_C3G": {
+   "triton|aten._scaled_dot_product_flash_attention,aten._to_copy,aten.add,aten.mul|": {
+    "kernels": 2,
+    "launches": 12.0,
+    "time_ms": 0.0151
+   },
+   "triton|aten.sigmoid|": {
+    "kernels": 12,
+    "launches": 12.0,
+    "time_ms": 0.0067
+   }
+  },
+  "signatures_changed_time_ms (present in both, |delta| >= 0.02 ms)": {},
+  "templates": {
+   "C3": 0,
+   "C3G": 0
+  },
+  "sum_of_class_deltas_ms": 0.4967,
+  "cast_time_ms": {
+   "C3": 0.8571,
+   "C3G": 0
+  },
+  "note": "node-level traced device time per pass (caches disabled, profiler on); descriptive, not a causal split of the unprofiled matched difference"
+ },
+ "H_vs_HG_352800": {
+  "status": "UNRESOLVED",
+  "reason": "missing input: [Errno 2] No such file or directory: '/home/muhit/ms/evidence_pod/nsfwv548ifydon_20260922_2034/evidence/traces/ideal_costs_H_352800.json'"
+ },
+ "H_vs_HG_4410": {
+  "status": "UNRESOLVED",
+  "reason": "missing input: [Errno 2] No such file or directory: '/home/muhit/ms/evidence_pod/nsfwv548ifydon_20260922_2034/evidence/traces/ideal_costs_H_4410.json'"
+ }
+}
